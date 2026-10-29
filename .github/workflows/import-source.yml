@@ -1,0 +1,150 @@
+name: Import Lumen source archives
+
+on:
+  push:
+    paths:
+      - "imports/ai-frontend.zip"
+      - "imports/ai-backend.zip"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: lumen-source-import
+  cancel-in-progress: false
+
+jobs:
+  import-source:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Validate and extract source archives
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path, PurePosixPath
+          from zipfile import ZipFile
+          import re
+
+          root = Path.cwd()
+          specs = [
+              (Path("imports/ai-frontend.zip"), "ai-frontend", Path("frontend")),
+              (Path("imports/ai-backend.zip"), "ai-backend", Path("backend")),
+          ]
+          ignored_dirs = {
+              ".git", "node_modules", "__pycache__", ".pytest_cache",
+              ".mypy_cache", ".ruff_cache", ".venv", "venv", "dist",
+              "build", "coverage", ".vite", "backups",
+          }
+          forbidden_suffixes = {".pem", ".key", ".p12", ".pfx", ".sqlite", ".sqlite3", ".db", ".dump"}
+          secret_patterns = [
+              re.compile(rb"-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----"),
+              re.compile(rb"-----BEGIN PGP PRIVATE KEY BLOCK-----"),
+              re.compile(rb"\b(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,})\b"),
+              re.compile(rb"\bAIza[0-9A-Za-z_-]{35}\b"),
+              re.compile(rb"\bAKIA[0-9A-Z]{16}\b"),
+              re.compile(rb"\bsk_live_[0-9A-Za-z]{16,}\b"),
+          ]
+
+          for archive, expected_prefix, destination in specs:
+              if not archive.is_file():
+                  raise SystemExit(f"Missing required archive: {archive}. Upload both ZIP files to imports/.")
+
+              if archive.stat().st_size > 15 * 1024 * 1024:
+                  raise SystemExit(f"{archive} is unexpectedly large; review it before importing.")
+
+              destination.mkdir(parents=True, exist_ok=True)
+              total_uncompressed = 0
+              file_count = 0
+
+              with ZipFile(archive) as zf:
+                  for member in zf.infolist():
+                      parts = PurePosixPath(member.filename).parts
+                      if not parts:
+                          continue
+                      if PurePosixPath(member.filename).is_absolute() or ".." in parts:
+                          raise SystemExit(f"Unsafe archive path detected in {archive}.")
+                      if parts[0] != expected_prefix:
+                          raise SystemExit(f"Unexpected top-level folder in {archive}; expected {expected_prefix}/.")
+                      if len(parts) == 1 or member.is_dir():
+                          continue
+
+                      relative = PurePosixPath(*parts[1:])
+                      if not relative.parts or any(part in ignored_dirs for part in relative.parts):
+                          continue
+
+                      name = relative.name
+                      # Commit only example environment files; discard local environment files.
+                      if name.startswith(".env") and name != ".env.example":
+                          continue
+                      if relative.suffix.lower() in forbidden_suffixes:
+                          raise SystemExit(f"Potential secret or local data file requires manual review: {relative}")
+
+                      unix_mode = (member.external_attr >> 16) & 0o170000
+                      if unix_mode == 0o120000:
+                          raise SystemExit(f"Symbolic links are not allowed in source archives: {relative}")
+
+                      total_uncompressed += member.file_size
+                      file_count += 1
+                      if total_uncompressed > 200 * 1024 * 1024 or file_count > 5000:
+                          raise SystemExit(f"Archive exceeds safe extraction limits: {archive}")
+
+                      data = zf.read(member)
+                      for pattern in secret_patterns:
+                          if pattern.search(data):
+                              raise SystemExit(f"Possible hard-coded secret detected in {relative}; import stopped.")
+
+                      target = destination.joinpath(*relative.parts)
+                      if not target.resolve().is_relative_to(destination.resolve()):
+                          raise SystemExit(f"Unsafe extraction target: {relative}")
+                      target.parent.mkdir(parents=True, exist_ok=True)
+                      target.write_bytes(data)
+
+          (root / "frontend" / ".env.example").write_text(
+              "VITE_API_BASE_URL=http://localhost:8000\n", encoding="utf-8"
+          )
+
+          (root / "README.md").write_text(
+              "# Lumen Learning Platform\n\n"
+              "منصة تعليمية عربية/إنجليزية، بواجهة React + Vite وخلفية FastAPI + PostgreSQL.\n\n"
+              "## المجلدات\n\n"
+              "- frontend/: الواجهة الأمامية. راجع frontend/README.md.\n"
+              "- backend/: API والخدمات التعليمية. راجع backend/README.md.\n\n"
+              "## إعدادات البيئة\n\n"
+              "راجع frontend/.env.example وbackend/.env.example لإعدادات التطوير. لا ترفع أي ملف بيئة حقيقي "
+              "أو مفتاح سري. تم استبعاد ملفات .env.production و.env.development من الاستيراد.\n\n"
+              "## أسلوب العمل\n\n"
+              "الإصلاحات تُنفّذ في فروع منفصلة وتُراجع عبر Pull Requests. لا تُنشر التغييرات للإنتاج "
+              "قبل نجاح الاختبارات والتحقق اليدوي.\n",
+              encoding="utf-8",
+          )
+
+          for archive, _, _ in specs:
+              archive.unlink(missing_ok=True)
+          print("Source validated and extracted. A pull request will be created for review.")
+          PY
+
+      - name: Create source-import pull request
+        uses: peter-evans/create-pull-request@v8.1.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: chore/import-initial-source
+          delete-branch: true
+          title: "Import initial Lumen source code"
+          commit-message: "chore: import Lumen frontend and backend"
+          body: |
+            ## Initial source import
+
+            - Adds the React/Vite frontend under frontend/.
+            - Adds the FastAPI backend under backend/.
+            - Excludes local .env files and rejects known private-key/token patterns.
+            - Adds a frontend .env.example; no production configuration is set.
+
+            This is a source import only. Runtime tests and security fixes will be handled in separate reviewed changes.
+          labels: |
+            maintenance
+            security
