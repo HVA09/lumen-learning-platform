@@ -169,7 +169,9 @@ async def fetch_platform_public_key(jwks_url: str, kid: str):
     return matching_key
 
 
-async def verify_platform_id_token(id_token: str, platform, expected_nonce: str) -> dict:
+async def verify_platform_id_token(
+    id_token: str, platform, expected_nonce: str, expected_target_link_uri: str
+) -> dict:
     """يتحقق من التوقيع والمصدر والجمهور وnonce وdeployment_id."""
     unverified_header = jwt.get_unverified_header(id_token)
     kid = unverified_header.get("kid")
@@ -212,6 +214,10 @@ async def verify_platform_id_token(id_token: str, platform, expected_nonce: str)
     deployment_claim = "https://purl.imsglobal.org/spec/lti/claim/deployment_id"
     if claims.get(deployment_claim) != platform.deployment_id:
         raise ValueError("deployment_id غير مطابق")
+
+    target_link_claim = "https://purl.imsglobal.org/spec/lti/claim/target_link_uri"
+    if claims.get(target_link_claim) != expected_target_link_uri:
+        raise ValueError("target_link_uri claim لا يطابق عنوان البدء المسجل")
     return claims
 
 
