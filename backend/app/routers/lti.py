@@ -68,14 +68,12 @@ def get_jwks():
     return build_tool_jwks()
 
 
-@router.get("/login")
-@router.post("/login")
-async def lti_login(
-    iss: str = Query(..., min_length=1, max_length=500),
-    login_hint: str = Query(..., min_length=1, max_length=2000),
-    target_link_uri: str = Query(..., min_length=1, max_length=1000),
-    client_id: str | None = Query(None, max_length=255),
-    db: Session = Depends(get_db),
+async def _start_lti_login(
+    iss: str,
+    login_hint: str,
+    target_link_uri: str,
+    client_id: str | None,
+    db: Session,
 ):
     """خطوة OIDC الأولى — تنشئ state عشوائيًا مرتبطًا بالمنصة والـ nonce."""
     platform_query = db.query(LTIPlatform).filter(LTIPlatform.issuer == iss)
@@ -122,7 +120,6 @@ async def lti_login(
 
     nonce = new_nonce()
     state = create_login_state(db, platform.id, nonce, target_link_uri)
-
     auth_params = {
         "scope": "openid",
         "response_type": "id_token",
@@ -135,6 +132,30 @@ async def lti_login(
         "prompt": "none",
     }
     return _no_store_redirect(f"{platform.auth_login_url}?{urlencode(auth_params)}")
+
+
+@router.get("/login")
+async def lti_login_get(
+    iss: str = Query(..., min_length=1, max_length=500),
+    login_hint: str = Query(..., min_length=1, max_length=2000),
+    target_link_uri: str = Query(..., min_length=1, max_length=1000),
+    client_id: str | None = Query(None, max_length=255),
+    db: Session = Depends(get_db),
+):
+    """دعم OIDC third-party initiated login الذي يرسل الحقول في query string."""
+    return await _start_lti_login(iss, login_hint, target_link_uri, client_id, db)
+
+
+@router.post("/login")
+async def lti_login_post(
+    iss: str = Form(..., min_length=1, max_length=500),
+    login_hint: str = Form(..., min_length=1, max_length=2000),
+    target_link_uri: str = Form(..., min_length=1, max_length=1000),
+    client_id: str | None = Form(None, max_length=255),
+    db: Session = Depends(get_db),
+):
+    """دعم OIDC third-party initiated login الذي يرسل الحقول عبر form POST."""
+    return await _start_lti_login(iss, login_hint, target_link_uri, client_id, db)
 
 
 @router.post("/launch")
