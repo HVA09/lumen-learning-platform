@@ -151,11 +151,24 @@ def test_full_launch_flow_issues_single_use_exchange_code(client, db_session, mo
             "https://mylumen.example.com/lti/launch",
     }
     id_token = jwt.encode(claims, pem, algorithm="RS256", headers={"kid": "platform-key-1"})
+    mismatched_claims = {
+        **claims,
+        "https://purl.imsglobal.org/spec/lti/claim/target_link_uri":
+            "https://attacker.example/lti/launch",
+    }
+    mismatched_token = jwt.encode(
+        mismatched_claims, pem, algorithm="RS256", headers={"kid": "platform-key-1"}
+    )
 
     async def fake_fetch_key(jwks_url, kid):
         return platform_jwk
 
     monkeypatch.setattr(lti_service_module, "fetch_platform_public_key", fake_fetch_key)
+
+    mismatch_response = client.post(
+        "/lti/launch", data={"id_token": mismatched_token, "state": state}, follow_redirects=False
+    )
+    assert mismatch_response.status_code == 401
 
     launch_response = client.post(
         "/lti/launch", data={"id_token": id_token, "state": state}, follow_redirects=False
