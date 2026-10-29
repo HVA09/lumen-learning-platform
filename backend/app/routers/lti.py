@@ -3,6 +3,7 @@
 لا تُرسل access/refresh tokens عبر URL مطلقًا.
 """
 import secrets
+from hashlib import sha256
 from urllib.parse import urlencode, urlsplit
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Response, status
@@ -183,16 +184,23 @@ async def lti_launch(
         if user is None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="حساب Lumen غير متاح")
     else:
-        email = claims.get("email") or f"lti_{platform.id}_{lti_subject}@lti.local"
-        if not isinstance(email, str) or len(email) > 255:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="البريد المرسل من المنصة غير صالح")
-        user = db.query(User).filter(User.email == email).first()
+        # Do not attach an unlinked LTI subject to an existing local account by
+        # email alone. Email claims may be absent/unverified or controlled by
+        # the LMS tenant; account linking must be an explicit authenticated flow.
+        subject_digest = sha256(lti_subject.encode("utf-8")).hexdigest()
+        identity_email = f"lti_{platform.id}_{subject_digest}@lti.local"
+        user = db.query(User).filter(User.email == identity_email).first()
         if not user:
+            display_name = claims.get("name")
+            if not isinstance(display_name, str):
+                display_name = None
+            else:
+                display_name = display_name[:255]
             user = User(
-                email=email,
+                email=identity_email,
                 hashed_password=hash_password(secrets.token_urlsafe(32)),
-                full_name=claims.get("name"),
-                is_email_verified=True,
+                full_name=display_name,
+                is_email_verified=False,
             )
             db.add(user)
             db.commit()
