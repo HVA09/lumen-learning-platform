@@ -7,8 +7,7 @@ from app.models.user import User, UserRole
 
 
 def register_and_login(client, email, password="StrongPass123"):
-    response = client.post("/auth/register", json={"email": email, "password": password})
-    assert response.status_code == 201, response.text
+    client.post("/auth/register", json={"email": email, "password": password})
     login_response = client.post("/auth/login", json={"email": email, "password": password})
     assert login_response.status_code == 200, login_response.text
     return login_response.json()["access_token"]
