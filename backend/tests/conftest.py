@@ -10,14 +10,14 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.content.seeder import seed_all
-from app.database import Base, get_db
+from app.database import Base, get_db, normalize_database_url
 from app.main import app
 
 TEST_DATABASE_URL = os.getenv(
     "TEST_DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/ai_backend_test"
 )
 
-engine = create_engine(TEST_DATABASE_URL)
+engine = create_engine(normalize_database_url(TEST_DATABASE_URL))
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
