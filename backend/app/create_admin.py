@@ -7,6 +7,7 @@ This is intentionally not an HTTP endpoint.
 from getpass import getpass
 
 from sqlalchemy import func
+from pydantic import EmailStr, TypeAdapter, ValidationError
 from sqlalchemy.orm import Session
 
 from app.auth.security import hash_password
@@ -15,9 +16,10 @@ from app.models.user import User, UserRole
 
 
 def create_admin_user(db: Session, email: str, password: str) -> User:
-    normalized_email = email.strip().lower()
-    if "@" not in normalized_email or len(normalized_email) > 255:
-        raise ValueError("Enter a valid email address.")
+    try:
+        normalized_email = str(TypeAdapter(EmailStr).validate_python(email.strip())).lower()
+    except ValidationError as exc:
+        raise ValueError("Enter a valid email address.") from exc
     if len(password) < 8:
         raise ValueError("The password must contain at least 8 characters.")
     if db.query(func.count(User.id)).filter(User.role == UserRole.admin).scalar():
