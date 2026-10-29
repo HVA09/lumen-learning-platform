@@ -106,6 +106,25 @@ def test_login_redirects_to_platform_auth_endpoint(client, db_session):
     assert response.headers["cache-control"] == "no-store"
 
 
+def test_login_accepts_form_post(client, db_session):
+    admin_token = _register_admin(client, db_session, "postlogin@example.com")
+    platform = _register_platform(client, admin_token)
+    response = client.post(
+        "/lti/login",
+        data={
+            "iss": platform["issuer"],
+            "login_hint": "student-post",
+            "target_link_uri": "https://mylumen.example.com/lti/launch",
+            "client_id": platform["client_id"],
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    assert "moodle.example.com/auth" in response.headers["location"]
+    assert "state=" in response.headers["location"]
+    assert "nonce=" in response.headers["location"]
+
+
 def test_full_launch_flow_issues_single_use_exchange_code(client, db_session, monkeypatch):
     admin_token = _register_admin(client, db_session, "launchflow@example.com")
     platform_data = _register_platform(client, admin_token)
