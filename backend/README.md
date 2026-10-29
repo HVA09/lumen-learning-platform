@@ -36,7 +36,7 @@ Dockerfile, docker-compose.yml
 انسخ `.env.example` إلى `.env` واملأ:
 
 - `POSTGRES_PASSWORD` — كلمة مرور قاعدة البيانات
-- `JWT_SECRET_KEY` — قيمة عشوائية طويلة (`openssl rand -hex 32`)
+- `JWT_SECRET_KEY` — قيمة عشوائية طويلة (`openssl rand -hex 32`); إعدادات الإنتاج ترفض القيم الافتراضية الضعيفة.
 
 باقي القيم (SMTP، الدفع، LTI...) اختيارية — كل شي يشتغل بدونها بوضع تطوير مريح
 (الإيميلات تُطبع باللوق، الدفع والـ LTI معطّلين لين تعبّي مفاتيحهم).
@@ -82,8 +82,8 @@ docker compose up --build
 
 ## ربط الفرونت اند (React + Vite)
 
-- `CORS_ORIGINS` مضبوط افتراضيًا على `http://localhost:5173` (منفذ Vite dev server)
-- منفذ 8000 منشور على الجهاز مباشرة في docker-compose، فمشروع الفرونت (`.env.development`
+- `CORS_ORIGINS` مضبوط افتراضيًا على `http://localhost:5173` (منفذ Vite dev server). في الإنتاج استخدم origins موثوقة بـ HTTPS فقط.
+- منفذ API 8000 مربوط افتراضيًا على `127.0.0.1` في docker-compose لتجنّب الوصول العام المباشر؛ اجعل Nginx هو مدخل الشبكة. مشروع الفرونت (`.env.development`
   فيه `VITE_API_BASE_URL=http://localhost:8000`) يوصله بدون أي إعداد إضافي
 - عند النشر: حدّث `CORS_ORIGINS` ليشمل دومين الفرونت الحقيقي
 
@@ -143,8 +143,10 @@ alembic upgrade head
 
 ## ملاحظات
 
-- أول إيميل يسجّل بالنظام يصير `admin` تلقائيًا — سجّل حسابك الشخصي أول واحد، وبعدها
-  رقّي أي مستخدم لدور `teacher` من `/admin/users/{id}` (`PATCH`، بحقل `role`).
+- التسجيل العام ينشئ حسابًا بدور `user` فقط. لإنشاء أول مدير، شغّل بعد تطبيق migrations
+  ومن داخل مجلد `backend`: `python -m app.create_admin`. هذا أمر CLI محلي تفاعلي وليس endpoint
+  عامًا؛ يرفض إنشاء مدير آخر إذا كان هناك مدير قائم.
+- بعد إنشاء المدير، رقِّ حسابات المعلّمين الموثوقين من `/admin/users/{id}` (`PATCH`، بحقل `role`).
 - المعلّم (`teacher`) يقدر: ينشئ دروسًا وأسئلة (`/content`)، ينشئ واجبات ويقيّمها
   يدويًا، ويتخطى قفل المواضيع بالمتطلبات السابقة. الـ `admin` عنده نفس صلاحيات
   المعلّم بالإضافة للوحة الإدارة الكاملة.
@@ -232,7 +234,7 @@ alembic upgrade head
 **خطوات الربط:**
 1. ولّد مفتاح التوقيع الخاص بأداتك: `python scripts/generate_lti_key.py`، وحط الناتج
    بمتغيّر `LTI_TOOL_PRIVATE_KEY` بـ `.env`
-2. بلوحة إدارة Moodle: أنشئ "External Tool" جديدة بصيغة LTI 1.3، واستخدم:
+2. اضبط `LTI_TARGET_LINK_URI=https://your-domain.com/lti/launch` في بيئة الإنتاج، ثم بلوحة إدارة Moodle أنشئ "External Tool" بصيغة LTI 1.3، واستخدم:
    - Login URL: `https://your-domain.com/lti/login`
    - Redirect URL: `https://your-domain.com/lti/launch`
    - JWKS URL (لأداتك): `https://your-domain.com/lti/jwks`
@@ -240,6 +242,8 @@ alembic upgrade head
 4. سجّل هذي المعلومات بأداتك عبر `POST /lti/platforms` (admin فقط)
 5. من داخل Moodle، أنشئ نشاط "External Tool" يستخدم الأداة المسجّلة — الطلاب يدخلون
    Lumen مباشرة من الكورس بدون تسجيل دخول منفصل
+
+**الأمان:** يجب أن يطابق `target_link_uri` القيمة المضبوطة في `LTI_TARGET_LINK_URI` بالإنتاج. عند نجاح الإطلاق يُمرر رمز عشوائي قصير العمر وأحادي الاستخدام، ويُستبدل عبر `POST /lti/exchange-code`؛ لا تُمرر JWT tokens في URL. حالة OIDC نفسها تُخزّن كـ hash وتُستهلك مرة واحدة.
 
 **ملاحظة:** تصحيح الدرجات التلقائي (Grade Passback / AGS) ما بُني بهذي المرحلة —
 المستخدم يدخل ويشتغل بـ Lumen عاديًا، بس درجاته ما ترجع تلقائيًا لسجل درجات Moodle.
