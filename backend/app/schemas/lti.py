@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class LTIPlatformCreate(BaseModel):
@@ -21,4 +21,4 @@ class LTIPlatformOut(BaseModel):
 
 
 class LTIExchangeCodeRequest(BaseModel):
-    code: str
+    code: str = Field(min_length=32, max_length=256)
