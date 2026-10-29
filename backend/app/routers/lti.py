@@ -5,7 +5,6 @@ from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
-from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -86,6 +85,9 @@ async def lti_login(
     nonce = new_nonce()
     state = secrets.token_urlsafe(32)
     now = datetime.now(timezone.utc)
+    # نظّف الرموز المنتهية حتى لا تنمو جداول التدفق بلا حدود.
+    db.query(LTIAuthState).filter(LTIAuthState.expires_at <= now).delete(synchronize_session=False)
+    db.query(LTIAuthCode).filter(LTIAuthCode.expires_at <= now).delete(synchronize_session=False)
     db.add(
         LTIAuthState(
             state_hash=hash_opaque_token(state),
