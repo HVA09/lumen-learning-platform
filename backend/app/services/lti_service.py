@@ -187,6 +187,26 @@ async def verify_platform_id_token(id_token: str, platform, expected_nonce: str)
         options={"verify_at_hash": False},
     )
 
+    required_claims = ("iss", "aud", "sub", "exp", "iat", "nonce")
+    if any(name not in claims for name in required_claims):
+        raise ValueError("id_token يفتقد claim إلزاميًا")
+
+    now = datetime.now(timezone.utc).timestamp()
+    issued_at = claims["iat"]
+    expires_at = claims["exp"]
+    if (
+        isinstance(issued_at, bool)
+        or not isinstance(issued_at, (int, float))
+        or isinstance(expires_at, bool)
+        or not isinstance(expires_at, (int, float))
+        or expires_at <= now
+        or issued_at > now + 60
+        or expires_at <= issued_at
+    ):
+        raise ValueError("مدة صلاحية id_token غير صالحة")
+
+    if not isinstance(claims["sub"], str) or not claims["sub"]:
+        raise ValueError("sub غير صالح")
     if claims.get("nonce") != expected_nonce:
         raise ValueError("nonce غير مطابق")
     deployment_claim = "https://purl.imsglobal.org/spec/lti/claim/deployment_id"
