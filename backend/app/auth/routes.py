@@ -73,7 +73,8 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
     )
 
     user = db.query(User).filter(User.email == payload.email).first()
-    if not user:
+    if not user or not user.is_active:
+        # Keep the response identical for missing and deactivated accounts.
         raise invalid_credentials_error
 
     # حماية ضد Brute Force: الحساب مقفل مؤقتًا بعد محاولات فاشلة كثيرة
