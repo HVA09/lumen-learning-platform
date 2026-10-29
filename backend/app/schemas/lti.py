@@ -18,3 +18,7 @@ class LTIPlatformOut(BaseModel):
     issuer: str
     client_id: str
     deployment_id: str
+
+
+class LTIExchangeCodeRequest(BaseModel):
+    code: str
