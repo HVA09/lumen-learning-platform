@@ -3,11 +3,13 @@
 """
 from app.models.question import Question
 from app.models.question_result import QuestionResult
+from app.models.user import UserRole
 from tests.quiz_helpers import (
     auth,
     make_student,
     make_teacher,
     register_and_login,
+    set_role,
     take_quiz,
     topic_id_by_slug,
 )
@@ -122,8 +124,9 @@ def test_question_for_unknown_topic_404(client, db_session):
     assert response.status_code == 404
 
 
-def test_admin_can_manage_content_too(client):
-    admin_token = register_and_login(client, "contentadmin@example.com")  # أول مستخدم = admin
+def test_admin_can_manage_content_too(client, db_session):
+    admin_token = register_and_login(client, "contentadmin@example.com")
+    set_role(db_session, "contentadmin@example.com", UserRole.admin)
     topic_id = topic_id_by_slug(client, "linear-equations")
     response = client.post(
         f"/content/topics/{topic_id}/questions", json=VALID_MCQ, headers=auth(admin_token)
