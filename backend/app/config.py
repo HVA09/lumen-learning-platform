@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     # عام
     APP_NAME: str = "Lumen"
     ENVIRONMENT: str = "development"
-    DEBUG: bool = True
+    DEBUG: bool = False
 
     # قاعدة البيانات (PostgreSQL)
     DATABASE_URL: str
