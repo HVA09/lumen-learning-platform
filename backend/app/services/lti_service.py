@@ -7,6 +7,7 @@
 تجريبي (Moodle sandbox) قبل الاعتماد عليه بالإنتاج، ومن المتوقع تحتاج تعديلات
 طفيفة حسب تفاصيل المنصة اللي تربطها.
 """
+import hashlib
 import time
 import uuid
 
@@ -19,6 +20,12 @@ from jose.utils import long_to_base64url
 from app.config import settings
 
 LTI_STATE_TTL_SECONDS = 600  # 10 دقايق كافية لإكمال تدفق OIDC
+LTI_AUTH_CODE_TTL_SECONDS = 60  # رمز تبادل الدخول صالح لدقيقة واحدة
+
+
+def hash_opaque_token(token: str) -> str:
+    """يُخزَّن hash الرموز العشوائية بدل قيمتها الخام في قاعدة البيانات."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 def build_tool_jwks() -> dict:
