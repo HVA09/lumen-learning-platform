@@ -4,7 +4,6 @@
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 import secrets
-import uuid
 
 import httpx
 from cryptography.hazmat.primitives import serialization
@@ -252,4 +251,4 @@ async def verify_platform_id_token(
 
 
 def new_nonce() -> str:
-    return uuid.uuid4().hex
+    return secrets.token_urlsafe(32)
