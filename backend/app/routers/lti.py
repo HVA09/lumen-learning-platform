@@ -1,9 +1,9 @@
 """مسارات تكامل LTI 1.3 مع استخدام state ورمز تبادل أحاديي الاستخدام."""
 import secrets
 from datetime import datetime, timedelta, timezone
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Response, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -26,6 +26,18 @@ from app.services.lti_service import (
 )
 
 router = APIRouter(prefix="/lti", tags=["LTI"])
+
+
+def _no_store_redirect(url: str) -> RedirectResponse:
+    return RedirectResponse(
+        url,
+        status_code=status.HTTP_302_FOUND,
+        headers={
+            "Cache-Control": "no-store",
+            "Pragma": "no-cache",
+            "Referrer-Policy": "no-referrer",
+        },
+    )
 
 
 @router.post("/platforms", response_model=LTIPlatformOut, status_code=status.HTTP_201_CREATED)
@@ -55,13 +67,28 @@ def get_jwks():
 @router.get("/login")
 @router.post("/login")
 async def lti_login(
-    iss: str = Query(...),
-    login_hint: str = Query(...),
-    target_link_uri: str = Query(...),
-    client_id: str | None = Query(None),
+    iss: str = Query(..., min_length=1, max_length=500),
+    login_hint: str = Query(..., min_length=1, max_length=2000),
+    target_link_uri: str = Query(..., min_length=1, max_length=1000),
+    client_id: str | None = Query(None, max_length=255),
     db: Session = Depends(get_db),
 ):
     """يبدأ OIDC بعد مطابقة target_link_uri الثابت عند ضبطه."""
+    target = urlsplit(target_link_uri)
+    if (
+        target.scheme not in {"https", "http"}
+        or not target.netloc
+        or target.username is not None
+        or target.password is not None
+        or target.fragment
+    ):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="target_link_uri غير صالح")
+    if target.scheme == "http" and target.hostname not in {"localhost", "127.0.0.1", "::1"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="يجب استخدام HTTPS في target_link_uri خارج التطوير المحلي",
+        )
+
     configured_target = settings.LTI_TARGET_LINK_URI.strip()
     if settings.ENVIRONMENT.strip().lower() == "production" and not configured_target:
         raise HTTPException(
@@ -110,13 +137,13 @@ async def lti_login(
         "response_mode": "form_post",
         "prompt": "none",
     }
-    return RedirectResponse(f"{platform.auth_login_url}?{urlencode(auth_params)}")
+    return _no_store_redirect(f"{platform.auth_login_url}?{urlencode(auth_params)}")
 
 
 @router.post("/launch")
 async def lti_launch(
-    id_token: str = Form(...),
-    state: str = Form(...),
+    id_token: str = Form(..., max_length=20000),
+    state: str = Form(..., min_length=20, max_length=256),
     db: Session = Depends(get_db),
 ):
     """يتحقق من حالة OIDC غير المستعملة، ثم يصدر رمز تبادل قصير العمر فقط."""
@@ -147,7 +174,9 @@ async def lti_launch(
             detail="تعذّر التحقق من تسجيل الدخول عبر منصة التعليم",
         )
 
-    lti_subject = claims["sub"]
+    lti_subject = claims.get("sub")
+    if not isinstance(lti_subject, str) or not lti_subject or len(lti_subject) > 255:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="معرّف مستخدم LTI غير صالح")
     link = (
         db.query(LTIUserLink)
         .filter(LTIUserLink.platform_id == platform.id, LTIUserLink.lti_subject == lti_subject)
@@ -200,7 +229,7 @@ async def lti_launch(
         f"{settings.FRONTEND_URL.rstrip('/')}/lti-callback#"
         f"{urlencode({'code': exchange_code})}"
     )
-    return RedirectResponse(redirect_url, status_code=status.HTTP_302_FOUND)
+    return _no_store_redirect(redirect_url)
 
 
 @router.post("/exchange-code", response_model=Token)
