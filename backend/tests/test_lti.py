@@ -147,6 +147,9 @@ def test_full_launch_flow_issues_single_use_exchange_code(client, db_session, mo
         "name": "طالب تجريبي",
         "email": "student42@moodle.example.com",
         "https://purl.imsglobal.org/spec/lti/claim/deployment_id": platform_data["deployment_id"],
+        "https://purl.imsglobal.org/spec/lti/claim/message_type": "LtiResourceLinkRequest",
+        "https://purl.imsglobal.org/spec/lti/claim/version": "1.3.0",
+        "https://purl.imsglobal.org/spec/lti/claim/resource_link": {"id": "resource-42"},
         "https://purl.imsglobal.org/spec/lti/claim/target_link_uri":
             "https://mylumen.example.com/lti/launch",
     }
