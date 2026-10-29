@@ -62,24 +62,35 @@ async def upload_file(
         )
 
     max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
-    contents = await file.read()
-    if len(contents) > max_bytes:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"الملف أكبر من الحد المسموح ({settings.MAX_UPLOAD_SIZE_MB} ميجابايت)",
-        )
-
     extension = Path(file.filename or "").suffix
     stored_filename = f"{uuid.uuid4().hex}{extension}"
     destination = _user_upload_dir(current_user.id) / stored_filename
-    destination.write_bytes(contents)
+    size_bytes = 0
+
+    # Read in bounded chunks so an oversized upload is rejected without loading
+    # the entire file into memory.
+    try:
+        with destination.open("wb") as output:
+            while chunk := await file.read(64 * 1024):
+                size_bytes += len(chunk)
+                if size_bytes > max_bytes:
+                    raise HTTPException(
+                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        detail=f"الملف أكبر من الحد المسموح ({settings.MAX_UPLOAD_SIZE_MB} ميجابايت)",
+                    )
+                output.write(chunk)
+    except Exception:
+        destination.unlink(missing_ok=True)
+        raise
+    finally:
+        await file.close()
 
     attachment = FileAttachment(
         user_id=current_user.id,
         original_filename=file.filename or stored_filename,
         stored_filename=stored_filename,
         content_type=file.content_type,
-        size_bytes=len(contents),
+        size_bytes=size_bytes,
     )
     db.add(attachment)
     db.commit()
