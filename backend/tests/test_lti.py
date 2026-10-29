@@ -2,6 +2,7 @@
 اختبارات LTI 1.3: تتحقق من التوقيع، state أحادي الاستخدام، وعدم كشف JWT في URL.
 """
 from urllib.parse import parse_qs, urlparse
+import time
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -56,11 +57,7 @@ def test_register_and_list_platforms_requires_admin(client, db_session):
     platform = _register_platform(client, admin_token)
     assert platform["issuer"] == "https://moodle.example.com"
 
-    non_admin_token = client.post(
-        "/auth/login",
-        json={"email": "ltiadmin@example.com", "password": "StrongPass123"},
-    ).json()["access_token"]
-    # The test user is deliberately promoted to admin above, so use a separate regular user.
+    # Use a separate regular account to confirm that the management endpoint is admin-only.
     client.post("/auth/register", json={"email": "notadmin@example.com", "password": "StrongPass123"})
     non_admin_token = client.post(
         "/auth/login", json={"email": "notadmin@example.com", "password": "StrongPass123"}
@@ -132,9 +129,11 @@ def test_full_launch_flow_issues_single_use_exchange_code(client, db_session, mo
         encryption_algorithm=serialization.NoEncryption(),
     ).decode()
 
+    now = int(time.time())
     claims = {
         "iss": platform_data["issuer"], "aud": platform_data["client_id"],
-        "sub": "moodle-student-42", "nonce": nonce, "name": "طالب تجريبي",
+        "sub": "moodle-student-42", "nonce": nonce, "iat": now, "exp": now + 300,
+        "name": "طالب تجريبي",
         "email": "student42@moodle.example.com",
         "https://purl.imsglobal.org/spec/lti/claim/deployment_id": platform_data["deployment_id"],
     }
