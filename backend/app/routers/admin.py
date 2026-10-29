@@ -11,7 +11,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.audit import log_event
-from app.cache import cache_get, cache_set
+from app.cache import cache_delete, cache_get, cache_set
 from app.config import settings as app_settings
 from app.database import get_db
 from app.dependencies import require_admin
@@ -184,6 +184,7 @@ def update_user(
         setattr(user, field, value)
     db.commit()
     db.refresh(user)
+    cache_delete("admin:stats")
     log_event(
         db, "admin_user_updated", f"admin {admin.email} عدّل المستخدم {user.email}: {data}", admin.id
     )
@@ -208,6 +209,7 @@ def delete_user(
     log_event(db, "admin_user_deleted", f"admin {admin.email} حذف المستخدم {user.email}", admin.id)
     db.delete(user)
     db.commit()
+    cache_delete("admin:stats")
 
 
 @router.get("/logs", response_model=list[AuditLogOut])
