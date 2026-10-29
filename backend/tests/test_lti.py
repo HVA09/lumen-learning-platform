@@ -101,6 +101,7 @@ def test_login_redirects_to_platform_auth_endpoint(client, db_session):
             "iss": platform["issuer"], "login_hint": "student1",
             "target_link_uri": "https://mylumen.example.com/lti/launch",
             "client_id": platform["client_id"],
+            "lti_message_hint": "opaque+message/hint-42",
         },
         follow_redirects=False,
     )
@@ -108,6 +109,8 @@ def test_login_redirects_to_platform_auth_endpoint(client, db_session):
     assert "moodle.example.com/auth" in response.headers["location"]
     assert "state=" in response.headers["location"]
     assert "nonce=" in response.headers["location"]
+    redirect_params = parse_qs(urlparse(response.headers["location"]).query)
+    assert redirect_params["lti_message_hint"] == ["opaque+message/hint-42"]
     assert response.headers["cache-control"] == "no-store"
 
 
@@ -121,6 +124,7 @@ def test_login_accepts_form_post(client, db_session):
             "login_hint": "student-post",
             "target_link_uri": "https://mylumen.example.com/lti/launch",
             "client_id": platform["client_id"],
+            "lti_message_hint": "post opaque/hint+42",
         },
         follow_redirects=False,
     )
@@ -128,6 +132,8 @@ def test_login_accepts_form_post(client, db_session):
     assert "moodle.example.com/auth" in response.headers["location"]
     assert "state=" in response.headers["location"]
     assert "nonce=" in response.headers["location"]
+    redirect_params = parse_qs(urlparse(response.headers["location"]).query)
+    assert redirect_params["lti_message_hint"] == ["post opaque/hint+42"]
 
 
 def test_full_launch_flow_issues_single_use_exchange_code(client, db_session, monkeypatch):
