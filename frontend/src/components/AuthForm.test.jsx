@@ -75,7 +75,7 @@ describe("AuthForm", () => {
     await waitFor(() =>
       expect(authApi.registerUser).toHaveBeenCalledWith("new@example.com", "StrongPass123")
     );
-    expect(authApi.loginUser).toHaveBeenCalledWith("new@example.com", "StrongPass123");
+    expect(authApi.loginUser).toHaveBeenCalledWith("new@example.com", "StrongPass123", null);
     expect(onAuthenticated).toHaveBeenCalled();
   });
 });
