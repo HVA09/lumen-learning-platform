@@ -4,6 +4,10 @@
 """
 import os
 
+# Tests explicitly use a non-production mode; the application default is fail-closed.
+os.environ.setdefault("ENVIRONMENT", "test")
+os.environ.setdefault("DEBUG", "false")
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
