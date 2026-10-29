@@ -189,9 +189,40 @@ async def verify_platform_id_token(
         options={"verify_at_hash": False},
     )
 
-    required_claims = ("iss", "aud", "sub", "exp", "iat", "nonce")
+    message_type_claim = "https://purl.imsglobal.org/spec/lti/claim/message_type"
+    version_claim = "https://purl.imsglobal.org/spec/lti/claim/version"
+    target_link_claim = "https://purl.imsglobal.org/spec/lti/claim/target_link_uri"
+    resource_link_claim = "https://purl.imsglobal.org/spec/lti/claim/resource_link"
+    required_claims = (
+        "iss", "aud", "sub", "exp", "iat", "nonce",
+        message_type_claim, version_claim, target_link_claim, resource_link_claim,
+    )
     if any(name not in claims for name in required_claims):
         raise ValueError("id_token يفتقد claim إلزاميًا")
+
+    # OpenID Connect requires azp validation when an ID Token has multiple audiences.
+    authorized_party = claims.get("azp")
+    audience = claims["aud"]
+    if authorized_party is not None and authorized_party != platform.client_id:
+        raise ValueError("azp لا يطابق client_id المسجل")
+    if isinstance(audience, list) and len(audience) > 1 and authorized_party != platform.client_id:
+        raise ValueError("aud متعدد القيم ويتطلب azp مطابقًا لـ client_id")
+
+    if claims.get(message_type_claim) != "LtiResourceLinkRequest":
+        raise ValueError("نوع رسالة LTI غير مدعوم")
+    if claims.get(version_claim) != "1.3.0":
+        raise ValueError("إصدار LTI غير مدعوم")
+    resource_link = claims.get(resource_link_claim)
+    if not isinstance(resource_link, dict):
+        raise ValueError("resource_link claim غير صالح")
+    resource_link_id = resource_link.get("id")
+    if (
+        not isinstance(resource_link_id, str)
+        or not resource_link_id
+        or len(resource_link_id) > 255
+        or not resource_link_id.isascii()
+    ):
+        raise ValueError("resource_link.id غير صالح")
 
     now = datetime.now(timezone.utc).timestamp()
     issued_at = claims["iat"]
@@ -215,7 +246,6 @@ async def verify_platform_id_token(
     if claims.get(deployment_claim) != platform.deployment_id:
         raise ValueError("deployment_id غير مطابق")
 
-    target_link_claim = "https://purl.imsglobal.org/spec/lti/claim/target_link_uri"
     if claims.get(target_link_claim) != expected_target_link_uri:
         raise ValueError("target_link_uri claim لا يطابق عنوان البدء المسجل")
     return claims
