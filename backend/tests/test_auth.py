@@ -1,5 +1,6 @@
 """
-اختبارات مسارات المصادقة: تسجيل، دخول، وحماية المسارات الخاصة
+اختبارات مسارات المصادقة: تسجيل، دخول، وحماية المسارات الخاصة.
+التسجيل العام لا يمنح أي مستخدم دور admin، بما في ذلك أول مستخدم.
 """
 from app.models.user import User
 
@@ -11,6 +12,7 @@ def test_register_new_user(client):
     assert response.status_code == 201
     body = response.json()
     assert body["email"] == "test@example.com"
+    assert body["role"] == "user"
     assert "hashed_password" not in body
 
 
@@ -29,11 +31,11 @@ def test_register_rejects_short_password(client):
     assert response.status_code == 422
 
 
-def test_first_user_becomes_admin(client):
+def test_first_user_does_not_become_admin(client):
     response = client.post(
         "/auth/register", json={"email": "first@example.com", "password": "StrongPass123"}
     )
-    assert response.json()["role"] == "admin"
+    assert response.json()["role"] == "user"
 
 
 def test_second_user_is_regular(client):
