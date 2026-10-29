@@ -204,6 +204,8 @@ alembic upgrade head
 
 ## النشر: HTTPS، النسخ الاحتياطي، والمراقبة
 
+قبل النشر، اضبط `ENVIRONMENT=production` و`DEBUG=false` في إعدادات البيئة الفعلية. لا تعتمد على `ENVIRONMENT=development` الموجود في `.env.example`؛ هذا الملف للتطوير المحلي. عند استخدام LTI، اضبط أيضًا `LTI_ALLOWED_TARGET_LINK_URIS` كمصفوفة JSON من عناوين الإطلاق المسجّلة حرفيًا.
+
 **HTTPS (Let's Encrypt مجانًا):**
 1. عدّل `nginx/nginx.conf`: استبدل placeholder بدومينك بالجزء المعلَّق (تعليمات داخل الملف)
 2. شغّل `docker compose up -d nginx` أول (بدون HTTPS بعد)
