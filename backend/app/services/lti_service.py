@@ -2,13 +2,13 @@
 منطق LTI 1.3: بناء JWKS والتحقق من id_token وإدارة state ورموز تبادل أحادية الاستخدام.
 """
 from datetime import datetime, timedelta, timezone
+import base64
 from hashlib import sha256
 import secrets
 
 import httpx
 from cryptography.hazmat.primitives import serialization
 from jose import jwk, jwt
-from jose.utils import long_to_base64url
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -20,6 +20,11 @@ LTI_AUTH_CODE_TTL_SECONDS = 60
 
 def _hash_secret(value: str) -> str:
     return sha256(value.encode("utf-8")).hexdigest()
+
+
+def _int_to_base64url(value: int) -> str:
+    raw = value.to_bytes(max(1, (value.bit_length() + 7) // 8), "big")
+    return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
 
 
 def build_tool_jwks() -> dict:
@@ -38,8 +43,8 @@ def build_tool_jwks() -> dict:
                 "use": "sig",
                 "alg": "RS256",
                 "kid": settings.LTI_TOOL_KID,
-                "n": long_to_base64url(public_numbers.n).decode(),
-                "e": long_to_base64url(public_numbers.e).decode(),
+                "n": _int_to_base64url(public_numbers.n),
+                "e": _int_to_base64url(public_numbers.e),
             }
         ]
     }
