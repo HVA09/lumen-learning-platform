@@ -42,6 +42,19 @@ jobs:
         run: npm run build
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
+      - name: Report all dependency advisories
+        run: |
+          npm audit --json > /tmp/npm-audit.json || true
+          node - <<'NODE'
+          const fs = require("node:fs");
+          const audit = JSON.parse(fs.readFileSync("/tmp/npm-audit.json", "utf8"));
+          console.log("Full dependency audit totals:", JSON.stringify(audit.metadata?.vulnerabilities ?? {}));
+          for (const [name, item] of Object.entries(audit.vulnerabilities ?? {})) {
+            console.log(
+              `${item.severity.toUpperCase()} ${name} (${item.isDirect ? "direct" : "transitive"}); range=${item.range}; fix=${JSON.stringify(item.fixAvailable)}`
+            );
+          }
+          NODE
 
   backend:
     name: Backend tests
