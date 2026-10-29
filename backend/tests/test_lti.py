@@ -157,7 +157,7 @@ def test_full_launch_flow_creates_user_and_issues_tokens(client, db_session, mon
     assert "refresh_token=" not in location
 
     from urllib.parse import parse_qs, urlparse
-    exchange_code = parse_qs(urlparse(location).query)["code"][0]
+    exchange_code = parse_qs(urlparse(location).fragment)["code"][0]
     exchange = client.post("/lti/exchange-code", json={"code": exchange_code})
     assert exchange.status_code == 200
     assert exchange.json()["access_token"]
