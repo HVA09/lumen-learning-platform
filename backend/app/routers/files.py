@@ -61,8 +61,10 @@ async def upload_file(
             detail="نوع الملف غير مدعوم (مسموح: صور، PDF، Word، Excel، CSV)",
         )
 
-    max_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
-    contents = await file.read()
+    # اقرأ بحد أقصى بايتًا واحدًا فوق الحد لاكتشاف الحجم الزائد دون تحميل
+    # الملف غير المحدود كاملًا إلى الذاكرة.
+    max_bytes = max(0, settings.MAX_UPLOAD_SIZE_MB) * 1024 * 1024
+    contents = await file.read(max_bytes + 1)
     if len(contents) > max_bytes:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
