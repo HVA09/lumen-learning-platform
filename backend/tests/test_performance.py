@@ -6,12 +6,13 @@ from app.cache import cache_delete, cache_get, cache_set
 from app.tasks import queue_email
 
 
-def test_cache_get_returns_none_without_redis():
-    # في هذا المشروع كما هو (بدون تثبيت مكتبة redis)، لازم يرجع None دائمًا بأمان
+def test_cache_get_returns_none_without_redis(monkeypatch):
+    monkeypatch.setattr("app.cache._REDIS_AVAILABLE", False)
     assert cache_get("any-key") is None
 
 
-def test_cache_set_and_delete_do_not_raise_without_redis():
+def test_cache_set_and_delete_do_not_raise_without_redis(monkeypatch):
+    monkeypatch.setattr("app.cache._REDIS_AVAILABLE", False)
     cache_set("any-key", {"a": 1}, 60)
     cache_delete("any-key")  # المهم إنها ما ترمي استثناء
 
