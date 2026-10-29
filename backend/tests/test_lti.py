@@ -247,8 +247,15 @@ def test_full_launch_flow_issues_single_use_exchange_code(client, db_session, mo
     assert int(token_claims["sub"]) != local_user_id
     lti_user = db_session.get(User, int(token_claims["sub"]))
     assert lti_user is not None
-    assert lti_user.email.endswith("@lti.local")
+    assert lti_user.email.endswith("@lti.example.com")
     assert lti_user.is_email_verified is False
+
+    # The generated identity must still serialize through the public UserOut schema.
+    profile_response = client.get(
+        "/users/me", headers={"Authorization": f"Bearer {tokens['access_token']}"}
+    )
+    assert profile_response.status_code == 200
+    assert profile_response.json()["email"] == lti_user.email
 
     replay_response = client.post("/lti/exchange", json={"code": code})
     assert replay_response.status_code == 401
