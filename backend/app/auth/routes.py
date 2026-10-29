@@ -77,6 +77,12 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
     if not user:
         raise invalid_credentials_error
 
+    # Disabled accounts must not receive new sessions. Use the same generic
+    # response as invalid credentials to avoid disclosing account state.
+    if not user.is_active:
+        log_event(db, "login_blocked", f"محاولة دخول لحساب معطّل: {user.email}", user.id)
+        raise invalid_credentials_error
+
     # حماية ضد Brute Force: الحساب مقفل مؤقتًا بعد محاولات فاشلة كثيرة
     now = datetime.now(timezone.utc)
     if user.locked_until and user.locked_until > now:
