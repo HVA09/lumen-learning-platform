@@ -2,6 +2,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.config import Settings
+from app.database import normalize_database_url
 
 
 def _production_settings(**overrides):
@@ -36,3 +37,16 @@ def test_production_rejects_placeholder_jwt_secret():
 def test_production_rejects_http_cors_origins():
     with pytest.raises(ValidationError, match="HTTPS origin"):
         _production_settings(CORS_ORIGINS=["http://learn.example.com"])
+
+
+
+def test_postgresql_urls_select_installed_psycopg2_driver():
+    assert normalize_database_url("postgresql://user:pass@db:5432/lumen") == (
+        "postgresql+psycopg2://user:pass@db:5432/lumen"
+    )
+    assert normalize_database_url("postgres://user:pass@db:5432/lumen") == (
+        "postgresql+psycopg2://user:pass@db:5432/lumen"
+    )
+    assert normalize_database_url("postgresql+psycopg://user:pass@db:5432/lumen") == (
+        "postgresql+psycopg2://user:pass@db:5432/lumen"
+    )
