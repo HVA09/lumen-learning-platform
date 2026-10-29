@@ -147,6 +147,8 @@ def test_full_launch_flow_issues_single_use_exchange_code(client, db_session, mo
         "name": "طالب تجريبي",
         "email": "student42@moodle.example.com",
         "https://purl.imsglobal.org/spec/lti/claim/deployment_id": platform_data["deployment_id"],
+        "https://purl.imsglobal.org/spec/lti/claim/target_link_uri":
+            "https://mylumen.example.com/lti/launch",
     }
     id_token = jwt.encode(claims, pem, algorithm="RS256", headers={"kid": "platform-key-1"})
 
