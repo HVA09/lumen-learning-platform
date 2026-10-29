@@ -17,6 +17,8 @@ def test_cache_set_and_delete_do_not_raise_without_redis():
 
 
 def test_queue_email_falls_back_to_sync_send(monkeypatch):
+    # Force the no-Celery branch deterministically even when CI provides Redis.
+    monkeypatch.setattr("app.tasks._CELERY_AVAILABLE", False)
     sent = {}
 
     def fake_send_email(to, subject, body):
