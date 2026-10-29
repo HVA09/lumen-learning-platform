@@ -73,6 +73,7 @@ async def _start_lti_login(
     login_hint: str,
     target_link_uri: str,
     client_id: str | None,
+    lti_message_hint: str | None,
     db: Session,
 ):
     """خطوة OIDC الأولى — تنشئ state عشوائيًا مرتبطًا بالمنصة والـ nonce."""
@@ -134,6 +135,9 @@ async def _start_lti_login(
         "response_mode": "form_post",
         "prompt": "none",
     }
+    if lti_message_hint is not None:
+        # LTI 1.3 requires this opaque platform value to be returned unchanged.
+        auth_params["lti_message_hint"] = lti_message_hint
     return _no_store_redirect(f"{platform.auth_login_url}?{urlencode(auth_params)}")
 
 
@@ -143,10 +147,11 @@ async def lti_login_get(
     login_hint: str = Query(..., min_length=1, max_length=2000),
     target_link_uri: str = Query(..., min_length=1, max_length=1000),
     client_id: str | None = Query(None, max_length=255),
+    lti_message_hint: str | None = Query(None, max_length=2000),
     db: Session = Depends(get_db),
 ):
     """دعم OIDC third-party initiated login الذي يرسل الحقول في query string."""
-    return await _start_lti_login(iss, login_hint, target_link_uri, client_id, db)
+    return await _start_lti_login(iss, login_hint, target_link_uri, client_id, lti_message_hint, db)
 
 
 @router.post("/login")
@@ -155,10 +160,11 @@ async def lti_login_post(
     login_hint: str = Form(..., min_length=1, max_length=2000),
     target_link_uri: str = Form(..., min_length=1, max_length=1000),
     client_id: str | None = Form(None, max_length=255),
+    lti_message_hint: str | None = Form(None, max_length=2000),
     db: Session = Depends(get_db),
 ):
     """دعم OIDC third-party initiated login الذي يرسل الحقول عبر form POST."""
-    return await _start_lti_login(iss, login_hint, target_link_uri, client_id, db)
+    return await _start_lti_login(iss, login_hint, target_link_uri, client_id, lti_message_hint, db)
 
 
 @router.post("/launch")
