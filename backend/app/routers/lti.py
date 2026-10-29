@@ -74,6 +74,7 @@ async def _start_lti_login(
     target_link_uri: str,
     client_id: str | None,
     lti_message_hint: str | None,
+    lti_deployment_id: str | None,
     db: Session,
 ):
     """خطوة OIDC الأولى — تنشئ state عشوائيًا مرتبطًا بالمنصة والـ nonce."""
@@ -87,6 +88,11 @@ async def _start_lti_login(
             detail="منصة LTI غير مسجلة أو أن بيانات المنصة غير محددة بشكل كافٍ",
         )
     platform = platforms[0]
+    if lti_deployment_id is not None and lti_deployment_id != platform.deployment_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="lti_deployment_id لا يطابق عملية النشر المسجلة",
+        )
 
     target = urlsplit(target_link_uri)
     if (
@@ -148,10 +154,13 @@ async def lti_login_get(
     target_link_uri: str = Query(..., min_length=1, max_length=1000),
     client_id: str | None = Query(None, max_length=255),
     lti_message_hint: str | None = Query(None, max_length=2000),
+    lti_deployment_id: str | None = Query(None, max_length=255),
     db: Session = Depends(get_db),
 ):
     """دعم OIDC third-party initiated login الذي يرسل الحقول في query string."""
-    return await _start_lti_login(iss, login_hint, target_link_uri, client_id, lti_message_hint, db)
+    return await _start_lti_login(
+        iss, login_hint, target_link_uri, client_id, lti_message_hint, lti_deployment_id, db
+    )
 
 
 @router.post("/login")
@@ -161,10 +170,13 @@ async def lti_login_post(
     target_link_uri: str = Form(..., min_length=1, max_length=1000),
     client_id: str | None = Form(None, max_length=255),
     lti_message_hint: str | None = Form(None, max_length=2000),
+    lti_deployment_id: str | None = Form(None, max_length=255),
     db: Session = Depends(get_db),
 ):
     """دعم OIDC third-party initiated login الذي يرسل الحقول عبر form POST."""
-    return await _start_lti_login(iss, login_hint, target_link_uri, client_id, lti_message_hint, db)
+    return await _start_lti_login(
+        iss, login_hint, target_link_uri, client_id, lti_message_hint, lti_deployment_id, db
+    )
 
 
 @router.post("/launch")
