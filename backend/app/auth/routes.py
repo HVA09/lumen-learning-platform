@@ -7,7 +7,6 @@ from datetime import datetime, timedelta, timezone
 import pyotp
 from fastapi import APIRouter, Depends, HTTPException, status
 from jose import JWTError
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.auth.security import (
@@ -49,18 +48,16 @@ def register(payload: UserCreate, db: Session = Depends(get_db)):
     if existing:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="البريد مسجل مسبقًا")
 
-    # أول مستخدم يسجّل بالنظام يصير admin تلقائيًا — ما فيه طريقة ثانية حاليًا
-    # للحصول على صلاحية admin (لا يوجد لوحة لترقية المستخدمين بعد)
-    is_first_user = db.query(func.count(User.id)).scalar() == 0
+    # التسجيل العام لا يمنح صلاحيات إدارية. أنشئ المدير من أمر CLI محلي موثوق.
     user = User(
         email=payload.email,
         hashed_password=hash_password(payload.password),
-        role=UserRole.admin if is_first_user else UserRole.user,
+        role=UserRole.user,
     )
     db.add(user)
     db.commit()
     db.refresh(user)
-    log_event(db, "register", f"مستخدم جديد: {user.email} (admin={is_first_user})", user.id)
+    log_event(db, "register", f"مستخدم جديد: {user.email}", user.id)
 
     send_verification_email(user.email, create_email_verification_token(user.id))
     send_welcome_email(user.email)
