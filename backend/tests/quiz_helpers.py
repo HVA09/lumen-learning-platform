@@ -17,8 +17,7 @@ def auth(token):
 
 
 def make_student(client, email="student@example.com"):
-    """أول مستخدم يسجّل بالنظام يصير admin — نسجّل واحد قبله (لو ما فيه مستخدمين) عشان الطالب يجي عاديًا"""
-    register_and_login(client, "first-admin@example.com")
+    """يسجّل طالبًا عاديًا؛ التسجيل العام لا يمنح أدوارًا إدارية."""
     return register_and_login(client, email)
 
 
