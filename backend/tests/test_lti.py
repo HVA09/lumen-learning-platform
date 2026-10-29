@@ -248,6 +248,7 @@ def test_full_launch_flow_issues_single_use_exchange_code(client, db_session, mo
     lti_user = db_session.get(User, int(token_claims["sub"]))
     assert lti_user is not None
     assert lti_user.email.endswith("@lti.example.com")
+    assert len(lti_user.email.split("@", 1)[0]) <= 64
     assert lti_user.is_email_verified is False
 
     # The generated identity must still serialize through the public UserOut schema.
