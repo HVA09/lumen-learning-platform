@@ -9,6 +9,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from jose import jwt
 from jose.utils import long_to_base64url
 
+from app.auth.security import decode_token
 from app.models.user import User, UserRole
 from app.services import lti_service as lti_service_module
 
@@ -109,6 +110,16 @@ def test_full_launch_flow_issues_single_use_exchange_code(client, db_session, mo
     admin_token = _register_admin(client, db_session, "launchflow@example.com")
     platform_data = _register_platform(client, admin_token)
 
+    # A matching email claim must not let a new LTI subject take over this local account.
+    local_response = client.post(
+        "/auth/register",
+        json={"email": "student42@moodle.example.com", "password": "LocalPass123"},
+    )
+    assert local_response.status_code == 201
+    local_user_id = db_session.query(User).filter(
+        User.email == "student42@moodle.example.com"
+    ).one().id
+
     login_response = client.get(
         "/lti/login",
         params={
@@ -161,6 +172,12 @@ def test_full_launch_flow_issues_single_use_exchange_code(client, db_session, mo
     tokens = exchange_response.json()
     assert tokens["access_token"]
     assert tokens["refresh_token"]
+    token_claims = decode_token(tokens["access_token"])
+    assert int(token_claims["sub"]) != local_user_id
+    lti_user = db_session.get(User, int(token_claims["sub"]))
+    assert lti_user is not None
+    assert lti_user.email.endswith("@lti.local")
+    assert lti_user.is_email_verified is False
 
     replay_response = client.post("/lti/exchange", json={"code": code})
     assert replay_response.status_code == 401
