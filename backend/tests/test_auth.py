@@ -94,7 +94,7 @@ def test_registration_rejects_passwords_over_bcrypt_byte_limit(client):
     # Bcrypt limits UTF-8 input to 72 bytes; reject rather than silently truncating.
     for email, password in (
         ("long-password-ascii@example.com", "x" * 73),
-        ("long-password-unicode@example.com", "ا" * 25),
+        ("long-password-unicode@example.com", "ا" * 37),
     ):
         response = client.post(
             "/auth/register", json={"email": email, "password": password}
