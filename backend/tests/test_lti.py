@@ -101,6 +101,8 @@ def test_login_redirects_to_platform_auth_endpoint(client, db_session):
     assert "moodle.example.com/auth" in response.headers["location"]
     assert "state=" in response.headers["location"]
     assert "nonce=" in response.headers["location"]
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["referrer-policy"] == "no-referrer"
 
 
 def test_full_launch_flow_creates_user_and_issues_tokens(client, db_session, monkeypatch):
