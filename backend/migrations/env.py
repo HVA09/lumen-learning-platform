@@ -9,7 +9,7 @@ from sqlalchemy import engine_from_config, pool
 
 import app.models  # noqa: F401 — يسجّل كل الجداول في Base.metadata قبل المقارنة
 from app.config import settings
-from app.database import Base
+from app.database import Base, normalize_database_url
 
 config = context.config
 
@@ -17,7 +17,7 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # رابط قاعدة البيانات الحقيقي يجي من إعدادات التطبيق (.env)، مو من alembic.ini
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+config.set_main_option("sqlalchemy.url", normalize_database_url(settings.DATABASE_URL))
 
 target_metadata = Base.metadata
 
