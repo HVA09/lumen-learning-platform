@@ -156,7 +156,9 @@ async def lti_launch(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="المنصة غير موجودة")
 
     try:
-        claims = await verify_platform_id_token(id_token, platform, state_record.nonce)
+        claims = await verify_platform_id_token(
+            id_token, platform, state_record.nonce, state_record.target_link_uri
+        )
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
