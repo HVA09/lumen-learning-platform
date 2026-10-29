@@ -7,6 +7,7 @@
 تجريبي (Moodle sandbox) قبل الاعتماد عليه بالإنتاج، ومن المتوقع تحتاج تعديلات
 طفيفة حسب تفاصيل المنصة اللي تربطها.
 """
+import base64
 import hashlib
 import time
 import uuid
@@ -15,12 +16,20 @@ import httpx
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from jose import jwk, jwt
-from jose.utils import long_to_base64url
 
 from app.config import settings
 
 LTI_STATE_TTL_SECONDS = 600  # 10 دقايق كافية لإكمال تدفق OIDC
 LTI_AUTH_CODE_TTL_SECONDS = 60  # رمز تبادل الدخول صالح لدقيقة واحدة
+
+
+def long_to_base64url(value: int) -> bytes:
+    """Encode an unsigned integer as unpadded base64url for a JSON Web Key."""
+    if value < 0:
+        raise ValueError("JWK integer values must be non-negative")
+    length = max(1, (value.bit_length() + 7) // 8)
+    raw = value.to_bytes(length, "big")
+    return base64.urlsafe_b64encode(raw).rstrip(b"=")
 
 
 def hash_opaque_token(token: str) -> str:
