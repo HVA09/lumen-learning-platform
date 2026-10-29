@@ -104,7 +104,10 @@ async def _start_lti_login(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="يجب استخدام HTTPS في target_link_uri خارج التطوير المحلي",
         )
-    if settings.ENVIRONMENT.lower() == "production" and not settings.LTI_ALLOWED_TARGET_LINK_URIS:
+    if (
+        settings.ENVIRONMENT.lower() not in {"development", "test", "testing"}
+        and not settings.LTI_ALLOWED_TARGET_LINK_URIS
+    ):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="لم تُضبط قائمة target_link_uri المسموح بها لـ LTI في بيئة الإنتاج",
