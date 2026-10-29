@@ -3,7 +3,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode, urlsplit
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
