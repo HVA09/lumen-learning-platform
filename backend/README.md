@@ -49,7 +49,7 @@ docker compose up --build
 ```
 
 - الـ API يصير متاح عبر Nginx على `http://localhost`
-- توثيق تفاعلي (Swagger): `http://localhost:8000/docs` (مباشرة على منفذ FastAPI أثناء التطوير)
+- توثيق تفاعلي (Swagger): `http://localhost:8000/docs` (منفذ التطوير مربوط بواجهة loopback فقط، وليس مكشوفًا مباشرة للإنترنت)
 - أول تشغيل يزرع المنهج تلقائيًا (3 مواد، 5 مواضيع، 10 دروس، 53 سؤالًا، 30 بطاقة
   مراجعة جاهزة) عبر migration — راجع قسم "قاعدة البيانات" بالأسفل
 
@@ -83,7 +83,7 @@ docker compose up --build
 ## ربط الفرونت اند (React + Vite)
 
 - `CORS_ORIGINS` مضبوط افتراضيًا على `http://localhost:5173` (منفذ Vite dev server)
-- منفذ 8000 منشور على الجهاز مباشرة في docker-compose، فمشروع الفرونت (`.env.development`
+- منفذ 8000 مربوط على `127.0.0.1` فقط في docker-compose للوصول المحلي، فلا يتجاوز Nginx من واجهة الشبكة العامة. مشروع الفرونت (`.env.development`
   فيه `VITE_API_BASE_URL=http://localhost:8000`) يوصله بدون أي إعداد إضافي
 - عند النشر: حدّث `CORS_ORIGINS` ليشمل دومين الفرونت الحقيقي
 
