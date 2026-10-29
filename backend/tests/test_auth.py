@@ -87,3 +87,16 @@ def test_refresh_fails_for_deactivated_user(client, db_session):
 
     response = client.post("/auth/refresh", json={"refresh_token": refresh_token})
     assert response.status_code == 401
+
+
+
+def test_registration_rejects_passwords_over_bcrypt_byte_limit(client):
+    # Bcrypt limits UTF-8 input to 72 bytes; reject rather than silently truncating.
+    for email, password in (
+        ("long-password-ascii@example.com", "x" * 73),
+        ("long-password-unicode@example.com", "ا" * 25),
+    ):
+        response = client.post(
+            "/auth/register", json={"email": email, "password": password}
+        )
+        assert response.status_code == 422
