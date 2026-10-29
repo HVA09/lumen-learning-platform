@@ -1,5 +1,5 @@
 """
-إعدادات التطبيق — كل القيم تُقرأ من متغيرات البيئة (ملف .env)
+إعدادات التطبيق — كل القيم تُقرأ من متغيرات البيئة (ملف .env).
 لا يوجد أي مفتاح أو كلمة مرور مكتوبة هنا مباشرة.
 """
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     # رابط الفرونت اند — يُستخدم لبناء روابط تأكيد البريد/إعادة تعيين كلمة المرور
     FRONTEND_URL: str = "http://localhost:5173"
 
+    # LTI 1.3 — في الإنتاج يجب إدراج عناوين target_link_uri المسموح بها بدقة.
+    LTI_ALLOWED_TARGET_LINK_URIS: list[str] = []
+
     # إيميل — لو SMTP_HOST فاضي، الإيميلات تُطبع باللوق بدل إرسالها فعليًا (وضع تطوير)
     SMTP_HOST: str = ""
     SMTP_PORT: int = 587
@@ -38,7 +41,7 @@ class Settings(BaseSettings):
     # Two Factor Authentication
     TOTP_ISSUER_NAME: str = "Lumen"
 
-    # CORS — 5173 هو منفذ Vite dev server الافتراضي (الفرونت React+Vite)
+    # CORS — 5173 هو منفذ Vite dev server الافتراضي (Vite dev server)
     CORS_ORIGINS: list[str] = ["http://localhost:5173"]
 
     # رفع الملفات
@@ -60,9 +63,9 @@ class Settings(BaseSettings):
     CELERY_RESULT_BACKEND: str = "redis://redis:6379/1"
     CACHE_TTL_SECONDS: int = 60
 
-    # LTI 1.3 — ربط منصات LMS مثل Moodle/Canvas
-    LTI_TOOL_PRIVATE_KEY: str = ""  # PEM لمفتاح RSA خاص — ولّده بـ scripts/generate_lti_key.py
-    LTI_TOOL_KID: str = "lumen-key-1"  # معرّف المفتاح بالـ JWKS
+    # LTI 1.3 — مفتاح أداة Lumen الخاص، واسم المفتاح المنشور في JWKS
+    LTI_TOOL_PRIVATE_KEY: str = ""
+    LTI_TOOL_KID: str = "lumen-key-1"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
