@@ -50,7 +50,7 @@ npm run dev
 - `.env.development` فيه `VITE_API_BASE_URL=http://localhost:8000` — يفترض إن الباك اند
   شغّال محليًا عبر `docker compose up` (راجع README الباك اند)
 - `.env.production` فيه placeholder — لازم تحطه دومين الـ API الحقيقي وقت النشر
-- التوكن يُخزَّن في `localStorage` تلقائيًا بعد تسجيل الدخول، ويُرفق مع كل طلب
+- بعد تسجيل الدخول العادي تُخزّن الرموز في `localStorage` وتُرفق بالطلبات. في تدفق LTI، تعيد الواجهة رمز تبادل أحادي الاستخدام إلى API للحصول على الرموز؛ لا تُمرر JWT tokens في رابط callback.
 
 ## البنية
 
