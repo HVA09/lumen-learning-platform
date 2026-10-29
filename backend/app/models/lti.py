@@ -4,7 +4,7 @@
 """
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Index, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -47,6 +47,7 @@ class LTIUserLink(Base):
 class LTILoginState(Base):
     """حالة OIDC قصيرة العمر؛ state_hash لا يكشف قيمة state الأصلية."""
     __tablename__ = "lti_login_states"
+    __table_args__ = (Index("ix_lti_login_states_expires_at", "expires_at"),)
 
     state_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
     platform_id: Mapped[int] = mapped_column(
@@ -61,6 +62,10 @@ class LTILoginState(Base):
 class LTIAuthCode(Base):
     """رمز تبادل مؤقت أحادي الاستخدام؛ تُحفظ بصمته فقط في قاعدة البيانات."""
     __tablename__ = "lti_auth_codes"
+    __table_args__ = (
+        Index("ix_lti_auth_codes_expires_at", "expires_at"),
+        Index("ix_lti_auth_codes_user_id", "user_id"),
+    )
 
     code_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
