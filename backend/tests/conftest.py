@@ -17,6 +17,15 @@ from app.content.seeder import seed_all
 from app.database import Base, get_db
 from app.main import app
 
+
+@pytest.fixture(autouse=True)
+def disable_external_email_queue(monkeypatch):
+    """Unit tests must not wait for a real Redis/Celery broker or send emails."""
+    from app import tasks
+
+    monkeypatch.setattr(tasks, "queue_email", lambda *args, **kwargs: None)
+
+
 TEST_DATABASE_URL = os.getenv(
     "TEST_DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/ai_backend_test"
 )
