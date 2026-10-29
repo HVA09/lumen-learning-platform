@@ -52,6 +52,8 @@ def test_upload_rejects_oversized_file(client, tmp_path, monkeypatch):
         headers=headers,
     )
     assert response.status_code == 413
+    user_dirs = list(tmp_path.iterdir())
+    assert all(not list(directory.iterdir()) for directory in user_dirs if directory.is_dir())
 
 
 def test_list_files(client, tmp_path, monkeypatch):
