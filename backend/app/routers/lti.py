@@ -1,32 +1,45 @@
 """
-مسارات LTI 1.3: تسجيل دخول OIDC (يبدأه Moodle/Canvas)، استقبال الـ launch،
-ونشر مفاتيح أداتنا العامة (JWKS).
-
-⚠️ تطبيق متوافق مع مواصفة LTI 1.3 الرسمية، لكن يحتاج اختبار فعلي مقابل
-منصة LMS حقيقية (Moodle sandbox مثلًا) قبل الإنتاج — راجع README لخطوات التسجيل.
+مسارات LTI 1.3: OIDC login، استقبال launch، ونقطة تبادل رمز مؤقت لجلسة Lumen.
+لا تُرسل access/refresh tokens عبر URL مطلقًا.
 """
-import secrets
+from urllib.parse import urlencode, urlsplit
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.auth.security import create_access_token, create_refresh_token, hash_password
-from app.dependencies import require_admin
-from app.schemas.lti import LTIPlatformCreate, LTIPlatformOut
 from app.config import settings
 from app.database import get_db
+from app.dependencies import require_admin
 from app.models.lti import LTIPlatform, LTIUserLink
 from app.models.user import User
+from app.schemas.auth import Token
+from app.schemas.lti import LTIExchangeRequest, LTIPlatformCreate, LTIPlatformOut
 from app.services.lti_service import (
     build_tool_jwks,
-    decode_login_state,
-    encode_login_state,
+    consume_login_state,
+    consume_lti_auth_code,
+    create_login_state,
+    create_lti_auth_code,
+    get_login_state,
     new_nonce,
     verify_platform_id_token,
 )
 
 router = APIRouter(prefix="/lti", tags=["LTI"])
+
+
+def _no_store_redirect(url: str) -> RedirectResponse:
+    return RedirectResponse(
+        url,
+        status_code=status.HTTP_302_FOUND,
+        headers={
+            "Cache-Control": "no-store",
+            "Pragma": "no-cache",
+            "Referrer-Policy": "no-referrer",
+        },
+    )
 
 
 @router.post("/platforms", response_model=LTIPlatformOut, status_code=status.HTTP_201_CREATED)
@@ -35,7 +48,7 @@ def register_platform(
     _=Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    """تسجيل منصة LTI جديدة (admin فقط) — القيم تجيك من لوحة تسجيل الأداة بـ Moodle/Canvas"""
+    """تسجيل منصة LTI جديدة — admin فقط."""
     platform = LTIPlatform(**payload.model_dump())
     db.add(platform)
     db.commit()
@@ -56,26 +69,44 @@ def get_jwks():
 @router.get("/login")
 @router.post("/login")
 async def lti_login(
-    iss: str = Query(...),
-    login_hint: str = Query(...),
-    target_link_uri: str = Query(...),
-    client_id: str | None = Query(None),
+    iss: str = Query(..., min_length=1, max_length=500),
+    login_hint: str = Query(..., min_length=1, max_length=2000),
+    target_link_uri: str = Query(..., min_length=1, max_length=1000),
+    client_id: str | None = Query(None, max_length=255),
     db: Session = Depends(get_db),
 ):
-    """خطوة OIDC الأولى — Moodle/Canvas يستدعيها قبل ما يوجّه المستخدم لصفحة الأداة"""
-    platform = (
-        db.query(LTIPlatform)
-        .filter(LTIPlatform.issuer == iss, LTIPlatform.client_id == (client_id or LTIPlatform.client_id))
-        .first()
-    )
-    if not platform:
+    """خطوة OIDC الأولى — تنشئ state عشوائيًا مرتبطًا بالمنصة والـ nonce."""
+    platform_query = db.query(LTIPlatform).filter(LTIPlatform.issuer == iss)
+    if client_id:
+        platform_query = platform_query.filter(LTIPlatform.client_id == client_id)
+    platforms = platform_query.limit(2).all()
+    if len(platforms) != 1:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="منصة LTI غير مسجّلة — سجّلها أول بجدول lti_platforms",
+            detail="منصة LTI غير مسجلة أو أن بيانات المنصة غير محددة بشكل كافٍ",
+        )
+    platform = platforms[0]
+
+    target = urlsplit(target_link_uri)
+    if (
+        target.scheme not in {"https", "http"}
+        or not target.netloc
+        or target.username is not None
+        or target.password is not None
+        or target.fragment
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="target_link_uri غير صالح",
+        )
+    if target.scheme == "http" and target.hostname not in {"localhost", "127.0.0.1", "::1"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="يجب استخدام HTTPS في target_link_uri خارج التطوير المحلي",
         )
 
     nonce = new_nonce()
-    state = encode_login_state(platform.id, nonce, target_link_uri)
+    state = create_login_state(db, platform.id, nonce, target_link_uri)
 
     auth_params = {
         "scope": "openid",
@@ -88,35 +119,45 @@ async def lti_login(
         "response_mode": "form_post",
         "prompt": "none",
     }
-    from urllib.parse import urlencode
-
-    return RedirectResponse(f"{platform.auth_login_url}?{urlencode(auth_params)}")
+    return _no_store_redirect(f"{platform.auth_login_url}?{urlencode(auth_params)}")
 
 
 @router.post("/launch")
 async def lti_launch(
     id_token: str = Form(...),
-    state: str = Form(...),
+    state: str = Form(..., min_length=20, max_length=256),
     db: Session = Depends(get_db),
 ):
-    """الخطوة الأخيرة — المنصة ترسل id_token موقّع بعد ما المستخدم يتصادق عندها"""
+    """يتحقق من launch، يستهلك state مرة واحدة، ثم يعيد رمز تبادل محدود الصلاحية."""
     try:
-        state_data = decode_login_state(state)
-    except Exception:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="state غير صالح أو منتهي")
+        state_record = get_login_state(db, state)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="state غير صالح أو منتهي أو مستهلك"
+        )
 
-    platform = db.get(LTIPlatform, state_data["platform_id"])
+    platform = db.get(LTIPlatform, state_record.platform_id)
     if not platform:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="المنصة غير موجودة")
 
     try:
-        claims = await verify_platform_id_token(id_token, platform, state_data["nonce"])
-    except Exception as exc:
+        claims = await verify_platform_id_token(id_token, platform, state_record.nonce)
+    except Exception:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail=f"تعذّر التحقق من id_token: {exc}"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="تعذّر التحقق من بيانات الدخول المرسلة من منصة التعليم",
         )
 
-    lti_subject = claims["sub"]
+    # التحديث ذري لمنع استخدام state نفسه في طلبين متزامنين.
+    if not consume_login_state(db, state):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="state استُخدم مسبقًا أو انتهت صلاحيته"
+        )
+
+    lti_subject = claims.get("sub")
+    if not isinstance(lti_subject, str) or not lti_subject or len(lti_subject) > 255:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="معرّف مستخدم LTI غير صالح")
+
     link = (
         db.query(LTIUserLink)
         .filter(LTIUserLink.platform_id == platform.id, LTIUserLink.lti_subject == lti_subject)
@@ -125,15 +166,19 @@ async def lti_launch(
 
     if link:
         user = db.get(User, link.user_id)
+        if user is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="حساب Lumen غير متاح")
     else:
         email = claims.get("email") or f"lti_{platform.id}_{lti_subject}@lti.local"
+        if not isinstance(email, str) or len(email) > 255:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="البريد المرسل من المنصة غير صالح")
         user = db.query(User).filter(User.email == email).first()
         if not user:
             user = User(
                 email=email,
-                hashed_password=hash_password(secrets.token_urlsafe(32)),  # ما يُستخدم أبدًا — الدخول عبر LTI بس
+                hashed_password=hash_password(__import__("secrets").token_urlsafe(32)),
                 full_name=claims.get("name"),
-                is_email_verified=True,  # موثّق أصلًا عبر منصة LMS
+                is_email_verified=True,
             )
             db.add(user)
             db.commit()
@@ -141,11 +186,30 @@ async def lti_launch(
         db.add(LTIUserLink(platform_id=platform.id, lti_subject=lti_subject, user_id=user.id))
         db.commit()
 
-    access_token = create_access_token(user.id)
-    refresh_token = create_refresh_token(user.id)
+    if not user.is_active:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="حساب Lumen غير مفعّل")
 
-    redirect_url = (
-        f"{settings.FRONTEND_URL}/lti-callback"
-        f"?access_token={access_token}&refresh_token={refresh_token}"
+    code = create_lti_auth_code(db, user.id)
+    # Fragment لا يُرسل في طلب HTTP الأول إلى خادم الواجهة الأمامية أو في Referer.
+    redirect_url = f"{settings.FRONTEND_URL.rstrip('/')}/lti-callback#code={code}"
+    return _no_store_redirect(redirect_url)
+
+
+@router.post("/exchange", response_model=Token)
+def exchange_lti_code(payload: LTIExchangeRequest, db: Session = Depends(get_db)):
+    """يستبدل رمزًا مؤقتًا بأقل صلاحيات ممكنة: access/refresh tokens لا تظهر في URL."""
+    user_id = consume_lti_auth_code(db, payload.code)
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="رمز الدخول غير صالح أو منتهي أو استُخدم مسبقًا",
+        )
+    user = db.get(User, user_id)
+    if user is None or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="حساب Lumen غير متاح"
+        )
+    return Token(
+        access_token=create_access_token(user.id),
+        refresh_token=create_refresh_token(user.id),
     )
-    return RedirectResponse(redirect_url, status_code=status.HTTP_302_FOUND)
