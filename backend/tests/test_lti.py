@@ -173,6 +173,29 @@ def test_full_launch_flow_issues_single_use_exchange_code(client, db_session, mo
     )
     assert mismatch_response.status_code == 401
 
+    wrong_type_claims = {
+        **claims,
+        "https://purl.imsglobal.org/spec/lti/claim/message_type": "LtiDeepLinkingRequest",
+    }
+    wrong_type_token = jwt.encode(
+        wrong_type_claims, pem, algorithm="RS256", headers={"kid": "platform-key-1"}
+    )
+    wrong_type_response = client.post(
+        "/lti/launch", data={"id_token": wrong_type_token, "state": state}, follow_redirects=False
+    )
+    assert wrong_type_response.status_code == 401
+
+    multiple_audiences = {**claims, "aud": [platform_data["client_id"], "unexpected-audience"]}
+    multiple_audience_token = jwt.encode(
+        multiple_audiences, pem, algorithm="RS256", headers={"kid": "platform-key-1"}
+    )
+    multiple_audience_response = client.post(
+        "/lti/launch",
+        data={"id_token": multiple_audience_token, "state": state},
+        follow_redirects=False,
+    )
+    assert multiple_audience_response.status_code == 401
+
     launch_response = client.post(
         "/lti/launch", data={"id_token": id_token, "state": state}, follow_redirects=False
     )
