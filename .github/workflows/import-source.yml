@@ -145,6 +145,3 @@ jobs:
             - Adds a frontend .env.example; no production configuration is set.
 
             This is a source import only. Runtime tests and security fixes will be handled in separate reviewed changes.
-          labels: |
-            maintenance
-            security
