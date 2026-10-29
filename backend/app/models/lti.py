@@ -1,9 +1,10 @@
 """
-تسجيل منصات LTI 1.3 (مثل Moodle/Canvas) وربط مستخدمي المنصة بحسابات Lumen المحلية
+تسجيل منصات LTI 1.3 وربط مستخدمي المنصة بحسابات Lumen المحلية.
+تُخزَّن حالات OIDC ورموز التبادل مجزّأة وتُستهلك مرة واحدة فقط.
 """
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -11,13 +12,12 @@ from app.database import Base
 
 
 class LTIPlatform(Base):
-    """منصة LMS مسجّلة (Moodle/Canvas...) — تُنشأ يدويًا بعد تبادل معلومات التسجيل
-    بين لوحة إدارة LMS ولوحة إدارة Lumen (خطوة تسجيل تُسوّى مرة وحدة لكل منصة)"""
+    """منصة LMS مسجّلة (Moodle/Canvas...)"""
     __tablename__ = "lti_platforms"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    issuer: Mapped[str] = mapped_column(String(500), nullable=False)  # claim "iss"
+    issuer: Mapped[str] = mapped_column(String(500), nullable=False)
     client_id: Mapped[str] = mapped_column(String(255), nullable=False)
     deployment_id: Mapped[str] = mapped_column(String(255), nullable=False)
     auth_login_url: Mapped[str] = mapped_column(String(500), nullable=False)
@@ -28,7 +28,7 @@ class LTIPlatform(Base):
 
 
 class LTIUserLink(Base):
-    """يربط (منصة + معرّف مستخدم LTI) بحساب Lumen محلي — يُنشأ تلقائيًا أول launch"""
+    """يربط (منصة + معرّف مستخدم LTI) بحساب Lumen محلي"""
     __tablename__ = "lti_user_links"
     __table_args__ = (
         UniqueConstraint("platform_id", "lti_subject", name="uq_lti_user_link"),
@@ -36,9 +36,33 @@ class LTIUserLink(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     platform_id: Mapped[int] = mapped_column(ForeignKey("lti_platforms.id", ondelete="CASCADE"), nullable=False)
-    lti_subject: Mapped[str] = mapped_column(String(255), nullable=False)  # claim "sub"
+    lti_subject: Mapped[str] = mapped_column(String(255), nullable=False)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     platform = relationship("LTIPlatform")
     user = relationship("User")
+
+
+class LTILoginState(Base):
+    """حالة OIDC قصيرة العمر؛ state_hash لا يكشف قيمة state الأصلية."""
+    __tablename__ = "lti_login_states"
+
+    state_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    platform_id: Mapped[int] = mapped_column(
+        ForeignKey("lti_platforms.id", ondelete="CASCADE"), nullable=False
+    )
+    nonce: Mapped[str] = mapped_column(String(64), nullable=False)
+    target_link_uri: Mapped[str] = mapped_column(String(1000), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class LTIAuthCode(Base):
+    """رمز تبادل مؤقت أحادي الاستخدام؛ تُحفظ بصمته فقط في قاعدة البيانات."""
+    __tablename__ = "lti_auth_codes"
+
+    code_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
