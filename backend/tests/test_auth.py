@@ -29,11 +29,11 @@ def test_register_rejects_short_password(client):
     assert response.status_code == 422
 
 
-def test_first_user_becomes_admin(client):
+def test_first_user_is_regular_user(client):
     response = client.post(
         "/auth/register", json={"email": "first@example.com", "password": "StrongPass123"}
     )
-    assert response.json()["role"] == "admin"
+    assert response.json()["role"] == "user"
 
 
 def test_second_user_is_regular(client):
