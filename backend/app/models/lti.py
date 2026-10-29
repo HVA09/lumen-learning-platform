@@ -42,3 +42,36 @@ class LTIUserLink(Base):
 
     platform = relationship("LTIPlatform")
     user = relationship("User")
+
+
+
+class LTIAuthState(Base):
+    """حالة OIDC عشوائية أحادية الاستخدام، مخزنة بهشّها فقط."""
+    __tablename__ = "lti_auth_states"
+    __table_args__ = (UniqueConstraint("state_hash", name="uq_lti_auth_states_state_hash"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    state_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    platform_id: Mapped[int] = mapped_column(ForeignKey("lti_platforms.id", ondelete="CASCADE"), nullable=False)
+    nonce: Mapped[str] = mapped_column(String(128), nullable=False)
+    target_link_uri: Mapped[str] = mapped_column(String(1000), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    platform = relationship("LTIPlatform")
+
+
+class LTIAuthCode(Base):
+    """رمز تبادل قصير العمر؛ لا يحمل JWT ولا يمكن استخدامه أكثر من مرة."""
+    __tablename__ = "lti_auth_codes"
+    __table_args__ = (UniqueConstraint("code_hash", name="uq_lti_auth_codes_code_hash"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    code_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    user = relationship("User")
