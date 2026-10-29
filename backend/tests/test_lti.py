@@ -290,6 +290,26 @@ def test_launch_rejects_expired_or_tampered_state(client):
     assert response.status_code == 400
 
 
+def test_production_lti_login_fails_closed_without_target_allowlist(
+    client, db_session, monkeypatch
+):
+    admin_token = _register_admin(client, db_session, "productionallowlist@example.com")
+    platform = _register_platform(client, admin_token)
+    monkeypatch.setattr(lti_service_module.settings, "ENVIRONMENT", "production")
+    monkeypatch.setattr(lti_service_module.settings, "LTI_ALLOWED_TARGET_LINK_URIS", [])
+
+    response = client.get(
+        "/lti/login",
+        params={
+            "iss": platform["issuer"],
+            "login_hint": "student1",
+            "target_link_uri": "https://mylumen.example.com/lti/launch",
+            "client_id": platform["client_id"],
+        },
+    )
+    assert response.status_code == 503
+
+
 def test_login_rejects_insecure_non_local_target_uri(client, db_session):
     admin_token = _register_admin(client, db_session, "insecuretarget@example.com")
     platform = _register_platform(client, admin_token)
