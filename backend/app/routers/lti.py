@@ -194,8 +194,10 @@ async def lti_launch(
     state_row.consumed_at = now
     db.commit()
 
+    # Put the one-time code in the URL fragment: browsers do not send fragments
+    # to web servers or include them in HTTP Referer headers.
     redirect_url = (
-        f"{settings.FRONTEND_URL.rstrip('/')}/lti-callback?"
+        f"{settings.FRONTEND_URL.rstrip('/')}/lti-callback#"
         f"{urlencode({'code': exchange_code})}"
     )
     return RedirectResponse(redirect_url, status_code=status.HTTP_302_FOUND)
