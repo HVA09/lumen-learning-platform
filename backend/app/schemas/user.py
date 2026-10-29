@@ -3,11 +3,12 @@ from datetime import datetime
 from pydantic import BaseModel, EmailStr, ConfigDict, Field
 
 from app.models.user import UserRole
+from app.schemas.passwords import BcryptPassword
 
 
 class UserCreate(BaseModel):
     email: EmailStr
-    password: str = Field(min_length=8)
+    password: BcryptPassword = Field(min_length=8)
 
 
 class UserOut(BaseModel):
@@ -30,9 +31,9 @@ class ProfileUpdate(BaseModel):
 
 
 class ChangePasswordRequest(BaseModel):
-    current_password: str
-    new_password: str = Field(min_length=8)
+    current_password: BcryptPassword
+    new_password: BcryptPassword = Field(min_length=8)
 
 
 class DeleteAccountRequest(BaseModel):
-    password: str
+    password: BcryptPassword
