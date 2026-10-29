@@ -1,15 +1,17 @@
 """
-مساعدات مشتركة لاختبارات الاختبارات والتحفيز والتقارير: تسجيل مستخدمين بأدوار مختلفة،
-البحث عن موضوع بالـ slug، وإجراء اختبار كامل عبر الـ API (الإجابات الصحيحة تُقرأ من قاعدة البيانات مباشرة).
+مساعدات مشتركة لاختبارات API: إنشاء حسابات بأدوار صريحة، البحث عن موضوع،
+وتنفيذ اختبار كامل عبر الـ API.
 """
 from app.models.question import Question
 from app.models.user import User, UserRole
 
 
 def register_and_login(client, email, password="StrongPass123"):
-    client.post("/auth/register", json={"email": email, "password": password})
-    response = client.post("/auth/login", json={"email": email, "password": password})
-    return response.json()["access_token"]
+    response = client.post("/auth/register", json={"email": email, "password": password})
+    assert response.status_code == 201, response.text
+    login_response = client.post("/auth/login", json={"email": email, "password": password})
+    assert login_response.status_code == 200, login_response.text
+    return login_response.json()["access_token"]
 
 
 def auth(token):
@@ -17,20 +19,24 @@ def auth(token):
 
 
 def make_student(client, email="student@example.com"):
-    """أول مستخدم يسجّل بالنظام يصير admin — نسجّل واحد قبله (لو ما فيه مستخدمين) عشان الطالب يجي عاديًا"""
-    register_and_login(client, "first-admin@example.com")
     return register_and_login(client, email)
 
 
 def set_role(db_session, email, role):
-    user = db_session.query(User).filter(User.email == email).first()
+    user = db_session.query(User).filter(User.email == email).one()
     user.role = role
     db_session.commit()
 
 
 def make_teacher(client, db_session, email="teacher@example.com"):
-    token = make_student(client, email)
+    token = register_and_login(client, email)
     set_role(db_session, email, UserRole.teacher)
+    return token
+
+
+def make_admin(client, db_session, email="admin@example.com"):
+    token = register_and_login(client, email)
+    set_role(db_session, email, UserRole.admin)
     return token
 
 
@@ -43,14 +49,14 @@ def topic_id_by_slug(client, slug):
 
 
 def correct_answer_payload(question: Question):
-    """الإجابة الصحيحة بالشكل اللي يرسله الطالب (نقرأها من قاعدة البيانات مو من الـ API)"""
+    """الإجابة الصحيحة بالشكل اللي يرسله الطالب."""
     if question.kind == "short_text":
         return question.correct_answer[0]
     return question.correct_answer
 
 
 def take_quiz(client, db_session, token, topic_id, mode="practice", correct=True):
-    """يبدأ اختبارًا ويسلّمه: كل الأجوبة صحيحة (correct=True) أو بدون أي إجابة (correct=False)"""
+    """يبدأ اختبارًا ويسلّمه: إجابات صحيحة أو بدون أي إجابة."""
     started = client.post(
         f"/quiz/topics/{topic_id}/start", json={"mode": mode}, headers=auth(token)
     )
