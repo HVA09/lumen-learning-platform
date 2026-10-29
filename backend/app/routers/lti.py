@@ -2,9 +2,10 @@
 مسارات LTI 1.3: OIDC login، استقبال launch، ونقطة تبادل رمز مؤقت لجلسة Lumen.
 لا تُرسل access/refresh tokens عبر URL مطلقًا.
 """
+import secrets
 from urllib.parse import urlencode, urlsplit
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Response, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
@@ -104,6 +105,19 @@ async def lti_login(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="يجب استخدام HTTPS في target_link_uri خارج التطوير المحلي",
         )
+    if settings.ENVIRONMENT.lower() == "production" and not settings.LTI_ALLOWED_TARGET_LINK_URIS:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="لم تُضبط قائمة target_link_uri المسموح بها لـ LTI في بيئة الإنتاج",
+        )
+    if (
+        settings.LTI_ALLOWED_TARGET_LINK_URIS
+        and target_link_uri not in settings.LTI_ALLOWED_TARGET_LINK_URIS
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="target_link_uri غير مسموح به",
+        )
 
     nonce = new_nonce()
     state = create_login_state(db, platform.id, nonce, target_link_uri)
@@ -124,7 +138,7 @@ async def lti_login(
 
 @router.post("/launch")
 async def lti_launch(
-    id_token: str = Form(...),
+    id_token: str = Form(..., max_length=20000),
     state: str = Form(..., min_length=20, max_length=256),
     db: Session = Depends(get_db),
 ):
@@ -176,7 +190,7 @@ async def lti_launch(
         if not user:
             user = User(
                 email=email,
-                hashed_password=hash_password(__import__("secrets").token_urlsafe(32)),
+                hashed_password=hash_password(secrets.token_urlsafe(32)),
                 full_name=claims.get("name"),
                 is_email_verified=True,
             )
@@ -196,8 +210,14 @@ async def lti_launch(
 
 
 @router.post("/exchange", response_model=Token)
-def exchange_lti_code(payload: LTIExchangeRequest, db: Session = Depends(get_db)):
+def exchange_lti_code(
+    payload: LTIExchangeRequest,
+    response: Response,
+    db: Session = Depends(get_db),
+):
     """يستبدل رمزًا مؤقتًا بأقل صلاحيات ممكنة: access/refresh tokens لا تظهر في URL."""
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
     user_id = consume_lti_auth_code(db, payload.code)
     if user_id is None:
         raise HTTPException(
