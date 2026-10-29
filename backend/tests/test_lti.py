@@ -9,11 +9,11 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from jose import jwk, jwt
-from jose.utils import long_to_base64url
 
 from app.models.user import UserRole
 from tests.quiz_helpers import set_role
 from app.services import lti_service as lti_service_module
+from app.services.lti_service import long_to_base64url
 
 
 def _generate_fake_platform_keypair():
