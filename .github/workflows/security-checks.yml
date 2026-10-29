@@ -17,6 +17,7 @@ jobs:
   backend-tests:
     name: Backend pytest
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     services:
       postgres:
         image: postgres:16
@@ -55,11 +56,12 @@ jobs:
       - name: Validate Alembic migrations on an empty database
         run: python -m alembic upgrade head
       - name: Run backend tests
-        run: python -m pytest -q
+        run: python -m pytest -q --timeout=60
 
   frontend-checks:
     name: Frontend tests and build
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: frontend
