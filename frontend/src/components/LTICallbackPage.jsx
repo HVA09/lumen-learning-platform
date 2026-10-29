@@ -9,10 +9,11 @@ export default function LTICallbackPage() {
     if (started.current) return;
     started.current = true;
 
-    const params = new URLSearchParams(window.location.search);
+    // The fragment is not sent to the web server or in Referer headers.
+    const params = new URLSearchParams(window.location.hash.slice(1));
     const code = params.get("code");
 
-    // امسح الرمز من شريط العنوان فور قراءته؛ لا نحتفظ برموز الدخول في URL.
+    // Remove the one-time code from the address bar immediately after reading it.
     window.history.replaceState({}, document.title, window.location.pathname);
 
     if (!code) {
