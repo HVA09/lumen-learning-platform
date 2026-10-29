@@ -6,6 +6,7 @@ from app.models.question_result import QuestionResult
 from tests.quiz_helpers import (
     auth,
     make_student,
+    make_admin,
     make_teacher,
     register_and_login,
     take_quiz,
@@ -122,8 +123,8 @@ def test_question_for_unknown_topic_404(client, db_session):
     assert response.status_code == 404
 
 
-def test_admin_can_manage_content_too(client):
-    admin_token = register_and_login(client, "contentadmin@example.com")  # أول مستخدم = admin
+def test_admin_can_manage_content_too(client, db_session):
+    admin_token = make_admin(client, db_session, "contentadmin@example.com")
     topic_id = topic_id_by_slug(client, "linear-equations")
     response = client.post(
         f"/content/topics/{topic_id}/questions", json=VALID_MCQ, headers=auth(admin_token)
