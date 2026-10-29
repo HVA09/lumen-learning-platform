@@ -18,7 +18,7 @@ from app.models.review_card import ReviewCard, CardState
 from app.models.class_section import ClassSection, ClassEnrollment
 from app.models.assignment import Assignment, AssignmentSubmission, SubmissionStatus
 from app.models.user_achievement import UserAchievement
-from app.models.lti import LTIPlatform, LTIUserLink
+from app.models.lti import LTIPlatform, LTIUserLink, LTILoginState, LTIAuthCode
 
 __all__ = [
     "Subject",
@@ -41,6 +41,8 @@ __all__ = [
     "UserAchievement",
     "LTIPlatform",
     "LTIUserLink",
+    "LTILoginState",
+    "LTIAuthCode",
     "User",
     "UserRole",
     "FileAttachment",
