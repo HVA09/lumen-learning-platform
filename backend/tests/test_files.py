@@ -52,6 +52,7 @@ def test_upload_rejects_oversized_file(client, tmp_path, monkeypatch):
         headers=headers,
     )
     assert response.status_code == 413
+    assert not [path for path in tmp_path.rglob("*") if path.is_file()]
 
 
 def test_list_files(client, tmp_path, monkeypatch):
