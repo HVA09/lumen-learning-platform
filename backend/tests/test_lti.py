@@ -102,6 +102,7 @@ def test_login_redirects_to_platform_auth_endpoint(client, db_session):
             "target_link_uri": "https://mylumen.example.com/lti/launch",
             "client_id": platform["client_id"],
             "lti_message_hint": "opaque+message/hint-42",
+            "lti_deployment_id": platform["deployment_id"],
         },
         follow_redirects=False,
     )
@@ -125,6 +126,7 @@ def test_login_accepts_form_post(client, db_session):
             "target_link_uri": "https://mylumen.example.com/lti/launch",
             "client_id": platform["client_id"],
             "lti_message_hint": "post opaque/hint+42",
+            "lti_deployment_id": platform["deployment_id"],
         },
         follow_redirects=False,
     )
@@ -135,6 +137,23 @@ def test_login_accepts_form_post(client, db_session):
     redirect_params = parse_qs(urlparse(response.headers["location"]).query)
     assert redirect_params["lti_message_hint"] == ["post opaque/hint+42"]
 
+
+
+def test_login_rejects_mismatched_deployment_hint(client, db_session):
+    admin_token = _register_admin(client, db_session, "deploymenthint@example.com")
+    platform = _register_platform(client, admin_token)
+    response = client.get(
+        "/lti/login",
+        params={
+            "iss": platform["issuer"],
+            "login_hint": "student1",
+            "target_link_uri": "https://mylumen.example.com/lti/launch",
+            "client_id": platform["client_id"],
+            "lti_deployment_id": "unexpected-deployment",
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 400
 
 def test_full_launch_flow_issues_single_use_exchange_code(client, db_session, monkeypatch):
     admin_token = _register_admin(client, db_session, "launchflow@example.com")
