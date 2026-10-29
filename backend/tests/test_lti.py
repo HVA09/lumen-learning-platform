@@ -2,16 +2,21 @@
 اختبارات LTI 1.3: تتحقق من التوقيع، state أحادي الاستخدام، وعدم كشف JWT في URL.
 """
 from urllib.parse import parse_qs, urlparse
+import base64
 import time
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from jose import jwt
-from jose.utils import long_to_base64url
 
 from app.auth.security import decode_token
 from app.models.user import User, UserRole
 from app.services import lti_service as lti_service_module
+
+
+def _int_to_base64url(value: int) -> str:
+    raw = value.to_bytes(max(1, (value.bit_length() + 7) // 8), "big")
+    return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
 
 
 def _generate_fake_platform_keypair():
@@ -19,8 +24,8 @@ def _generate_fake_platform_keypair():
     numbers = private_key.public_key().public_numbers()
     jwk_dict = {
         "kty": "RSA", "use": "sig", "alg": "RS256", "kid": "platform-key-1",
-        "n": long_to_base64url(numbers.n).decode(),
-        "e": long_to_base64url(numbers.e).decode(),
+        "n": _int_to_base64url(numbers.n),
+        "e": _int_to_base64url(numbers.e),
     }
     return private_key, jwk_dict
 
