@@ -220,7 +220,7 @@ async def lti_launch(
         # email alone. Email claims may be absent/unverified or controlled by
         # the LMS tenant; account linking must be an explicit authenticated flow.
         subject_digest = sha256(lti_subject.encode("utf-8")).hexdigest()
-        identity_email = f"lti_{platform.id}_{subject_digest}@lti.local"
+        identity_email = f"lti_{platform.id}_{subject_digest}@lti.example.com"
         user = db.query(User).filter(User.email == identity_email).first()
         if not user:
             display_name = claims.get("name")
