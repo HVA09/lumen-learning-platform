@@ -6,8 +6,17 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 
 from app.config import settings
 
+
+def normalize_database_url(url: str) -> str:
+    """Use the psycopg2 driver provided by requirements for common PostgreSQL URL forms."""
+    for prefix in ("postgres://", "postgresql://", "postgresql+psycopg://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg2://" + url[len(prefix):]
+    return url
+
+
 engine = create_engine(
-    settings.DATABASE_URL,
+    normalize_database_url(settings.DATABASE_URL),
     pool_pre_ping=True,
     pool_size=5,
     max_overflow=10,
