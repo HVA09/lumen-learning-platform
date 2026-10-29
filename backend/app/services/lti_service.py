@@ -9,7 +9,6 @@
 """
 import base64
 import hashlib
-import time
 import uuid
 
 import httpx
@@ -59,21 +58,6 @@ def build_tool_jwks() -> dict:
             }
         ]
     }
-
-
-def encode_login_state(platform_id: int, nonce: str, target_link_uri: str) -> str:
-    """حالة OIDC موقّعة بمفتاحنا الداخلي — بديل عن جلسة سيرفر، وتُتحقق وقت /lti/launch"""
-    payload = {
-        "platform_id": platform_id,
-        "nonce": nonce,
-        "target_link_uri": target_link_uri,
-        "exp": int(time.time()) + LTI_STATE_TTL_SECONDS,
-    }
-    return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
-
-
-def decode_login_state(state: str) -> dict:
-    return jwt.decode(state, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
 
 
 async def fetch_platform_public_key(jwks_url: str, kid: str):
