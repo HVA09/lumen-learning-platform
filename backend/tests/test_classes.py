@@ -118,7 +118,7 @@ def test_class_detail_is_restricted_to_owner_and_admin(client, db_session):
     teacher = make_teacher(client, db_session, "owner@example.com")
     other_teacher = make_teacher(client, db_session, "intruder-teacher@example.com")
     student = make_student(client, "member@example.com")
-    admin = register_and_login(client, "first-admin@example.com")
+    admin = make_admin(client, db_session, "first-admin@example.com")
     created = _create_class(client, teacher)
     _join(client, student, created["invite_code"])
 
