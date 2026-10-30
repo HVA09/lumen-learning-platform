@@ -48,7 +48,8 @@ def register(payload: UserCreate, db: Session = Depends(get_db)):
     if existing:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="البريد مسجل مسبقًا")
 
-    # التسجيل العام لا يمنح صلاحيات إدارية. أنشئ المدير من أمر CLI محلي موثوق.
+    # التسجيل العام لا يمنح صلاحيات إدارية؛ إنشاء المدير يجب أن يتم
+    # عبر إجراء تهيئة منفصل ومصرّح به خارج نقطة التسجيل العامة.
     user = User(
         email=payload.email,
         hashed_password=hash_password(payload.password),
@@ -73,8 +74,13 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
     )
 
     user = db.query(User).filter(User.email == payload.email).first()
-    if not user or not user.is_active:
-        # Keep the response identical for missing and deactivated accounts.
+    if not user:
+        raise invalid_credentials_error
+
+    # Disabled accounts must not receive new sessions. Use the same generic
+    # response as invalid credentials to avoid disclosing account state.
+    if not user.is_active:
+        log_event(db, "login_blocked", f"محاولة دخول لحساب معطّل: {user.email}", user.id)
         raise invalid_credentials_error
 
     # حماية ضد Brute Force: الحساب مقفل مؤقتًا بعد محاولات فاشلة كثيرة
@@ -126,8 +132,8 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
 
     log_event(db, "login", f"تسجيل دخول: {user.email}", user.id)
     return Token(
-        access_token=create_access_token(user.id),
-        refresh_token=create_refresh_token(user.id),
+        access_token=create_access_token(user.id, user.token_version),
+        refresh_token=create_refresh_token(user.id, user.token_version),
     )
 
 
@@ -146,12 +152,16 @@ def refresh(payload: RefreshRequest, db: Session = Depends(get_db)):
 
     # تأكد إن المستخدم لسه موجود ومفعّل قبل ما نصدر توكنات جديدة
     user = db.get(User, user_id)
-    if user is None or not user.is_active:
+    if (
+        user is None
+        or not user.is_active
+        or data.get("ver", 0) != user.token_version
+    ):
         raise invalid_token_error
 
     return Token(
-        access_token=create_access_token(user.id),
-        refresh_token=create_refresh_token(user.id),
+        access_token=create_access_token(user.id, user.token_version),
+        refresh_token=create_refresh_token(user.id, user.token_version),
     )
 
 
@@ -159,7 +169,10 @@ def refresh(payload: RefreshRequest, db: Session = Depends(get_db)):
 def request_email_verification(current_user: User = Depends(get_current_user)):
     if current_user.is_email_verified:
         return {"detail": "البريد مؤكد مسبقًا"}
-    send_verification_email(current_user.email, create_email_verification_token(current_user.id))
+    send_verification_email(
+        current_user.email,
+        create_email_verification_token(current_user.id, current_user.token_version),
+    )
     return {"detail": "تم إرسال رابط التأكيد"}
 
 
@@ -177,7 +190,7 @@ def confirm_email_verification(payload: EmailVerificationConfirm, db: Session = 
         raise invalid_error
 
     user = db.get(User, user_id)
-    if user is None:
+    if user is None or data.get("ver", 0) != user.token_version:
         raise invalid_error
 
     user.is_email_verified = True
@@ -191,7 +204,9 @@ def request_password_reset(payload: PasswordResetRequest, db: Session = Depends(
     # نرجّع نفس الرد سواء كان الإيميل مسجّل أو لا — عشان ما نكشف إذا حساب موجود
     user = db.query(User).filter(User.email == payload.email).first()
     if user:
-        send_password_reset_email(user.email, create_password_reset_token(user.id))
+        send_password_reset_email(
+            user.email, create_password_reset_token(user.id, user.token_version)
+        )
         log_event(db, "password_reset_requested", f"طلب إعادة تعيين: {user.email}", user.id)
     return {"detail": "لو البريد مسجّل عندنا، وصلته رسالة بخطوات إعادة التعيين"}
 
@@ -209,11 +224,13 @@ def confirm_password_reset(payload: PasswordResetConfirm, db: Session = Depends(
     except (JWTError, TypeError, ValueError):
         raise invalid_error
 
-    user = db.get(User, user_id)
-    if user is None:
+    # Lock the row so the same reset token cannot be redeemed concurrently.
+    user = db.query(User).filter(User.id == user_id).with_for_update().first()
+    if user is None or data.get("ver", 0) != user.token_version:
         raise invalid_error
 
     user.hashed_password = hash_password(payload.new_password)
+    user.token_version += 1  # invalidate all prior access, refresh, and reset tokens
     # إعادة التعيين إجراء استرجاع مشروع للحساب — نفك أي قفل Brute Force قائم
     user.failed_login_attempts = 0
     user.locked_until = None
