@@ -17,9 +17,15 @@ def auth(token):
 
 
 def make_student(client, email="student@example.com"):
-    """أول مستخدم يسجّل بالنظام يصير admin — نسجّل واحد قبله (لو ما فيه مستخدمين) عشان الطالب يجي عاديًا"""
-    register_and_login(client, "first-admin@example.com")
+    """ينشئ طالبًا عاديًا عبر التسجيل العام."""
     return register_and_login(client, email)
+
+
+def make_admin(client, db_session, email="admin@example.com"):
+    """ينشئ حسابًا عاديًا ثم يمنحه دور admin مباشرة داخل قاعدة الاختبار."""
+    token = register_and_login(client, email)
+    set_role(db_session, email, UserRole.admin)
+    return token
 
 
 def set_role(db_session, email, role):
