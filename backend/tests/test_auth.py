@@ -31,6 +31,18 @@ def test_register_rejects_short_password(client):
     assert response.status_code == 422
 
 
+def test_registration_rejects_passwords_over_bcrypt_byte_limit(client):
+    # 73 ASCII bytes, and 74 UTF-8 bytes respectively.
+    for email, password in (
+        ("long-password-ascii@example.com", "x" * 73),
+        ("long-password-unicode@example.com", "ا" * 37),
+    ):
+        response = client.post(
+            "/auth/register", json={"email": email, "password": password}
+        )
+        assert response.status_code == 422
+
+
 def test_first_user_does_not_become_admin(client):
     response = client.post(
         "/auth/register", json={"email": "first@example.com", "password": "StrongPass123"}
