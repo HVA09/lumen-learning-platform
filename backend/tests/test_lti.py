@@ -137,6 +137,7 @@ def test_full_launch_flow_creates_user_and_issues_tokens(client, db_session, mon
         "sub": "moodle-student-42", "nonce": nonce, "name": "طالب تجريبي",
         "email": "student42@moodle.example.com",
         "https://purl.imsglobal.org/spec/lti/claim/deployment_id": platform_data["deployment_id"],
+        "https://purl.imsglobal.org/spec/lti/claim/target_link_uri": "https://mylumen.example.com/lti/launch",
     }
     id_token = jwt.encode(
         claims, pem, algorithm="RS256", headers={"kid": "platform-key-1"}
@@ -251,3 +252,49 @@ def test_lti_exchange_code_is_invalidated_after_password_change(client, db_sessi
 
     exchanged = client.post("/lti/exchange-code", json={"code": code})
     assert exchanged.status_code == 401
+
+
+def test_launch_rejects_signed_target_link_uri_mismatch(client, db_session, monkeypatch):
+    admin_token = _register_admin(client, db_session, "targetmismatch@example.com")
+    platform_data = _register_platform(client, admin_token)
+    expected_target = "https://mylumen.example.com/lti/launch"
+
+    login_response = client.get(
+        "/lti/login",
+        params={
+            "iss": platform_data["issuer"],
+            "login_hint": "student42",
+            "target_link_uri": expected_target,
+            "client_id": platform_data["client_id"],
+        },
+        follow_redirects=False,
+    )
+    from urllib.parse import parse_qs, urlparse
+    query = parse_qs(urlparse(login_response.headers["location"]).query)
+    state = query["state"][0]
+    nonce = query["nonce"][0]
+
+    platform_private_key, platform_jwk = _generate_fake_platform_keypair()
+    pem = platform_private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    ).decode()
+    claims = {
+        "iss": platform_data["issuer"],
+        "aud": platform_data["client_id"],
+        "sub": "target-mismatch-student",
+        "nonce": nonce,
+        "https://purl.imsglobal.org/spec/lti/claim/deployment_id": platform_data["deployment_id"],
+        "https://purl.imsglobal.org/spec/lti/claim/target_link_uri": "https://attacker.example/other-launch",
+    }
+    id_token = jwt.encode(
+        claims, pem, algorithm="RS256", headers={"kid": "platform-key-1"}
+    )
+
+    async def fake_fetch_key(jwks_url, kid):
+        return platform_jwk
+
+    monkeypatch.setattr(lti_service_module, "fetch_platform_public_key", fake_fetch_key)
+    response = client.post("/lti/launch", data={"id_token": id_token, "state": state})
+    assert response.status_code == 401
