@@ -103,17 +103,15 @@ pytest -v
 الاختبارات البحتة (بدون قاعدة بيانات: منطق الاختبارات، مسار التعلّم، رموز الدعوة، تحليل الأسئلة،
 فحص جودة المحتوى) تشتغل لوحدها بسرعة: `pytest tests/test_quiz_logic.py tests/test_content_lint.py ...`.
 
-> ⚠️ **ملاحظة صدق:** اختبارات الـ API المعتمدة على PostgreSQL (`test_classes.py`، `test_content.py`، `test_content_refresh.py`، …) كُتبت لكن **لم تُشغَّل** بالبيئة اللي بُني فيها المشروع (ما فيها PostgreSQL ولا FastAPI). شغّلها عندك قبل الاعتماد عليها، وتوقّع تحتاج تعديلات طفيفة لو ظهر فرق بسيط.
+**التحقق الآلي الحالي:** ملف `.github/workflows/ci.yml` يشغّل migrations على PostgreSQL 16 ثم يشغّل مجموعة اختبارات pytest على قاعدة الاختبار. كما يشغّل اختبارات Vitest وبناء Vite للواجهة. نجاح CI يثبت هذه الفحوصات الآلية فقط؛ لا يغني عن اختبار تكامل يدوي على بيئة نشر حقيقية.
 
 ## CI/CD
 
-عند كل push على `main`: تشغيل الاختبارات → بناء صورة Docker → رفعها لـ GitHub
-Container Registry → محاولة نشر عبر SSH على سيرفرك.
+الملف `.github/workflows/ci.yml` يشغّل فحوصات عند التغييرات ذات الصلة في الفرع أو طلبات الدمج:
+- الواجهة: تثبيت الاعتماديات، اختبارات Vitest، بناء Vite، وتدقيق اعتماديات الإنتاج.
+- الخلفية: Python 3.12 مع PostgreSQL 16 وRedis 7، ثم `alembic upgrade head` واختبارات pytest.
 
-خطوة النشر (`deploy`) لن تعمل قبل ما تضيف Secrets حقيقية في إعدادات الريبو
-(`Settings → Secrets and variables → Actions`): `SERVER_HOST`, `SERVER_USER`,
-`SSH_PRIVATE_KEY` — حسب أي سيرفر Cloud تستخدمه (AWS EC2 / Azure VM / GCP Compute
-Engine كلها تصلح، لأن الخطوة تتعامل معه كسيرفر Linux عادي عبر SSH).
+**مهم:** هذا workflow لا يبني صورة Docker للنشر، ولا يرفعها إلى GHCR، ولا ينفّذ نشرًا عبر SSH. لا يوجد نشر إنتاج تلقائي ضمن workflow الحالي. كذلك لا يوجد حاليًا `frontend/package-lock.json`؛ لذلك يستخدم CI `npm install` بدل `npm ci`. إضافة lockfile والتحويل إلى `npm ci` ما زالا مطلوبين لتحسين قابلية إعادة إنتاج تثبيت الواجهة.
 
 ## قاعدة البيانات (Alembic)
 
@@ -210,6 +208,8 @@ alembic upgrade head
     مراجعة مستحقة (يوميًا)
 
 ## النشر: HTTPS، النسخ الاحتياطي، والمراقبة
+
+**تنبيه قبل الإنتاج:** إعداد Nginx الموجود حاليًا يشغّل HTTP على المنفذ 80 فقط؛ كتلة HTTPS على المنفذ 443 والتحويل من HTTP إلى HTTPS ما زالت معلّقة بالتعليقات. مجرد نشر منفذ 443 في Docker لا يفعّل TLS. قبل استقبال مستخدمين حقيقيين، فعّل TLS في Nginx بعد إصدار شهادة صالحة، أو استخدم proxy/load balancer موثوقًا ينهي TLS أمام التطبيق. لا تعتبر إعداد Compose الحالي جاهزًا للإنتاج عبر HTTPS دون هذه الخطوة.
 
 **HTTPS (Let's Encrypt مجانًا):**
 1. عدّل `nginx/nginx.conf`: استبدل placeholder بدومينك بالجزء المعلَّق (تعليمات داخل الملف)
