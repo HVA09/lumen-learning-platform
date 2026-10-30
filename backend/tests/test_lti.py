@@ -12,6 +12,7 @@ from jose import jwt
 from app.auth.security import decode_token
 from app.models.user import User, UserRole
 from app.services import lti_service as lti_service_module
+from app.services.lti_service import create_lti_auth_code
 
 
 def _int_to_base64url(value: int) -> str:
@@ -361,3 +362,20 @@ def test_login_rejects_insecure_non_local_target_uri(client, db_session):
         follow_redirects=False,
     )
     assert response.status_code == 400
+
+
+def test_lti_exchange_code_is_invalidated_after_password_reset(client, db_session):
+    email = "lti-code-version@example.com"
+    register = client.post(
+        "/auth/register", json={"email": email, "password": "StrongPass123"}
+    )
+    assert register.status_code == 201
+    user = db_session.query(User).filter(User.email == email).one()
+    code = create_lti_auth_code(db_session, user.id, user.token_version)
+
+    # A password reset/version change after LTI launch must invalidate its pending code.
+    user.token_version += 1
+    db_session.commit()
+
+    response = client.post("/lti/exchange", json={"code": code})
+    assert response.status_code == 401
