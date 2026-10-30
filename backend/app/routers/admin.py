@@ -180,6 +180,11 @@ def update_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="ما تقدر تغيّر دور حسابك أو تعطّله بنفسك",
         )
+    # Revoke both access and refresh tokens whenever account availability changes.
+    # This prevents old tokens from becoming valid again if the account is re-enabled.
+    if "is_active" in data and bool(data["is_active"]) != user.is_active:
+        user.token_version += 1
+
     for field, value in data.items():
         setattr(user, field, value)
     db.commit()
