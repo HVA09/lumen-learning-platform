@@ -6,7 +6,7 @@ This is intentionally not an HTTP endpoint.
 """
 from getpass import getpass
 
-from sqlalchemy import func
+from sqlalchemy import func, text
 from pydantic import EmailStr, TypeAdapter, ValidationError
 from sqlalchemy.orm import Session
 
@@ -22,6 +22,8 @@ def create_admin_user(db: Session, email: str, password: str) -> User:
         raise ValueError("Enter a valid email address.") from exc
     if len(password) < 8:
         raise ValueError("The password must contain at least 8 characters.")
+    # Serialize concurrent bootstrap attempts so two CLI processes cannot create two admins.
+    db.execute(text("SELECT pg_advisory_xact_lock(:lock_id)"), {"lock_id": 731904221})
     if db.query(func.count(User.id)).filter(User.role == UserRole.admin).scalar():
         raise ValueError("An administrator already exists; refusing to bootstrap another.")
     existing = db.query(User).filter(func.lower(User.email) == normalized_email).first()
