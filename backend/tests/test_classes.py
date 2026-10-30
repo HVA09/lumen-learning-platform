@@ -3,9 +3,9 @@
 """
 from tests.quiz_helpers import (
     auth,
+    make_admin,
     make_student,
     make_teacher,
-    register_and_login,
     take_quiz,
     topic_id_by_slug,
 )
@@ -85,7 +85,7 @@ def test_list_classes_is_scoped_by_role(client, db_session):
     teacher_b = make_teacher(client, db_session, "teacher-b@example.com")
     student = make_student(client, "lister@example.com")
     other_student = make_student(client, "otherlister@example.com")
-    admin = register_and_login(client, "first-admin@example.com")
+    admin = make_admin(client, db_session, "first-admin@example.com")
 
     class_a = _create_class(client, teacher_a, "فصل أ")
     class_b = _create_class(client, teacher_b, "فصل ب")
