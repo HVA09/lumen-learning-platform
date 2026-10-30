@@ -21,7 +21,7 @@ def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
 ) -> User:
-    """Authentication: يتحقق من صلاحية JWT ويرجّع المستخدم صاحب التوكن"""
+    """Validate JWT and its account session version before loading the user."""
     credentials_error = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="بيانات الدخول غير صالحة",
@@ -32,11 +32,16 @@ def get_current_user(
         if payload.get("type") != "access":
             raise credentials_error
         user_id = int(payload.get("sub"))
+        token_version = payload.get("ver", 0)
     except (JWTError, TypeError, ValueError):
         raise credentials_error
 
     user = db.get(User, user_id)
-    if user is None or not user.is_active:
+    if (
+        user is None
+        or not user.is_active
+        or token_version != user.token_version
+    ):
         raise credentials_error
     return user
 
