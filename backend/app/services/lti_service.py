@@ -109,7 +109,7 @@ def consume_login_state(db: Session, state: str) -> bool:
     return True
 
 
-def create_lti_auth_code(db: Session, user_id: int) -> str:
+def create_lti_auth_code(db: Session, user_id: int, token_version: int = 0) -> str:
     """ينشئ رمز تبادل عشوائيًا قصير العمر ويخزن بصمته فقط."""
     now = datetime.now(timezone.utc)
     db.query(LTIAuthCode).filter(LTIAuthCode.expires_at < now).delete(
@@ -120,6 +120,7 @@ def create_lti_auth_code(db: Session, user_id: int) -> str:
         LTIAuthCode(
             code_hash=_hash_secret(code),
             user_id=user_id,
+            token_version=token_version,
             expires_at=now + timedelta(seconds=LTI_AUTH_CODE_TTL_SECONDS),
         )
     )
@@ -127,7 +128,7 @@ def create_lti_auth_code(db: Session, user_id: int) -> str:
     return code
 
 
-def consume_lti_auth_code(db: Session, code: str) -> int | None:
+def consume_lti_auth_code(db: Session, code: str) -> tuple[int, int] | None:
     """يحوّل رمزًا صالحًا لمعرّف مستخدم ويستهلكه ذريًا مرة واحدة فقط."""
     if not code or len(code) > 256:
         return None
@@ -146,6 +147,7 @@ def consume_lti_auth_code(db: Session, code: str) -> int | None:
         return None
 
     user_id = record.user_id
+    token_version = record.token_version
     updated = (
         db.query(LTIAuthCode)
         .filter(
@@ -158,7 +160,7 @@ def consume_lti_auth_code(db: Session, code: str) -> int | None:
     if updated != 1:
         return None
     db.commit()
-    return user_id
+    return user_id, token_version
 
 
 async def fetch_platform_public_key(jwks_url: str, kid: str):
