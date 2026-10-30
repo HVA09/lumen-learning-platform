@@ -7,15 +7,21 @@ from jose import jwt
 from passlib.context import CryptContext
 
 from app.config import settings
+from app.password_policy import fits_bcrypt_password, validate_bcrypt_password
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def hash_password(password: str) -> str:
+    # Reject overlong input even when called outside a Pydantic request schema.
+    validate_bcrypt_password(password)
     return pwd_context.hash(password)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
+    # Never allow a password longer than bcrypt's limit to match by prefix truncation.
+    if not fits_bcrypt_password(plain_password):
+        return False
     return pwd_context.verify(plain_password, hashed_password)
 
 
