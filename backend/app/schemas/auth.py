@@ -1,9 +1,11 @@
 from pydantic import BaseModel, EmailStr, Field
 
+from app.schemas.passwords import BcryptPassword
+
 
 class LoginRequest(BaseModel):
     email: EmailStr
-    password: str
+    password: BcryptPassword
     totp_code: str | None = None  # مطلوب فقط لو الحساب مفعّل عليه 2FA
 
 
@@ -27,7 +29,7 @@ class PasswordResetRequest(BaseModel):
 
 class PasswordResetConfirm(BaseModel):
     token: str
-    new_password: str = Field(min_length=8)
+    new_password: BcryptPassword = Field(min_length=8)
 
 
 class TwoFactorSetupResponse(BaseModel):
