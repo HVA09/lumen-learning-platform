@@ -35,21 +35,47 @@ def test_checkout_returns_url_from_provider(client, monkeypatch):
     )
     monkeypatch.setattr(billing_router_module, "get_payment_provider", lambda: mock_provider)
 
+    monkeypatch.setattr(
+        billing_router_module.app_settings, "FRONTEND_URL", "https://trusted.example.com"
+    )
     token = _register_and_login(client)
     plans = client.get("/billing/plans").json()
     pro_plan = next(p for p in plans if p["name"] == "Pro")
 
     response = client.post(
         "/billing/checkout",
-        json={
-            "plan_id": pro_plan["id"],
-            "success_url": "https://app.example.com/success",
-            "cancel_url": "https://app.example.com/cancel",
-        },
+        json={"plan_id": pro_plan["id"]},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 200
     assert response.json()["checkout_url"] == "https://checkout.example.com/session123"
+    mock_provider.create_checkout_session.assert_awaited_once()
+    checkout_args = mock_provider.create_checkout_session.await_args.kwargs
+    assert checkout_args["success_url"] == "https://trusted.example.com/billing/success"
+    assert checkout_args["cancel_url"] == "https://trusted.example.com/billing/cancel"
+
+
+def test_checkout_rejects_client_supplied_redirect_urls(client, monkeypatch):
+    mock_provider = MagicMock()
+    mock_provider.create_checkout_session = AsyncMock(
+        return_value=CheckoutResult(checkout_url="https://checkout.example.com/session123")
+    )
+    monkeypatch.setattr(billing_router_module, "get_payment_provider", lambda: mock_provider)
+
+    token = _register_and_login(client, "redirects@example.com")
+    plan = next(p for p in client.get("/billing/plans").json() if p["name"] == "Pro")
+
+    response = client.post(
+        "/billing/checkout",
+        json={
+            "plan_id": plan["id"],
+            "success_url": "https://attacker.example/collect",
+            "cancel_url": "https://attacker.example/leave",
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 422
+    mock_provider.create_checkout_session.assert_not_awaited()
 
 
 def test_checkout_rejects_unknown_plan(client, monkeypatch):
@@ -58,7 +84,7 @@ def test_checkout_rejects_unknown_plan(client, monkeypatch):
 
     response = client.post(
         "/billing/checkout",
-        json={"plan_id": 999999, "success_url": "https://a.com", "cancel_url": "https://a.com"},
+        json={"plan_id": 999999},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 404
