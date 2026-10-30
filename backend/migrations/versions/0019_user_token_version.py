@@ -16,6 +16,15 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     op.add_column(
+        "lti_auth_codes",
+        sa.Column(
+            "token_version",
+            sa.Integer(),
+            nullable=False,
+            server_default=sa.text("0"),
+        ),
+    )
+    op.add_column(
         "users",
         sa.Column(
             "token_version",
@@ -28,3 +37,4 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_column("users", "token_version")
+    op.drop_column("lti_auth_codes", "token_version")
