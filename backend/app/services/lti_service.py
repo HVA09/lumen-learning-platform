@@ -9,6 +9,7 @@
 """
 import base64
 import hashlib
+import ipaddress
 import uuid
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
@@ -48,6 +49,17 @@ def validate_lti_platform_endpoint_url(url: str) -> str:
         settings.ENVIRONMENT.strip().lower() in {"development", "test", "testing"}
         and hostname in {"localhost", "127.0.0.1", "::1"}
     )
+    try:
+        address = ipaddress.ip_address(hostname)
+    except ValueError:
+        address = None
+
+    # Do not let an admin-configured endpoint target private, loopback, link-local,
+    # multicast, or reserved IP literals. HTTP loopback remains available for local tests.
+    if address is not None and not address.is_global:
+        if not (scheme == "http" and local_http_allowed and address.is_loopback):
+            raise ValueError("LTI platform endpoints cannot target non-public IP addresses")
+
     if scheme != "https" and not (scheme == "http" and local_http_allowed):
         raise ValueError("LTI platform endpoints must use HTTPS outside local development")
     return url
