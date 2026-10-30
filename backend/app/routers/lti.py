@@ -282,6 +282,6 @@ def exchange_lti_code(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="حساب Lumen غير متاح"
         )
     return Token(
-        access_token=create_access_token(user.id),
-        refresh_token=create_refresh_token(user.id),
+        access_token=create_access_token(user.id, user.token_version),
+        refresh_token=create_refresh_token(user.id, user.token_version),
     )
