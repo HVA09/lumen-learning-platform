@@ -171,7 +171,11 @@ def update_user(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="المستخدم غير موجود")
 
-    data = payload.model_dump(exclude_unset=True)
+    data = {
+        key: value
+        for key, value in payload.model_dump(exclude_unset=True).items()
+        if value is not None
+    }
     # منع الـ admin من تغيير دور حسابه أو تعطيله بنفسه — يقفل على نفسه ويخلّي النظام بدون admin
     if user.id == admin.id and (
         ("role" in data and data["role"] != user.role) or data.get("is_active") is False
