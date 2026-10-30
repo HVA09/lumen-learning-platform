@@ -52,7 +52,7 @@ def main() -> int:
     )
     try:
         promote_initial_admin(args.email, confirmation)
-    except (ValueError, Exception) as exc:
+    except Exception as exc:
         print(f"فشل ترقية المدير: {exc}", file=sys.stderr)
         return 1
     return 0
