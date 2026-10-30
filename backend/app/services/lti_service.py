@@ -56,6 +56,14 @@ def validate_lti_platform_endpoint_url(url: str) -> str:
 
     # Do not let an admin-configured endpoint target private, loopback, link-local,
     # multicast, or reserved IP literals. HTTP loopback remains available for local tests.
+    local_hostname = (
+        hostname == "localhost"
+        or hostname.endswith(".localhost")
+        or hostname.endswith(".local")
+    )
+    if local_hostname and not local_http_allowed:
+        raise ValueError("LTI platform endpoints cannot target local hostnames")
+
     if address is not None and not address.is_global:
         if not (scheme == "http" and local_http_allowed and address.is_loopback):
             raise ValueError("LTI platform endpoints cannot target non-public IP addresses")
