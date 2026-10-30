@@ -494,3 +494,15 @@ def test_register_rejects_non_public_ip_literal_endpoints(client, db_session):
         response = client.post("/lti/platforms", json=payload, headers=headers)
         assert response.status_code == 422, field
 
+def test_lti_endpoint_validator_blocks_local_hostnames_in_production(monkeypatch):
+    monkeypatch.setattr(lti_service_module.settings, "ENVIRONMENT", "production")
+
+    for url in (
+        "https://localhost/jwks",
+        "https://service.localhost/jwks",
+        "https://127.0.0.1/jwks",
+        "https://[::1]/jwks",
+    ):
+        with pytest.raises(ValueError):
+            lti_service_module.validate_lti_platform_endpoint_url(url)
+
