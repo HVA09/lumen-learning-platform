@@ -10,6 +10,7 @@
 import base64
 import hashlib
 import uuid
+from datetime import datetime, timezone
 
 import httpx
 from cryptography.hazmat.primitives import serialization
@@ -75,35 +76,93 @@ async def fetch_platform_public_key(jwks_url: str, kid: str):
 async def verify_platform_id_token(
     id_token: str, platform, expected_nonce: str, expected_target_link_uri: str
 ) -> dict:
-    """يتحقق من توقيع id_token القادم من منصة LMS، والمُصدر، والجمهور، والـ nonce.
-    يرجّع المطالبات (claims) بعد التحقق، أو يرمي استثناء لو أي فحص فشل."""
+    """Verify signature, OIDC claims, and the required LTI Resource Link message claims."""
     unverified_header = jwt.get_unverified_header(id_token)
     kid = unverified_header.get("kid")
     if not kid:
-        raise ValueError("id_token بدون kid — ما نقدر نحدد مفتاح التحقق")
+        raise ValueError("id_token is missing kid")
 
     platform_jwk = await fetch_platform_public_key(platform.jwks_url, kid)
     public_key = jwk.construct(platform_jwk, algorithm="RS256")
-
     claims = jwt.decode(
-        id_token, public_key.to_dict(), algorithms=["RS256"],
-        audience=platform.client_id, issuer=platform.issuer,
+        id_token,
+        public_key.to_dict(),
+        algorithms=["RS256"],
+        audience=platform.client_id,
+        issuer=platform.issuer,
         options={"verify_at_hash": False},
     )
 
-    if claims.get("nonce") != expected_nonce:
-        raise ValueError("nonce غير مطابق — احتمال إعادة تشغيل الطلب (replay)")
-
+    message_type_claim = "https://purl.imsglobal.org/spec/lti/claim/message_type"
+    version_claim = "https://purl.imsglobal.org/spec/lti/claim/version"
     target_link_claim = "https://purl.imsglobal.org/spec/lti/claim/target_link_uri"
+    resource_link_claim = "https://purl.imsglobal.org/spec/lti/claim/resource_link"
+    required_claims = (
+        "iss",
+        "aud",
+        "sub",
+        "exp",
+        "iat",
+        "nonce",
+        message_type_claim,
+        version_claim,
+        target_link_claim,
+        resource_link_claim,
+    )
+    if any(name not in claims for name in required_claims):
+        raise ValueError("id_token is missing a required LTI claim")
+
+    # OIDC requires azp to be checked for multi-audience ID tokens.
+    authorized_party = claims.get("azp")
+    audience = claims["aud"]
+    if authorized_party is not None and authorized_party != platform.client_id:
+        raise ValueError("azp does not match the registered client_id")
+    if isinstance(audience, list) and len(audience) > 1 and authorized_party != platform.client_id:
+        raise ValueError("multi-valued aud requires azp to match the registered client_id")
+
+    if claims.get(message_type_claim) != "LtiResourceLinkRequest":
+        raise ValueError("unsupported LTI message type")
+    if claims.get(version_claim) != "1.3.0":
+        raise ValueError("unsupported LTI version")
+
+    resource_link = claims.get(resource_link_claim)
+    if not isinstance(resource_link, dict):
+        raise ValueError("resource_link claim must be an object")
+    resource_link_id = resource_link.get("id")
+    if (
+        not isinstance(resource_link_id, str)
+        or not resource_link_id
+        or len(resource_link_id) > 255
+        or not resource_link_id.isascii()
+    ):
+        raise ValueError("resource_link.id is invalid")
+
+    now = datetime.now(timezone.utc).timestamp()
+    issued_at = claims["iat"]
+    expires_at = claims["exp"]
+    if (
+        isinstance(issued_at, bool)
+        or not isinstance(issued_at, (int, float))
+        or isinstance(expires_at, bool)
+        or not isinstance(expires_at, (int, float))
+        or expires_at <= now
+        or issued_at > now + 60
+        or expires_at <= issued_at
+    ):
+        raise ValueError("id_token time claims are invalid")
+
+    if not isinstance(claims["sub"], str) or not claims["sub"] or len(claims["sub"]) > 255:
+        raise ValueError("sub is invalid")
+    if claims.get("nonce") != expected_nonce:
+        raise ValueError("nonce does not match the stored OIDC state")
     if claims.get(target_link_claim) != expected_target_link_uri:
-        raise ValueError("target_link_uri غير مطابق لحالة OIDC المحفوظة")
+        raise ValueError("target_link_uri does not match the stored OIDC state")
 
     deployment_claim = "https://purl.imsglobal.org/spec/lti/claim/deployment_id"
     if claims.get(deployment_claim) != platform.deployment_id:
-        raise ValueError("deployment_id غير مطابق للمنصة المسجّلة")
+        raise ValueError("deployment_id does not match the registered platform")
 
     return claims
-
 
 def new_nonce() -> str:
     return uuid.uuid4().hex
