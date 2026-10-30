@@ -400,3 +400,39 @@ def test_launch_rejects_unsupported_lti_message_and_missing_azp(client, db_sessi
         "/lti/launch", data={"id_token": valid_token, "state": state}, follow_redirects=False
     )
     assert accepted.status_code == 302
+
+
+def test_login_post_accepts_form_and_preserves_platform_hints(client, db_session):
+    admin_token = _register_admin(client, db_session, "loginpost@example.com")
+    platform = _register_platform(client, admin_token)
+    message_hint = "opaque-platform-hint:/path?x=1&keep=unchanged"
+
+    response = client.post(
+        "/lti/login",
+        data={
+            "iss": platform["issuer"],
+            "login_hint": "student-post",
+            "target_link_uri": "https://mylumen.example.com/lti/launch",
+            "client_id": platform["client_id"],
+            "lti_message_hint": message_hint,
+            "lti_deployment_id": platform["deployment_id"],
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 302
+    from urllib.parse import parse_qs, urlparse
+    params = parse_qs(urlparse(response.headers["location"]).query)
+    assert params["lti_message_hint"] == [message_hint]
+
+    invalid_deployment = client.get(
+        "/lti/login",
+        params={
+            "iss": platform["issuer"],
+            "login_hint": "student-get",
+            "target_link_uri": "https://mylumen.example.com/lti/launch",
+            "client_id": platform["client_id"],
+            "lti_deployment_id": "wrong-deployment",
+        },
+        follow_redirects=False,
+    )
+    assert invalid_deployment.status_code == 400
