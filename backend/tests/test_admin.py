@@ -1,7 +1,7 @@
 """
 اختبارات المرحلة السابعة: لوحة الإدارة
 """
-from app.models.user import User, UserRole
+from app.models.user import UserRole
 from tests.quiz_helpers import set_role, take_quiz, topic_id_by_slug
 
 
@@ -189,8 +189,16 @@ def test_admin_deactivate_reactivate_does_not_revive_old_tokens(client, db_sessi
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
 
     user_email = "revoked-after-reactivation@example.com"
-    user_token = _register_and_login(client, user_email)
-    user_headers = {"Authorization": f"Bearer {user_token}"}
+    client.post(
+        "/auth/register", json={"email": user_email, "password": "StrongPass123"}
+    )
+    original_login = client.post(
+        "/auth/login", json={"email": user_email, "password": "StrongPass123"}
+    )
+    assert original_login.status_code == 200
+    original_tokens = original_login.json()
+    user_headers = {"Authorization": f"Bearer {original_tokens['access_token']}"}
+
     user = next(
         item
         for item in client.get("/admin/users", headers=admin_headers).json()
@@ -205,7 +213,7 @@ def test_admin_deactivate_reactivate_does_not_revive_old_tokens(client, db_sessi
     assert deactivated.status_code == 200
     assert client.get("/users/me", headers=user_headers).status_code == 401
 
-    # Re-enable the account; the previously issued tokens must remain invalid.
+    # Re-enable the account; previously issued access and refresh tokens stay invalid.
     reactivated = client.patch(
         f"/admin/users/{user['id']}",
         json={"is_active": True},
@@ -213,13 +221,9 @@ def test_admin_deactivate_reactivate_does_not_revive_old_tokens(client, db_sessi
     )
     assert reactivated.status_code == 200
     assert client.get("/users/me", headers=user_headers).status_code == 401
-
-    # The old refresh token is also invalid after the status transition.
-    # Re-login is the only way to obtain a new session.
-    from app.auth.security import create_refresh_token
-    db_user = db_session.query(User).filter(User.email == user_email).one()
-    old_refresh = create_refresh_token(db_user.id, db_user.token_version - 1)
-    assert client.post("/auth/refresh", json={"refresh_token": old_refresh}).status_code == 401
+    assert client.post(
+        "/auth/refresh", json={"refresh_token": original_tokens["refresh_token"]}
+    ).status_code == 401
 
     new_login = client.post(
         "/auth/login", json={"email": user_email, "password": "StrongPass123"}
