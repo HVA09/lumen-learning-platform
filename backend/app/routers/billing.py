@@ -53,14 +53,19 @@ async def create_checkout(
     if not plan or not plan.is_active:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="الخطة غير موجودة")
 
+    # Redirect destinations are controlled by trusted server configuration, not the client.
+    frontend_url = app_settings.FRONTEND_URL.rstrip("/")
+    success_url = f"{frontend_url}/billing/success"
+    cancel_url = f"{frontend_url}/billing/cancel"
+
     provider = get_payment_provider()
     try:
         result = await provider.create_checkout_session(
             user_id=current_user.id,
             user_email=current_user.email,
             plan=plan,
-            success_url=payload.success_url,
-            cancel_url=payload.cancel_url,
+            success_url=success_url,
+            cancel_url=cancel_url,
         )
     except Exception as exc:
         logger.exception("فشل إنشاء جلسة دفع للمستخدم %s", current_user.email)
