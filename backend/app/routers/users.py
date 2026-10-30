@@ -48,6 +48,7 @@ def change_password(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="كلمة المرور الحالية غير صحيحة"
         )
     current_user.hashed_password = hash_password(payload.new_password)
+    current_user.token_version += 1  # invalidate all previously issued sessions
     db.commit()
     log_event(db, "password_changed", f"تغيير كلمة مرور: {current_user.email}", current_user.id)
     return {"detail": "تم تغيير كلمة المرور بنجاح"}
