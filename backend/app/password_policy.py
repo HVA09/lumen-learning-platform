@@ -4,7 +4,9 @@ MAX_BCRYPT_PASSWORD_BYTES = 72
 
 
 def fits_bcrypt_password(password: str) -> bool:
-    """Count UTF-8 bytes rather than characters; non-ASCII passwords use more bytes."""
+    """Count UTF-8 bytes; short-circuit before encoding inputs longer than 72 chars."""
+    if len(password) > MAX_BCRYPT_PASSWORD_BYTES:
+        return False
     return len(password.encode("utf-8")) <= MAX_BCRYPT_PASSWORD_BYTES
 
 
