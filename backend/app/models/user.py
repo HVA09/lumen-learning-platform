@@ -27,6 +27,9 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
+    # يزيد عند تغيير كلمة المرور أو إعادة تعيينها لإبطال الجلسات والرموز السابقة.
+    token_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+
     # الملف الشخصي
     full_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
