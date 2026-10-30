@@ -255,7 +255,7 @@ async def lti_launch(
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="حساب Lumen غير مفعّل")
 
-    code = create_lti_auth_code(db, user.id)
+    code = create_lti_auth_code(db, user.id, user.token_version)
     # Fragment لا يُرسل في طلب HTTP الأول إلى خادم الواجهة الأمامية أو في Referer.
     redirect_url = f"{settings.FRONTEND_URL.rstrip('/')}/lti-callback#code={code}"
     return _no_store_redirect(redirect_url)
@@ -270,14 +270,19 @@ def exchange_lti_code(
     """يستبدل رمزًا مؤقتًا بأقل صلاحيات ممكنة: access/refresh tokens لا تظهر في URL."""
     response.headers["Cache-Control"] = "no-store"
     response.headers["Pragma"] = "no-cache"
-    user_id = consume_lti_auth_code(db, payload.code)
-    if user_id is None:
+    consumed_code = consume_lti_auth_code(db, payload.code)
+    if consumed_code is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="رمز الدخول غير صالح أو منتهي أو استُخدم مسبقًا",
         )
+    user_id, code_token_version = consumed_code
     user = db.get(User, user_id)
-    if user is None or not user.is_active:
+    if (
+        user is None
+        or not user.is_active
+        or user.token_version != code_token_version
+    ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="حساب Lumen غير متاح"
         )
