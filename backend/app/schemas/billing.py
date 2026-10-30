@@ -26,9 +26,9 @@ class SubscriptionOut(BaseModel):
 
 
 class CheckoutRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     plan_id: int
-    success_url: str
-    cancel_url: str
 
 
 class CheckoutResponse(BaseModel):
