@@ -22,6 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends libpq5 \
 COPY --from=builder --chown=appuser:appuser /root/.local /home/appuser/.local
 COPY --chown=appuser:appuser app ./app
 COPY --chown=appuser:appuser migrations ./migrations
+COPY --chown=appuser:appuser scripts ./scripts
 COPY --chown=appuser:appuser alembic.ini .
 
 ENV PATH=/home/appuser/.local/bin:$PATH \

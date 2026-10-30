@@ -5,8 +5,8 @@ from app.models.subject import Subject
 from app.models.topic import Topic
 from tests.quiz_helpers import (
     auth,
+    make_admin,
     make_student,
-    register_and_login,
     take_quiz,
     topic_id_by_slug,
 )
@@ -65,8 +65,8 @@ def test_locked_topic_rejects_quiz_for_student(client):
     assert "المعادلات الخطية" in response.json()["detail"]
 
 
-def test_admin_bypasses_topic_lock(client):
-    admin_token = register_and_login(client, "adminquiz@example.com")  # أول مستخدم = admin
+def test_admin_bypasses_topic_lock(client, db_session):
+    admin_token = make_admin(client, db_session, "adminquiz@example.com")
     derivatives_id = topic_id_by_slug(client, "derivatives-intro")
     assert _start(client, admin_token, derivatives_id).status_code == 200
 

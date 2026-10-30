@@ -11,6 +11,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from jose import jwk, jwt
 from jose.utils import long_to_base64url
 
+from app.models.user import User, UserRole
 from app.services import lti_service as lti_service_module
 
 
@@ -25,10 +26,18 @@ def _generate_fake_platform_keypair():
     return private_key, jwk_dict
 
 
-def _register_admin(client, email="ltiadmin@example.com", password="StrongPass123"):
+def _register_user(client, email, password="StrongPass123"):
     client.post("/auth/register", json={"email": email, "password": password})
     login_response = client.post("/auth/login", json={"email": email, "password": password})
     return login_response.json()["access_token"]
+
+
+def _register_admin(client, db_session, email="ltiadmin@example.com", password="StrongPass123"):
+    token = _register_user(client, email, password)
+    user = db_session.query(User).filter(User.email == email).first()
+    user.role = UserRole.admin
+    db_session.commit()
+    return token
 
 
 def _register_platform(client, admin_token):
@@ -47,12 +56,12 @@ def _register_platform(client, admin_token):
     return response.json()
 
 
-def test_register_and_list_platforms_requires_admin(client):
-    admin_token = _register_admin(client)
+def test_register_and_list_platforms_requires_admin(client, db_session):
+    admin_token = _register_admin(client, db_session)
     platform = _register_platform(client, admin_token)
     assert platform["issuer"] == "https://moodle.example.com"
 
-    non_admin_token = _register_admin(client, "notadmin@example.com")
+    non_admin_token = _register_user(client, "notadmin@example.com")
     response = client.get(
         "/lti/platforms", headers={"Authorization": f"Bearer {non_admin_token}"}
     )
@@ -78,8 +87,8 @@ def test_login_rejects_unregistered_platform(client):
     assert response.status_code == 400
 
 
-def test_login_redirects_to_platform_auth_endpoint(client):
-    admin_token = _register_admin(client, "loginflow@example.com")
+def test_login_redirects_to_platform_auth_endpoint(client, db_session):
+    admin_token = _register_admin(client, db_session, "loginflow@example.com")
     platform = _register_platform(client, admin_token)
 
     response = client.get(
@@ -97,8 +106,8 @@ def test_login_redirects_to_platform_auth_endpoint(client):
     assert "nonce=" in response.headers["location"]
 
 
-def test_full_launch_flow_creates_user_and_issues_tokens(client, monkeypatch):
-    admin_token = _register_admin(client, "launchflow@example.com")
+def test_full_launch_flow_creates_user_and_issues_tokens(client, db_session, monkeypatch):
+    admin_token = _register_admin(client, db_session, "launchflow@example.com")
     platform_data = _register_platform(client, admin_token)
 
     # 1) نحاكي خطوة /login عشان نولّد state ونonce صالحين
@@ -150,8 +159,8 @@ def test_full_launch_flow_creates_user_and_issues_tokens(client, monkeypatch):
     assert "refresh_token=" in location
 
 
-def test_launch_rejects_invalid_signature(client, monkeypatch):
-    admin_token = _register_admin(client, "badsig@example.com")
+def test_launch_rejects_invalid_signature(client, db_session, monkeypatch):
+    admin_token = _register_admin(client, db_session, "badsig@example.com")
     platform_data = _register_platform(client, admin_token)
 
     login_response = client.get(

@@ -1,7 +1,7 @@
 """
 اختبارات مسارات المصادقة: تسجيل، دخول، وحماية المسارات الخاصة
 """
-from app.models.user import User
+from app.models.user import User, UserRole
 
 
 def test_register_new_user(client):
@@ -11,6 +11,7 @@ def test_register_new_user(client):
     assert response.status_code == 201
     body = response.json()
     assert body["email"] == "test@example.com"
+    assert body["role"] == "user"
     assert "hashed_password" not in body
 
 
@@ -29,19 +30,16 @@ def test_register_rejects_short_password(client):
     assert response.status_code == 422
 
 
-def test_first_user_becomes_admin(client):
-    response = client.post(
+def test_public_registration_never_grants_admin(client, db_session):
+    first = client.post(
         "/auth/register", json={"email": "first@example.com", "password": "StrongPass123"}
     )
-    assert response.json()["role"] == "admin"
-
-
-def test_second_user_is_regular(client):
-    client.post("/auth/register", json={"email": "first@example.com", "password": "StrongPass123"})
-    response = client.post(
+    second = client.post(
         "/auth/register", json={"email": "second@example.com", "password": "StrongPass123"}
     )
-    assert response.json()["role"] == "user"
+    assert first.json()["role"] == "user"
+    assert second.json()["role"] == "user"
+    assert db_session.query(User).filter(User.role == UserRole.admin).count() == 0
 
 
 def test_login_success_returns_tokens(client):

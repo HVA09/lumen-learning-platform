@@ -1,6 +1,7 @@
 """
 اختبارات المرحلة السابعة: لوحة الإدارة
 """
+from app.models.user import User, UserRole
 from tests.quiz_helpers import take_quiz, topic_id_by_slug
 
 
@@ -10,9 +11,16 @@ def _register_and_login(client, email, password="StrongPass123"):
     return login_response.json()["access_token"]
 
 
-def test_admin_endpoints_reject_regular_user(client):
-    # أول مستخدم = admin، فنسجل واحد ثاني عادي
-    _register_and_login(client, "first_admin@example.com")
+def _register_admin_and_login(client, db_session, email):
+    token = _register_and_login(client, email)
+    user = db_session.query(User).filter(User.email == email).first()
+    user.role = UserRole.admin
+    db_session.commit()
+    return token
+
+
+def test_admin_endpoints_reject_regular_user(client, db_session):
+    _register_admin_and_login(client, db_session, "first_admin@example.com")
     token = _register_and_login(client, "regular@example.com")
     headers = {"Authorization": f"Bearer {token}"}
 
@@ -23,7 +31,7 @@ def test_admin_endpoints_reject_regular_user(client):
 
 
 def test_admin_stats_reflects_activity(client, db_session):
-    admin_token = _register_and_login(client, "statsadmin@example.com")
+    admin_token = _register_admin_and_login(client, db_session, "statsadmin@example.com")
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
     take_quiz(client, db_session, admin_token, topic_id_by_slug(client, "linear-equations"), mode="practice", correct=True)
 
@@ -42,7 +50,7 @@ def test_admin_stats_reflects_activity(client, db_session):
 
 
 def test_admin_can_promote_user_to_teacher(client, db_session):
-    admin_token = _register_and_login(client, "promoteadmin@example.com")
+    admin_token = _register_admin_and_login(client, db_session, "promoteadmin@example.com")
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
     _register_and_login(client, "futureteacher@example.com")
     target = next(u for u in client.get("/admin/users", headers=admin_headers).json()
@@ -64,8 +72,8 @@ def test_admin_can_promote_user_to_teacher(client, db_session):
     assert stats["total_students"] == 0
 
 
-def test_admin_cannot_change_own_role_or_deactivate_self(client):
-    admin_token = _register_and_login(client, "lockout@example.com")
+def test_admin_cannot_change_own_role_or_deactivate_self(client, db_session):
+    admin_token = _register_admin_and_login(client, db_session, "lockout@example.com")
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
     me = client.get("/users/me", headers=admin_headers).json()
 
@@ -78,8 +86,8 @@ def test_admin_cannot_change_own_role_or_deactivate_self(client):
     assert same.status_code == 200
 
 
-def test_admin_can_list_and_update_users(client):
-    admin_token = _register_and_login(client, "adminuser@example.com")
+def test_admin_can_list_and_update_users(client, db_session):
+    admin_token = _register_admin_and_login(client, db_session, "adminuser@example.com")
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
     _register_and_login(client, "targetuser@example.com")
 
@@ -102,8 +110,8 @@ def test_admin_can_list_and_update_users(client):
     assert login_response.status_code == 401
 
 
-def test_admin_cannot_delete_own_account_via_admin_route(client):
-    admin_token = _register_and_login(client, "selfdelete@example.com")
+def test_admin_cannot_delete_own_account_via_admin_route(client, db_session):
+    admin_token = _register_admin_and_login(client, db_session, "selfdelete@example.com")
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
     me = client.get("/users/me", headers=admin_headers).json()
 
@@ -111,8 +119,8 @@ def test_admin_cannot_delete_own_account_via_admin_route(client):
     assert response.status_code == 400
 
 
-def test_admin_can_delete_other_user(client):
-    admin_token = _register_and_login(client, "deleter_admin@example.com")
+def test_admin_can_delete_other_user(client, db_session):
+    admin_token = _register_admin_and_login(client, db_session, "deleter_admin@example.com")
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
     _register_and_login(client, "to_delete@example.com")
 
@@ -128,8 +136,8 @@ def test_admin_can_delete_other_user(client):
     assert login_response.status_code == 401
 
 
-def test_admin_logs_capture_key_events(client):
-    admin_token = _register_and_login(client, "logsadmin@example.com")
+def test_admin_logs_capture_key_events(client, db_session):
+    admin_token = _register_admin_and_login(client, db_session, "logsadmin@example.com")
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
 
     response = client.get("/admin/logs", headers=admin_headers)
@@ -140,7 +148,7 @@ def test_admin_logs_capture_key_events(client):
 
 
 def test_daily_analytics_includes_today_with_activity(client, db_session):
-    admin_token = _register_and_login(client, "analyticsadmin@example.com")
+    admin_token = _register_admin_and_login(client, db_session, "analyticsadmin@example.com")
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
     topic_id = topic_id_by_slug(client, "linear-equations")
     take_quiz(client, db_session, admin_token, topic_id, mode="practice", correct=True)
@@ -159,8 +167,8 @@ def test_daily_analytics_includes_today_with_activity(client, db_session):
     assert "ai_requests" not in today
 
 
-def test_daily_analytics_requires_admin(client):
-    _register_and_login(client, "first_for_analytics@example.com")  # يصير admin
+def test_daily_analytics_requires_admin(client, db_session):
+    _register_admin_and_login(client, db_session, "first_for_analytics@example.com")  # يصير admin
     token = _register_and_login(client, "nonadmin_analytics@example.com")  # عادي
     response = client.get(
         "/admin/analytics/daily", headers={"Authorization": f"Bearer {token}"}
@@ -168,8 +176,8 @@ def test_daily_analytics_requires_admin(client):
     assert response.status_code == 403
 
 
-def test_export_analytics_csv(client):
-    admin_token = _register_and_login(client, "csvadmin@example.com")
+def test_export_analytics_csv(client, db_session):
+    admin_token = _register_admin_and_login(client, db_session, "csvadmin@example.com")
     response = client.get(
         "/admin/analytics/export.csv", headers={"Authorization": f"Bearer {admin_token}"}
     )

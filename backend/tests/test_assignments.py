@@ -1,7 +1,7 @@
 """
 اختبارات الواجبات: المعلّم ينشئ ويقيّم يدويًا، الطالب يسلّم إجابة مكتوبة (بدون أي تقييم آلي)
 """
-from tests.quiz_helpers import auth, make_student, make_teacher, register_and_login
+from tests.quiz_helpers import auth, make_admin, make_student, make_teacher
 
 
 def _create_assignment(client, teacher_token, **overrides):
@@ -206,7 +206,7 @@ def test_only_creator_or_admin_can_manage_submissions(client, db_session):
     assert _grade(client, other_teacher, assignment["id"], submission["id"]).status_code == 403
     assert client.get(url, headers=auth(teacher)).status_code == 200
 
-    admin = register_and_login(client, "first-admin@example.com")  # أول مستخدم سُجّل = admin
+    admin = make_admin(client, db_session, "first-admin@example.com")
     assert client.get(url, headers=auth(admin)).status_code == 200
 
 
