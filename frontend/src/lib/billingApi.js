@@ -13,8 +13,6 @@ export async function getMySubscription() {
 export async function createCheckout(planId) {
   const { data } = await api.post("/billing/checkout", {
     plan_id: planId,
-    success_url: `${window.location.origin}/billing/success`,
-    cancel_url: `${window.location.origin}/billing/cancel`,
   });
   return data;
 }
