@@ -4,6 +4,7 @@ id_token فعلي فيه، ونموّه جلب JWKS المنصة يرجّع مف
 فعليًا إن منطق التحقق من التوقيع يشتغل صح، مو بس شكل الاستجابة.
 """
 from unittest.mock import AsyncMock
+import time
 
 import pytest
 from cryptography.hazmat.primitives import serialization
@@ -132,11 +133,16 @@ def test_full_launch_flow_creates_user_and_issues_tokens(client, db_session, mon
         encryption_algorithm=serialization.NoEncryption(),
     ).decode()
 
+    now = int(time.time())
     claims = {
         "iss": platform_data["issuer"], "aud": platform_data["client_id"],
-        "sub": "moodle-student-42", "nonce": nonce, "name": "طالب تجريبي",
+        "sub": "moodle-student-42", "nonce": nonce, "iat": now, "exp": now + 300,
+        "name": "طالب تجريبي",
         "email": "student42@moodle.example.com",
         "https://purl.imsglobal.org/spec/lti/claim/deployment_id": platform_data["deployment_id"],
+        "https://purl.imsglobal.org/spec/lti/claim/message_type": "LtiResourceLinkRequest",
+        "https://purl.imsglobal.org/spec/lti/claim/version": "1.3.0",
+        "https://purl.imsglobal.org/spec/lti/claim/resource_link": {"id": "resource-42"},
         "https://purl.imsglobal.org/spec/lti/claim/target_link_uri": "https://mylumen.example.com/lti/launch",
     }
     id_token = jwt.encode(
@@ -280,12 +286,18 @@ def test_launch_rejects_signed_target_link_uri_mismatch(client, db_session, monk
         format=serialization.PrivateFormat.PKCS8,
         encryption_algorithm=serialization.NoEncryption(),
     ).decode()
+    now = int(time.time())
     claims = {
         "iss": platform_data["issuer"],
         "aud": platform_data["client_id"],
         "sub": "target-mismatch-student",
         "nonce": nonce,
+        "iat": now,
+        "exp": now + 300,
         "https://purl.imsglobal.org/spec/lti/claim/deployment_id": platform_data["deployment_id"],
+        "https://purl.imsglobal.org/spec/lti/claim/message_type": "LtiResourceLinkRequest",
+        "https://purl.imsglobal.org/spec/lti/claim/version": "1.3.0",
+        "https://purl.imsglobal.org/spec/lti/claim/resource_link": {"id": "resource-43"},
         "https://purl.imsglobal.org/spec/lti/claim/target_link_uri": "https://attacker.example/other-launch",
     }
     id_token = jwt.encode(
@@ -298,3 +310,93 @@ def test_launch_rejects_signed_target_link_uri_mismatch(client, db_session, monk
     monkeypatch.setattr(lti_service_module, "fetch_platform_public_key", fake_fetch_key)
     response = client.post("/lti/launch", data={"id_token": id_token, "state": state})
     assert response.status_code == 401
+
+
+def test_launch_rejects_unsupported_lti_message_and_missing_azp(client, db_session, monkeypatch):
+    admin_token = _register_admin(client, db_session, "invalidclaims@example.com")
+    platform_data = _register_platform(client, admin_token)
+    expected_target = "https://mylumen.example.com/lti/launch"
+
+    login_response = client.get(
+        "/lti/login",
+        params={
+            "iss": platform_data["issuer"],
+            "login_hint": "student42",
+            "target_link_uri": expected_target,
+            "client_id": platform_data["client_id"],
+        },
+        follow_redirects=False,
+    )
+    from urllib.parse import parse_qs, urlparse
+    query = parse_qs(urlparse(login_response.headers["location"]).query)
+    state = query["state"][0]
+    nonce = query["nonce"][0]
+
+    platform_private_key, platform_jwk = _generate_fake_platform_keypair()
+    pem = platform_private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    ).decode()
+    now = int(time.time())
+    valid_claims = {
+        "iss": platform_data["issuer"],
+        "aud": platform_data["client_id"],
+        "sub": "invalid-claims-student",
+        "nonce": nonce,
+        "iat": now,
+        "exp": now + 300,
+        "https://purl.imsglobal.org/spec/lti/claim/deployment_id": platform_data["deployment_id"],
+        "https://purl.imsglobal.org/spec/lti/claim/message_type": "LtiResourceLinkRequest",
+        "https://purl.imsglobal.org/spec/lti/claim/version": "1.3.0",
+        "https://purl.imsglobal.org/spec/lti/claim/resource_link": {"id": "resource-44"},
+        "https://purl.imsglobal.org/spec/lti/claim/target_link_uri": expected_target,
+    }
+
+    async def fake_fetch_key(jwks_url, kid):
+        return platform_jwk
+
+    monkeypatch.setattr(lti_service_module, "fetch_platform_public_key", fake_fetch_key)
+
+    wrong_type = {
+        **valid_claims,
+        "https://purl.imsglobal.org/spec/lti/claim/message_type": "LtiDeepLinkingRequest",
+    }
+    wrong_type_token = jwt.encode(
+        wrong_type, pem, algorithm="RS256", headers={"kid": "platform-key-1"}
+    )
+    assert client.post(
+        "/lti/launch", data={"id_token": wrong_type_token, "state": state}
+    ).status_code == 401
+
+    multiple_audiences = {
+        **valid_claims,
+        "aud": [platform_data["client_id"], "unexpected-audience"],
+    }
+    multiple_audience_token = jwt.encode(
+        multiple_audiences, pem, algorithm="RS256", headers={"kid": "platform-key-1"}
+    )
+    assert client.post(
+        "/lti/launch", data={"id_token": multiple_audience_token, "state": state}
+    ).status_code == 401
+
+    missing_resource_id = {
+        **valid_claims,
+        "https://purl.imsglobal.org/spec/lti/claim/resource_link": {},
+    }
+    missing_resource_token = jwt.encode(
+        missing_resource_id, pem, algorithm="RS256", headers={"kid": "platform-key-1"}
+    )
+    assert client.post(
+        "/lti/launch", data={"id_token": missing_resource_token, "state": state}
+    ).status_code == 401
+
+    # The same OIDC state remains available after rejected tokens and accepts
+    # only a correctly signed, complete LTI Resource Link Request.
+    valid_token = jwt.encode(
+        valid_claims, pem, algorithm="RS256", headers={"kid": "platform-key-1"}
+    )
+    accepted = client.post(
+        "/lti/launch", data={"id_token": valid_token, "state": state}, follow_redirects=False
+    )
+    assert accepted.status_code == 302
