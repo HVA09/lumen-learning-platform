@@ -161,3 +161,11 @@ def test_password_reset_token_is_single_use_and_revokes_sessions(client, db_sess
     assert client.post(
         "/auth/login", json={"email": email, "password": "ResetPassword789"}
     ).status_code == 200
+
+
+def test_registration_rejects_extremely_long_password(client):
+    response = client.post(
+        "/auth/register",
+        json={"email": "extremely-long-password@example.com", "password": "x" * 10000},
+    )
+    assert response.status_code == 422
