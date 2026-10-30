@@ -217,6 +217,7 @@ async def lti_launch(
         LTIAuthCode(
             code_hash=hash_opaque_token(exchange_code),
             user_id=user.id,
+            token_version=user.token_version,
             expires_at=now + timedelta(seconds=LTI_AUTH_CODE_TTL_SECONDS),
         )
     )
@@ -253,12 +254,16 @@ def exchange_lti_code(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="رمز الدخول غير صالح أو منتهي")
 
     user = db.get(User, auth_code.user_id)
-    if user is None or not user.is_active:
+    if (
+        user is None
+        or not user.is_active
+        or user.token_version != auth_code.token_version
+    ):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="حساب الدخول غير متاح")
 
     auth_code.consumed_at = now
     db.commit()
     return Token(
-        access_token=create_access_token(user.id),
-        refresh_token=create_refresh_token(user.id),
+        access_token=create_access_token(user.id, user.token_version),
+        refresh_token=create_refresh_token(user.id, user.token_version),
     )
