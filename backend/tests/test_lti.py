@@ -436,3 +436,41 @@ def test_login_post_accepts_form_and_preserves_platform_hints(client, db_session
         follow_redirects=False,
     )
     assert invalid_deployment.status_code == 400
+
+
+def test_register_rejects_non_https_remote_platform_endpoints(client, db_session):
+    admin_token = _register_admin(client, db_session, "insecure-platform@example.com")
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    valid = {
+        "name": "Moodle Security Test",
+        "issuer": "https://moodle.example.com",
+        "client_id": "https-client",
+        "deployment_id": "deploy-https",
+        "auth_login_url": "https://moodle.example.com/auth",
+        "auth_token_url": "https://moodle.example.com/token",
+        "jwks_url": "https://moodle.example.com/jwks",
+    }
+
+    for field in ("issuer", "auth_login_url", "auth_token_url", "jwks_url"):
+        payload = {**valid, "client_id": f"http-{field}"}
+        payload[field] = "http://attacker.example/lti-endpoint"
+        response = client.post("/lti/platforms", json=payload, headers=headers)
+        assert response.status_code == 422, field
+
+
+def test_register_allows_local_http_lti_endpoints_outside_production(client, db_session):
+    admin_token = _register_admin(client, db_session, "local-platform@example.com")
+    response = client.post(
+        "/lti/platforms",
+        json={
+            "name": "Local Moodle",
+            "issuer": "http://localhost:8080",
+            "client_id": "local-client",
+            "deployment_id": "local-deploy",
+            "auth_login_url": "http://localhost:8080/auth",
+            "auth_token_url": "http://localhost:8080/token",
+            "jwks_url": "http://localhost:8080/jwks",
+        },
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert response.status_code == 201
