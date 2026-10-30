@@ -248,7 +248,7 @@ alembic upgrade head
 5. من داخل Moodle، أنشئ نشاط "External Tool" يستخدم الأداة المسجّلة — الطلاب يدخلون
    Lumen مباشرة من الكورس بدون تسجيل دخول منفصل
 
-**الأمان:** يجب أن يطابق `target_link_uri` القيمة المضبوطة في `LTI_TARGET_LINK_URI` بالإنتاج، كما يجب أن يطابق claim الموقّع في ID token عنوان حالة OIDC نفسها. يُتحقق من التوقيع، `issuer`, `audience/azp`, `nonce`, `deployment_id`, نوع الرسالة وإصدار LTI ومعرّف resource link ووقت صلاحية الرمز. يُمرر `lti_message_hint` إلى منصة LMS دون تغيير. عند نجاح الإطلاق يُمرر رمز عشوائي قصير العمر وأحادي الاستخدام، ويُستبدل عبر `POST /lti/exchange-code`؛ لا تُمرر JWT tokens في URL. حالة OIDC نفسها تُخزّن كـ hash وتُستهلك مرة واحدة.
+**الأمان:** يجب أن يطابق `target_link_uri` القيمة المضبوطة في `LTI_TARGET_LINK_URI` بالإنتاج، كما يجب أن يطابق claim الموقّع في ID token عنوان حالة OIDC نفسها. يُتحقق من التوقيع، `issuer`, `audience/azp`, `nonce`, `deployment_id`, نوع الرسالة وإصدار LTI ومعرّف resource link ووقت صلاحية الرمز. يُمرر `lti_message_hint` إلى منصة LMS دون تغيير. عند نجاح الإطلاق يُمرر رمز عشوائي قصير العمر وأحادي الاستخدام، ويُستبدل عبر `POST /lti/exchange-code`؛ لا تُمرر JWT tokens في URL. حالة OIDC نفسها تُخزّن كـ hash وتُستهلك مرة واحدة. عناوين `issuer` و`auth_login_url` و`auth_token_url` و`jwks_url` يجب أن تكون HTTPS؛ HTTP مسموح فقط لعناوين loopback في بيئة التطوير/الاختبار.
 
 **ملاحظة:** تصحيح الدرجات التلقائي (Grade Passback / AGS) ما بُني بهذي المرحلة —
 المستخدم يدخل ويشتغل بـ Lumen عاديًا، بس درجاته ما ترجع تلقائيًا لسجل درجات Moodle.
