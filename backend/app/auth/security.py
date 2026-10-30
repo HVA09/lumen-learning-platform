@@ -25,35 +25,48 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
-def _create_token(subject: str, expires_delta: timedelta, token_type: str) -> str:
+def _create_token(
+    subject: str,
+    expires_delta: timedelta,
+    token_type: str,
+    token_version: int = 0,
+) -> str:
     now = datetime.now(timezone.utc)
     payload = {
         "sub": subject,
         "type": token_type,
         "iat": now,
         "exp": now + expires_delta,
+        # Missing version claims on older tokens are treated as version 0.
+        "ver": token_version,
     }
     return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
-def create_access_token(user_id: int) -> str:
+def create_access_token(user_id: int, token_version: int = 0) -> str:
     return _create_token(
-        str(user_id), timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES), "access"
+        str(user_id),
+        timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+        "access",
+        token_version,
     )
 
 
-def create_refresh_token(user_id: int) -> str:
+def create_refresh_token(user_id: int, token_version: int = 0) -> str:
     return _create_token(
-        str(user_id), timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS), "refresh"
+        str(user_id),
+        timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+        "refresh",
+        token_version,
     )
 
 
-def create_email_verification_token(user_id: int) -> str:
-    return _create_token(str(user_id), timedelta(hours=24), "email_verify")
+def create_email_verification_token(user_id: int, token_version: int = 0) -> str:
+    return _create_token(str(user_id), timedelta(hours=24), "email_verify", token_version)
 
 
-def create_password_reset_token(user_id: int) -> str:
-    return _create_token(str(user_id), timedelta(hours=1), "password_reset")
+def create_password_reset_token(user_id: int, token_version: int = 0) -> str:
+    return _create_token(str(user_id), timedelta(hours=1), "password_reset", token_version)
 
 
 def decode_token(token: str) -> dict:
