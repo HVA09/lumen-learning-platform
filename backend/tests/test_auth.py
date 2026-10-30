@@ -169,3 +169,11 @@ def test_registration_rejects_extremely_long_password(client):
         json={"email": "extremely-long-password@example.com", "password": "x" * 10000},
     )
     assert response.status_code == 422
+
+
+def test_registration_accepts_password_at_bcrypt_byte_limit(client):
+    response = client.post(
+        "/auth/register",
+        json={"email": "maximum-password@example.com", "password": "x" * 72},
+    )
+    assert response.status_code == 201
