@@ -223,7 +223,7 @@ alembic upgrade head
 5. خدمة `certbot` بالـ compose تجدّد الشهادة تلقائيًا كل 12 ساعة (تتأكد بس، ما تجدّد إلا قريب من الانتهاء)
 
 **النسخ الاحتياطي:** خدمة `backup` تاخذ نسخة يومية تلقائيًا لمجلد `./backups` (تحتفظ بآخر 7
-أيام). استرجاع يدوي: `docker compose exec -T db sh /scripts/restore.sh /backups/backup_XXX.sql.gz`
+أيام). الاسترجاع يستبدل الجداول والكائنات الموجودة في النسخة ويحتاج تأكيدًا صريحًا: `docker compose exec -T backup sh /scripts/restore.sh /backups/backup_XXX.sql.gz --confirm` (تحقق من اسم النسخة قبل التنفيذ).
 
 **المراقبة:**
 - `/health` يتحقق فعليًا من اتصال قاعدة البيانات (مو مجرد رد ثابت) — مناسب لفحوصات
