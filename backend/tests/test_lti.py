@@ -474,3 +474,23 @@ def test_register_allows_local_http_lti_endpoints_outside_production(client, db_
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 201
+
+def test_register_rejects_non_public_ip_literal_endpoints(client, db_session):
+    admin_token = _register_admin(client, db_session, "private-endpoint-admin@example.com")
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    valid = {
+        "name": "LTI endpoint security test",
+        "issuer": "https://moodle.example.com",
+        "client_id": "private-endpoint-client",
+        "deployment_id": "private-endpoint-deploy",
+        "auth_login_url": "https://moodle.example.com/auth",
+        "auth_token_url": "https://moodle.example.com/token",
+        "jwks_url": "https://moodle.example.com/jwks",
+    }
+
+    for field in ("issuer", "auth_login_url", "auth_token_url", "jwks_url"):
+        payload = {**valid, "client_id": f"private-{field}"}
+        payload[field] = "https://169.254.169.254/latest/meta-data"
+        response = client.post("/lti/platforms", json=payload, headers=headers)
+        assert response.status_code == 422, field
+
