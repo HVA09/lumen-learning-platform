@@ -9,10 +9,12 @@
 import argparse
 import sys
 
-from sqlalchemy import func
+from sqlalchemy import func, text
 
 from app.database import SessionLocal
 from app.models.user import User, UserRole
+
+ADMIN_BOOTSTRAP_LOCK_ID = 731904221
 
 
 def main() -> int:
@@ -25,24 +27,36 @@ def main() -> int:
 
     db = SessionLocal()
     try:
-        user = db.query(User).filter(func.lower(User.email) == email).first()
-        if user is None:
-            print("Account not found. Register the account first.", file=sys.stderr)
-            return 1
-        if not user.is_active:
-            print("Inactive accounts cannot be promoted.", file=sys.stderr)
-            return 1
-        if not user.is_email_verified:
-            print("Verify the account email before promoting it.", file=sys.stderr)
-            return 1
-        if user.role == UserRole.admin:
-            print(f"{user.email} already has the admin role.")
-            return 0
+        with db.begin():
+            # Serialize concurrent bootstrap invocations at the database level.
+            db.execute(
+                text("SELECT pg_advisory_xact_lock(:lock_id)"),
+                {"lock_id": ADMIN_BOOTSTRAP_LOCK_ID},
+            )
+            user = db.query(User).filter(func.lower(User.email) == email).first()
+            if user is None:
+                raise ValueError("Account not found. Register the account first.")
+            if not user.is_active:
+                raise ValueError("Inactive accounts cannot be promoted.")
+            if not user.is_email_verified:
+                raise ValueError("Verify the account email before promoting it.")
 
-        user.role = UserRole.admin
-        db.commit()
-        print(f"Granted admin role to verified account {user.email}.")
+            existing_admin = (
+                db.query(User.id)
+                .filter(User.role == UserRole.admin, User.id != user.id)
+                .first()
+            )
+            if existing_admin:
+                raise ValueError(
+                    "An administrator already exists; use the admin dashboard for later promotions."
+                )
+            user.role = UserRole.admin
+
+        print(f"Granted admin role to verified account {email}.")
         return 0
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
     except Exception:
         db.rollback()
         raise
