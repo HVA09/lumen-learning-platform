@@ -11,6 +11,7 @@ import base64
 import hashlib
 import uuid
 from datetime import datetime, timezone
+from urllib.parse import urlsplit
 
 import httpx
 from cryptography.hazmat.primitives import serialization
@@ -21,6 +22,35 @@ from app.config import settings
 
 LTI_STATE_TTL_SECONDS = 600  # 10 دقايق كافية لإكمال تدفق OIDC
 LTI_AUTH_CODE_TTL_SECONDS = 60  # رمز تبادل الدخول صالح لدقيقة واحدة
+
+
+def validate_lti_platform_endpoint_url(url: str) -> str:
+    """Allow HTTPS LMS endpoints; allow HTTP loopback only outside production."""
+    if not isinstance(url, str) or not url or len(url) > 2000:
+        raise ValueError("LTI platform endpoint URL is empty or too long")
+    parsed = urlsplit(url)
+    if (
+        not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ValueError("LTI platform endpoint URL is malformed")
+    try:
+        parsed.port
+    except ValueError as exc:
+        raise ValueError("LTI platform endpoint URL has an invalid port") from exc
+
+    scheme = parsed.scheme.lower()
+    hostname = parsed.hostname.lower().rstrip(".")
+    local_http_allowed = (
+        settings.ENVIRONMENT.strip().lower() in {"development", "test", "testing"}
+        and hostname in {"localhost", "127.0.0.1", "::1"}
+    )
+    if scheme != "https" and not (scheme == "http" and local_http_allowed):
+        raise ValueError("LTI platform endpoints must use HTTPS outside local development")
+    return url
 
 
 def long_to_base64url(value: int) -> bytes:
@@ -63,6 +93,7 @@ def build_tool_jwks() -> dict:
 
 async def fetch_platform_public_key(jwks_url: str, kid: str):
     """يجيب مفتاح المنصة العام من jwks_url بتاعها، مطابق للـ kid المذكور بالـ id_token"""
+    validate_lti_platform_endpoint_url(jwks_url)
     async with httpx.AsyncClient(timeout=15.0) as client:
         response = await client.get(jwks_url)
         response.raise_for_status()
