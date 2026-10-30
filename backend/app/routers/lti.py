@@ -23,6 +23,7 @@ from app.services.lti_service import (
     hash_opaque_token,
     new_nonce,
     verify_platform_id_token,
+    validate_lti_platform_endpoint_url,
 )
 
 router = APIRouter(prefix="/lti", tags=["LTI"])
@@ -112,6 +113,16 @@ def _start_lti_login(
             detail="منصة LTI غير مسجّلة أو client_id غير محدد بشكل فريد",
         )
     platform = matches[0]
+    try:
+        validate_lti_platform_endpoint_url(platform.auth_login_url)
+        validate_lti_platform_endpoint_url(platform.auth_token_url)
+        validate_lti_platform_endpoint_url(platform.jwks_url)
+        validate_lti_platform_endpoint_url(platform.issuer)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="بيانات عناوين منصة LTI غير آمنة أو غير صالحة",
+        )
     if lti_deployment_id is not None and lti_deployment_id != platform.deployment_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
