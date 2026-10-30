@@ -220,3 +220,34 @@ def test_launch_rejects_expired_or_tampered_state(client):
         "/lti/launch", data={"id_token": "irrelevant", "state": "not-a-real-state-token"}
     )
     assert response.status_code == 400
+
+
+def test_lti_exchange_code_is_invalidated_after_password_change(client, db_session):
+    from datetime import datetime, timedelta, timezone
+    import secrets
+
+    from app.models.lti import LTIAuthCode
+    from app.models.user import User
+    from app.services.lti_service import hash_opaque_token
+
+    email = "lti-code-version@example.com"
+    response = client.post(
+        "/auth/register", json={"email": email, "password": "StrongPass123"}
+    )
+    assert response.status_code == 201
+    user = db_session.query(User).filter(User.email == email).one()
+
+    code = secrets.token_urlsafe(32)
+    db_session.add(
+        LTIAuthCode(
+            code_hash=hash_opaque_token(code),
+            user_id=user.id,
+            token_version=user.token_version,
+            expires_at=datetime.now(timezone.utc) + timedelta(seconds=60),
+        )
+    )
+    user.token_version += 1
+    db_session.commit()
+
+    exchanged = client.post("/lti/exchange-code", json={"code": code})
+    assert exchanged.status_code == 401
