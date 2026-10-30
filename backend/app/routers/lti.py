@@ -64,16 +64,16 @@ def get_jwks():
     return build_tool_jwks()
 
 
-@router.get("/login")
-@router.post("/login")
-async def lti_login(
-    iss: str = Query(..., min_length=1, max_length=500),
-    login_hint: str = Query(..., min_length=1, max_length=2000),
-    target_link_uri: str = Query(..., min_length=1, max_length=1000),
-    client_id: str | None = Query(None, max_length=255),
-    db: Session = Depends(get_db),
-):
-    """يبدأ OIDC بعد مطابقة target_link_uri الثابت عند ضبطه."""
+def _start_lti_login(
+    iss: str,
+    login_hint: str,
+    target_link_uri: str,
+    client_id: str | None,
+    lti_message_hint: str | None,
+    lti_deployment_id: str | None,
+    db: Session,
+) -> RedirectResponse:
+    """Shared OIDC initiation; retain the platform hint exactly as received."""
     target = urlsplit(target_link_uri)
     if (
         target.scheme not in {"https", "http"}
@@ -82,7 +82,9 @@ async def lti_login(
         or target.password is not None
         or target.fragment
     ):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="target_link_uri غير صالح")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="target_link_uri غير صالح"
+        )
     if target.scheme == "http" and target.hostname not in {"localhost", "127.0.0.1", "::1"}:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -96,7 +98,9 @@ async def lti_login(
             detail="LTI is not enabled: configure LTI_TARGET_LINK_URI first.",
         )
     if configured_target and target_link_uri != configured_target:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="target_link_uri غير مسموح")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="target_link_uri غير مسموح"
+        )
 
     platform_query = db.query(LTIPlatform).filter(LTIPlatform.issuer == iss)
     if client_id:
@@ -108,13 +112,21 @@ async def lti_login(
             detail="منصة LTI غير مسجّلة أو client_id غير محدد بشكل فريد",
         )
     platform = matches[0]
+    if lti_deployment_id is not None and lti_deployment_id != platform.deployment_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="lti_deployment_id لا يطابق عملية النشر المسجلة",
+        )
 
     nonce = new_nonce()
     state = secrets.token_urlsafe(32)
     now = datetime.now(timezone.utc)
-    # نظّف الرموز المنتهية حتى لا تنمو جداول التدفق بلا حدود.
-    db.query(LTIAuthState).filter(LTIAuthState.expires_at <= now).delete(synchronize_session=False)
-    db.query(LTIAuthCode).filter(LTIAuthCode.expires_at <= now).delete(synchronize_session=False)
+    db.query(LTIAuthState).filter(
+        LTIAuthState.expires_at <= now
+    ).delete(synchronize_session=False)
+    db.query(LTIAuthCode).filter(
+        LTIAuthCode.expires_at <= now
+    ).delete(synchronize_session=False)
     db.add(
         LTIAuthState(
             state_hash=hash_opaque_token(state),
@@ -137,7 +149,43 @@ async def lti_login(
         "response_mode": "form_post",
         "prompt": "none",
     }
+    if lti_message_hint is not None:
+        auth_params["lti_message_hint"] = lti_message_hint
     return _no_store_redirect(f"{platform.auth_login_url}?{urlencode(auth_params)}")
+
+
+@router.get("/login")
+def lti_login_get(
+    iss: str = Query(..., min_length=1, max_length=500),
+    login_hint: str = Query(..., min_length=1, max_length=2000),
+    target_link_uri: str = Query(..., min_length=1, max_length=1000),
+    client_id: str | None = Query(None, max_length=255),
+    lti_message_hint: str | None = Query(None, max_length=2000),
+    lti_deployment_id: str | None = Query(None, max_length=255),
+    db: Session = Depends(get_db),
+):
+    """دعم OIDC initiation عبر GET، مع حفظ lti_message_hint كما ورد."""
+    return _start_lti_login(
+        iss, login_hint, target_link_uri, client_id,
+        lti_message_hint, lti_deployment_id, db
+    )
+
+
+@router.post("/login")
+def lti_login_post(
+    iss: str = Form(..., min_length=1, max_length=500),
+    login_hint: str = Form(..., min_length=1, max_length=2000),
+    target_link_uri: str = Form(..., min_length=1, max_length=1000),
+    client_id: str | None = Form(None, max_length=255),
+    lti_message_hint: str | None = Form(None, max_length=2000),
+    lti_deployment_id: str | None = Form(None, max_length=255),
+    db: Session = Depends(get_db),
+):
+    """دعم OIDC initiation عبر form POST، مع حفظ lti_message_hint كما ورد."""
+    return _start_lti_login(
+        iss, login_hint, target_link_uri, client_id,
+        lti_message_hint, lti_deployment_id, db
+    )
 
 
 @router.post("/launch")
