@@ -47,6 +47,9 @@ def test_paypal_adapter_preserves_verified_event_id(monkeypatch):
             return self.payload
 
     class FakeAsyncClient:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
         async def __aenter__(self):
             return self
 
