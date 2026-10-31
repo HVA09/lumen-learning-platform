@@ -9,6 +9,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from jose import JWTError
 from sqlalchemy.orm import Session
 
+from app.auth.totp_secrets import (
+    TOTPSecretError,
+    decrypt_totp_secret,
+    encrypt_totp_secret,
+    is_encrypted_totp_secret,
+)
 from app.auth.security import (
     create_access_token,
     create_email_verification_token,
@@ -117,12 +123,30 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
                 status_code=status.HTTP_428_PRECONDITION_REQUIRED,
                 detail="مطلوب رمز التحقق الثنائي",
             )
-        totp = pyotp.TOTP(user.totp_secret)
-        if not totp.verify(payload.totp_code, valid_window=1):
+        try:
+            totp_secret = decrypt_totp_secret(user.totp_secret)
+        except TOTPSecretError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="تعذر فك سر التحقق الثنائي؛ تحقق من مفتاح التشفير",
+            ) from exc
+
+        if not pyotp.TOTP(totp_secret).verify(payload.totp_code, valid_window=1):
             log_event(db, "2fa_failed", f"رمز 2FA غير صحيح: {user.email}", user.id)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="رمز التحقق الثنائي غير صحيح"
             )
+
+        # Existing accounts may still have plaintext secrets. Upgrade only after
+        # a valid TOTP code, so an unauthenticated attempt cannot rewrite secrets.
+        if not is_encrypted_totp_secret(user.totp_secret):
+            try:
+                user.totp_secret = encrypt_totp_secret(totp_secret)
+            except TOTPSecretError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="تشفير أسرار التحقق الثنائي غير مُعدّ على الخادم",
+                ) from exc
 
     # دخول ناجح: تصفير عداد المحاولات الفاشلة
     if user.failed_login_attempts or user.locked_until:
