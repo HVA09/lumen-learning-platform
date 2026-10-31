@@ -97,7 +97,7 @@ services:
     entrypoint: >
       /bin/sh -c "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot; sleep 12h & wait $${!}; done;"
 
-  # نسخة احتياطية يومية لقاعدة البيانات — تُحفظ بمجلد ./backups (آخر 7 أيام فقط)
+  # نسخة احتياطية يومية لقاعدة البيانات — تُحفظ محليًا بمجلد ./backups
   backup:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -109,6 +109,39 @@ services:
     depends_on:
       db:
         condition: service_healthy
+
+  # Optional encrypted offsite copy. Activate only after configuring the repository
+  # and creating ./secrets/restic-password (see README).
+  offsite_backup:
+    image: restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
+    profiles: ["offsite-backup"]
+    hostname: lumen-offsite-backup
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      RESTIC_HOST: lumen-postgres-backup
+      RESTIC_PASSWORD_FILE: /run/secrets/restic-password
+      BACKUP_DIR: /backups
+      RESTIC_BACKUP_TAG: ${RESTIC_BACKUP_TAG:-lumen-postgres}
+      RESTIC_KEEP_DAILY: ${RESTIC_KEEP_DAILY:-7}
+      RESTIC_KEEP_WEEKLY: ${RESTIC_KEEP_WEEKLY:-4}
+      RESTIC_KEEP_MONTHLY: ${RESTIC_KEEP_MONTHLY:-12}
+      RESTIC_KEEP_YEARLY: ${RESTIC_KEEP_YEARLY:-3}
+      OFFSITE_BACKUP_INTERVAL_SECONDS: ${OFFSITE_BACKUP_INTERVAL_SECONDS:-3600}
+    volumes:
+      - ./backups:/backups:ro
+      - ./scripts/offsite-backup.sh:/scripts/offsite-backup.sh:ro
+      - ./secrets:/run/secrets:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        while true; do
+          /bin/sh /scripts/offsite-backup.sh || echo "Offsite backup attempt failed; will retry."
+          sleep "$${OFFSITE_BACKUP_INTERVAL_SECONDS:-3600}"
+        done
+    depends_on:
+      backup:
+        condition: service_started
 
 volumes:
   pgdata:
