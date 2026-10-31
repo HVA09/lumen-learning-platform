@@ -1,11 +1,10 @@
 """إزالة الذكاء الاصطناعي + ترقية النظام التعليمي
 
 ماذا يسوي هذا الـ migration:
-- يحذف جداول المحادثات والرسائل وسجل استخدام AI (تحذير: يحذف سجل المحادثات نهائيًا —
-  خذ نسخة احتياطية قبل الترقية لو تحتاجه)
-- يشيل حد طلبات AI اليومي من خطط الاشتراك
-- الواجبات صارت بتقييم المعلّم اليدوي: إعادة تسمية عمودي التقييم، حذف الأعمدة اللي كانت
-  ترسلها الواجهة بدون تحقق (simulation_*)، وإضافة is_late وgraded_by_user_id
+- يؤرشف جداول المحادثات والرسائل وسجل استخدام AI بأسماء legacy_ai_* بدل حذفها
+- يحتفظ بحد طلبات AI اليومي في عمود legacy داخل plans
+- يحتفظ بتقييمات ومحاولات المحاكاة القديمة في أعمدة legacy، وينشئ أعمدة مستقلة
+  للتقييم اليدوي، مع إضافة is_late وgraded_by_user_id
 - دور جديد للمستخدم: teacher
 - جداول جديدة: lessons, lesson_progress, questions, quiz_attempts, topic_cards, study_days
 - يزرع الدروس والأسئلة وبطاقات المراجعة الجاهزة (idempotent — راجع app/content/seeder.py)
@@ -40,16 +39,32 @@ def upgrade() -> None:
         with op.get_context().autocommit_block():
             op.execute("ALTER TYPE userrole ADD VALUE IF NOT EXISTS 'teacher'")
 
-    # ---- 2) إزالة الذكاء الاصطناعي ----
-    op.drop_table("messages")
-    op.drop_table("conversations")
-    op.drop_table("usage_logs")
-    sa.Enum(name="messagerole").drop(bind, checkfirst=True)
-    op.drop_column("plans", "daily_ai_request_limit")
+    # ---- 2) أرشفة بيانات AI القديمة بدل حذفها ----
+    # تبقى الجداول خارج نماذج التطبيق الحالية، لكن بياناتها وعلاقاتها محفوظة
+    # ويمكن مراجعتها أو تصديرها لاحقًا. PostgreSQL يحافظ على علاقات FK عند إعادة التسمية.
+    op.rename_table("messages", "legacy_ai_messages")
+    op.rename_table("conversations", "legacy_ai_conversations")
+    op.rename_table("usage_logs", "legacy_ai_usage_logs")
+    op.alter_column(
+        "plans", "daily_ai_request_limit", new_column_name="legacy_daily_ai_request_limit"
+    )
 
-    # ---- 3) الواجبات: تقييم يدوي من المعلّم ----
-    op.alter_column("assignment_submissions", "ai_grade_percentage", new_column_name="grade_percentage")
-    op.alter_column("assignment_submissions", "ai_feedback", new_column_name="feedback")
+    # ---- 3) الواجبات: فصل التقييم اليدوي عن نتائج AI السابقة ----
+    # لا نحوّل علامة AI القديمة إلى علامة يدوية؛ نحافظ عليها في أعمدة legacy.
+    op.alter_column(
+        "assignment_submissions", "ai_grade_percentage",
+        new_column_name="legacy_ai_grade_percentage",
+    )
+    op.alter_column(
+        "assignment_submissions", "ai_feedback",
+        new_column_name="legacy_ai_feedback",
+    )
+    op.add_column(
+        "assignment_submissions", sa.Column("grade_percentage", sa.Float(), nullable=True)
+    )
+    op.add_column(
+        "assignment_submissions", sa.Column("feedback", sa.Text(), nullable=True)
+    )
     op.add_column(
         "assignment_submissions",
         sa.Column("is_late", sa.Boolean(), nullable=False, server_default=sa.false()),
@@ -61,11 +76,19 @@ def upgrade() -> None:
         "fk_submission_graded_by", "assignment_submissions", "users",
         ["graded_by_user_id"], ["id"], ondelete="SET NULL",
     )
-    op.drop_column("assignment_submissions", "simulation_achieved_value")
-    op.drop_column("assignment_submissions", "simulation_passed")
-    # تسليمات صُنّفت "graded" بدون نسبة (كان التقييم الآلي فاشل) ترجع بانتظار تقييم المعلّم
+    # نتائج المحاكاة القديمة تبقى محفوظة لكنها لا تُستخدم في نموذج التقييم اليدوي.
+    op.alter_column(
+        "assignment_submissions", "simulation_achieved_value",
+        new_column_name="legacy_ai_simulation_achieved_value",
+    )
+    op.alter_column(
+        "assignment_submissions", "simulation_passed",
+        new_column_name="legacy_ai_simulation_passed",
+    )
+    # التسليمات التي كانت graded بتقييم آلي تعود لانتظار تقييم المعلّم؛
+    # الدرجة والتغذية الراجعة الآليتان محفوظتان في أعمدة legacy أعلاه.
     op.execute(
-        "UPDATE assignment_submissions SET status = 'submitted', feedback = NULL, graded_at = NULL "
+        "UPDATE assignment_submissions SET status = 'submitted', graded_at = NULL "
         "WHERE status = 'graded' AND grade_percentage IS NULL"
     )
 
@@ -178,55 +201,34 @@ def downgrade() -> None:
     op.drop_table("lesson_progress")
     op.drop_table("lessons")
 
-    op.add_column("assignment_submissions", sa.Column("simulation_passed", sa.Boolean(), nullable=True))
-    op.add_column(
-        "assignment_submissions", sa.Column("simulation_achieved_value", sa.Float(), nullable=True)
-    )
     op.drop_constraint("fk_submission_graded_by", "assignment_submissions", type_="foreignkey")
     op.drop_column("assignment_submissions", "graded_by_user_id")
     op.drop_column("assignment_submissions", "is_late")
-    op.alter_column("assignment_submissions", "feedback", new_column_name="ai_feedback")
-    op.alter_column("assignment_submissions", "grade_percentage", new_column_name="ai_grade_percentage")
+    op.drop_column("assignment_submissions", "feedback")
+    op.drop_column("assignment_submissions", "grade_percentage")
+    op.alter_column(
+        "assignment_submissions", "legacy_ai_simulation_passed",
+        new_column_name="simulation_passed",
+    )
+    op.alter_column(
+        "assignment_submissions", "legacy_ai_simulation_achieved_value",
+        new_column_name="simulation_achieved_value",
+    )
+    op.alter_column(
+        "assignment_submissions", "legacy_ai_feedback", new_column_name="ai_feedback"
+    )
+    op.alter_column(
+        "assignment_submissions", "legacy_ai_grade_percentage",
+        new_column_name="ai_grade_percentage",
+    )
+    op.alter_column(
+        "plans", "legacy_daily_ai_request_limit", new_column_name="daily_ai_request_limit"
+    )
 
-    op.add_column(
-        "plans",
-        sa.Column("daily_ai_request_limit", sa.Integer(), nullable=False, server_default="20"),
-    )
-    op.execute("UPDATE plans SET daily_ai_request_limit = 500 WHERE name = 'Pro'")
-
-    # بنية جداول الذكاء الاصطناعي فقط (البيانات المحذوفة ما ترجع)
-    op.create_table(
-        "conversations",
-        sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("user_id", sa.Integer(), nullable=False),
-        sa.Column("title", sa.String(length=255), nullable=False),
-        _created_at(),
-        sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
-    )
-    op.create_index(
-        "ix_conversations_user_id_created_at", "conversations", ["user_id", "created_at"]
-    )
-    op.create_table(
-        "messages",
-        sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("conversation_id", sa.Integer(), nullable=False),
-        sa.Column("role", sa.Enum("user", "assistant", name="messagerole"), nullable=False),
-        sa.Column("content", sa.Text(), nullable=False),
-        _created_at(),
-        sa.ForeignKeyConstraint(["conversation_id"], ["conversations.id"], ondelete="CASCADE"),
-    )
-    op.create_index("ix_messages_conversation_id", "messages", ["conversation_id"])
-    op.create_table(
-        "usage_logs",
-        sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("user_id", sa.Integer(), nullable=False),
-        sa.Column("endpoint", sa.String(length=100), nullable=False),
-        _created_at(),
-        sa.Column("input_tokens", sa.Integer(), nullable=True),
-        sa.Column("output_tokens", sa.Integer(), nullable=True),
-        sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
-    )
-    op.create_index("ix_usage_logs_user_id_created_at", "usage_logs", ["user_id", "created_at"])
+    # استعادة أسماء الجداول الأصلية؛ البيانات ظلت محفوظة داخلها طوال فترة الترقية.
+    op.rename_table("legacy_ai_messages", "messages")
+    op.rename_table("legacy_ai_conversations", "conversations")
+    op.rename_table("legacy_ai_usage_logs", "usage_logs")
 
     # PostgreSQL ما يسمح بحذف قيمة من enum — نترك 'teacher' بالنوع ونحوّل المعلّمين لطلاب
     op.execute("UPDATE users SET role = 'user' WHERE role = 'teacher'")
