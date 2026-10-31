@@ -90,8 +90,13 @@ def upgrade() -> None:
     op.add_column(
         "assignment_submissions", sa.Column("legacy_ai_status", sa.String(length=20), nullable=True)
     )
+    op.add_column(
+        "assignment_submissions",
+        sa.Column("legacy_ai_graded_at", sa.DateTime(timezone=True), nullable=True),
+    )
     op.execute(
-        "UPDATE assignment_submissions SET legacy_ai_status = status::text"
+        "UPDATE assignment_submissions "
+        "SET legacy_ai_status = status::text, legacy_ai_graded_at = graded_at"
     )
     op.execute(
         "UPDATE assignment_submissions SET status = 'submitted', graded_at = NULL "
@@ -210,9 +215,10 @@ def downgrade() -> None:
     # استعد حالة التقييم الآلي الأصلية قبل إزالة عمود الأرشيف.
     op.execute(
         "UPDATE assignment_submissions "
-        "SET status = legacy_ai_status::submissionstatus "
+        "SET status = legacy_ai_status::submissionstatus, graded_at = legacy_ai_graded_at "
         "WHERE legacy_ai_status IS NOT NULL"
     )
+    op.drop_column("assignment_submissions", "legacy_ai_graded_at")
     op.drop_column("assignment_submissions", "legacy_ai_status")
     op.drop_constraint("fk_submission_graded_by", "assignment_submissions", type_="foreignkey")
     op.drop_column("assignment_submissions", "graded_by_user_id")
