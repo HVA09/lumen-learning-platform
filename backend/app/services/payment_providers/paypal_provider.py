@@ -113,4 +113,5 @@ class PayPalProvider(PaymentProvider):
             status=status,
             client_reference_id=user_id_part or None,
             plan_id=plan_id_part or None,
+            event_id=body.get("id"),
         )
