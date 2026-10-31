@@ -9,7 +9,7 @@ from app.models.user import User, UserRole
 def register_and_login(client, email, password="StrongPass123"):
     client.post("/auth/register", json={"email": email, "password": password})
     response = client.post("/auth/login", json={"email": email, "password": password})
-    return response.json()["access_token"]
+    return response.cookies.get("lumen_access")
 
 
 def auth(token):
