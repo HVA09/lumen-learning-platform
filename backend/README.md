@@ -261,28 +261,40 @@ alembic upgrade head
   الصحة عند أي منصة استضافة أو load balancer
 - `/metrics` يعرض مقاييس Prometheus (عدد الطلبات، زمن الاستجابة...) لو ثبّت المكتبة
 
-## LTI 1.3 (ربط Moodle/Canvas)
+## LTI 1.3 ومرحلة التكامل مع Moodle/Canvas
 
-⚠️ **تطبيق متوافق مع مواصفة LTI 1.3 الرسمية (IMS Global)، لكن ما اختُبر فعليًا مقابل
-منصة LMS حقيقية.** جرّبه بحساب Moodle تجريبي (sandbox) قبل الاعتماد عليه بالإنتاج —
-توقّع تحتاج تعديلات طفيفة حسب تفاصيل المنصة اللي تربطها.
+**الحالة الحالية: تنفيذ أولي لتدفق LTI 1.3، وليس تكاملًا إنتاجيًا معتمدًا أو مختبرًا مع LMS حقيقي.**
+الموجود في الكود:
+- تسجيل منصات LMS وعرضها (admin فقط).
+- نقطة JWKS العامة الخاصة بأداة Lumen.
+- بدء تدفق OIDC عبر GET/POST `/lti/login`.
+- استقبال إطلاق LTI عبر `/lti/launch` والتحقق من توقيع ID token وissuer وaudience/azp وnonce وdeployment_id ونوع الرسالة وإصدار LTI ومعرّف Resource Link ووقت الصلاحية.
+- رمز تبادل عشوائي قصير العمر وأحادي الاستخدام عبر `/lti/exchange-code`، ثم إنشاء جلسة متصفح باستخدام Cookies من نوع HttpOnly.
+- اختبارات محاكاة تولّد زوج مفاتيح RSA، وتوقّع ID token فعليًا، وتتحقق من تدفق الإطلاق وتبادل الرمز. هذه الاختبارات لا تثبت التوافق الشبكي مع Moodle أو Canvas.
 
-**خطوات الربط:**
-1. ولّد مفتاح التوقيع الخاص بأداتك: `python scripts/generate_lti_key.py`، وحط الناتج
-   بمتغيّر `LTI_TOOL_PRIVATE_KEY` بـ `.env`
-2. اضبط `LTI_TARGET_LINK_URI=https://your-domain.com/lti/launch` في بيئة الإنتاج، ثم بلوحة إدارة Moodle أنشئ "External Tool" بصيغة LTI 1.3، واستخدم:
-   - Login URL: `https://your-domain.com/lti/login`
-   - Redirect URL: `https://your-domain.com/lti/launch`
-   - JWKS URL (لأداتك): `https://your-domain.com/lti/jwks`
-3. Moodle بيعطيك: `client_id`, `deployment_id`, وروابط auth/token/jwks الخاصة فيه
-4. سجّل هذي المعلومات بأداتك عبر `POST /lti/platforms` (admin فقط)
-5. من داخل Moodle، أنشئ نشاط "External Tool" يستخدم الأداة المسجّلة — الطلاب يدخلون
-   Lumen مباشرة من الكورس بدون تسجيل دخول منفصل
+**غير منفّذ بعد:**
+- اختبار اتصال وتسجيل حقيقي مع Moodle أو Canvas (sandbox).
+- LTI Assignment and Grade Services (AGS) لإرسال الدرجات إلى سجل درجات LMS.
+- Names and Role Provisioning Services (NRPS) لجلب عضويات المقرر والأدوار.
+- Deep Linking لاختيار محتوى Lumen وإضافته من داخل LMS.
+- شهادة توافق رسمية من 1EdTech.
 
-**الأمان:** يجب أن يطابق `target_link_uri` القيمة المضبوطة في `LTI_TARGET_LINK_URI` بالإنتاج، كما يجب أن يطابق claim الموقّع في ID token عنوان حالة OIDC نفسها. يُتحقق من التوقيع، `issuer`, `audience/azp`, `nonce`, `deployment_id`, نوع الرسالة وإصدار LTI ومعرّف resource link ووقت صلاحية الرمز. يُمرر `lti_message_hint` إلى منصة LMS دون تغيير. عند نجاح الإطلاق يُمرر رمز عشوائي قصير العمر وأحادي الاستخدام، ويُستبدل عبر `POST /lti/exchange-code`؛ لا تُمرر JWT tokens في URL. حالة OIDC نفسها تُخزّن كـ hash وتُستهلك مرة واحدة. عناوين `issuer` و`auth_login_url` و`auth_token_url` و`jwks_url` يجب أن تكون HTTPS؛ HTTP مسموح فقط لعناوين loopback في بيئة التطوير/الاختبار.
+**متطلبات اختبار LMS حقيقي:**
+1. نشر Lumen على دومين عام يمكن لمنصة LMS الوصول إليه عبر HTTPS بشهادة صالحة؛ إعداد Nginx الحالي لا يفعّل HTTPS تلقائيًا، لذا راجع قسم HTTPS أعلاه.
+2. إنشاء تسجيل External Tool تجريبي في Moodle أو Canvas والحصول على issuer وclient_id وdeployment_id وروابط المصادقة والرموز وJWKS الخاصة بالمنصة.
+3. توليد مفتاح أداة Lumen: `python scripts/generate_lti_key.py`، ثم حفظ المفتاح الخاص في Secret Manager عبر `LTI_TOOL_PRIVATE_KEY` وعدم إضافته إلى Git.
+4. ضبط `LTI_TARGET_LINK_URI=https://your-domain.com/lti/launch`، وتسجيل بيانات المنصة في Lumen عبر `POST /lti/platforms` باستخدام حساب admin.
+5. تنفيذ سيناريوهات إطلاق ناجح وفاشل، وانتهاء nonce/state، وإعادة استخدام رمز التبادل، ثم توثيق النتائج لكل LMS وإصداره.
 
-**ملاحظة:** تصحيح الدرجات التلقائي (Grade Passback / AGS) ما بُني بهذي المرحلة —
-المستخدم يدخل ويشتغل بـ Lumen عاديًا، بس درجاته ما ترجع تلقائيًا لسجل درجات Moodle.
+**ملاحظات أمنية:** يجب أن يطابق `target_link_uri` القيمة المضبوطة في `LTI_TARGET_LINK_URI` بالإنتاج، كما يجب أن يطابق claim الموقّع في ID token عنوان حالة OIDC نفسها. تُخزّن حالة OIDC كبصمة hash وتُستهلك مرة واحدة. لا تُمرّر JWT tokens في URL؛ يستخدم التدفق رمز تبادل قصير العمر وأحادي الاستخدام. عناوين منصة LMS يجب أن تكون HTTPS في الإنتاج، مع رفض عناوين IP/مضيفات الشبكات الداخلية لمنع SSRF.
+
+**خطة LTI Advantage التالية:**
+1. تنفيذ AGS v2.0 بصورة منفصلة: حفظ ربط Resource Link/Assignment، الحصول على OAuth 2.0 access token باستخدام client assertion موقّع، ثم إرسال نتيجة الطالب بعد تقييمها وفق صلاحيات AGS والـ line item الصحيح.
+2. إضافة سجل إرسال درجات قابل لإعادة المحاولة (idempotent outbox) حتى لا يؤدي انقطاع الشبكة أو إعادة طلب المعلم إلى إرسال درجات متكررة أو فقدها.
+3. إضافة اختبارات بروتوكول باستخدام خادم LMS تجريبي، ثم اختبار Moodle وCanvas كلٌّ على حدة.
+4. بعد استقرار AGS، دراسة NRPS وDeep Linking حسب احتياج المنتج.
+
+مرجع المواصفات: [LTI 1.3 Core](https://www.imsglobal.org/spec/lti/v1p3)، [LTI Advantage Implementation Guide](https://developers.imsglobal.org/spec/lti/v1p3/impl)، [Assignment and Grade Services v2.0](https://www.imsglobal.org/spec/lti-ags/v2p0/)، [AGS OpenAPI](https://www.imsglobal.org/spec/lti-ags/v2p0/openapi).
 
 ## Browser session security
 
