@@ -285,43 +285,6 @@ def test_upload_enforces_per_user_storage_and_file_count_quotas(
     assert not [path for path in tmp_path.rglob("*") if path.is_file()]
 
 
-def _run_fake_clamd(reply: bytes, file_bytes: bytes, scanner_error=None):
-    async def scenario():
-        received = bytearray()
-
-        async def handle(reader, writer):
-            try:
-                command = await reader.readuntil(b"\\0")
-                assert command == b"zINSTREAM\\0"
-                while True:
-                    length = struct.unpack("!I", await reader.readexactly(4))[0]
-                    if length == 0:
-                        break
-                    received.extend(await reader.readexactly(length))
-                writer.write(reply + b"\\0")
-                await writer.drain()
-            finally:
-                writer.close()
-                await writer.wait_closed()
-
-        server = await asyncio.start_server(handle, "127.0.0.1", 0)
-        port = server.sockets[0].getsockname()[1]
-        monkeypatch = scanner_error["monkeypatch"]
-        monkeypatch.setattr(app_settings, "CLAMAV_HOST", "127.0.0.1")
-        monkeypatch.setattr(app_settings, "CLAMAV_PORT", port)
-        monkeypatch.setattr(app_settings, "CLAMAV_TIMEOUT_SECONDS", 2)
-        file_path = scanner_error["path"]
-        file_path.write_bytes(file_bytes)
-        try:
-            await files_router.scan_file_with_clamav(file_path)
-        finally:
-            server.close()
-            await server.wait_closed()
-        return bytes(received)
-
-    return asyncio.run(scenario())
-
-
 def test_clamav_instream_protocol_sends_bounded_file_chunks_and_accepts_clean_result(
     tmp_path, monkeypatch
 ):
