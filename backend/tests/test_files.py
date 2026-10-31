@@ -322,9 +322,10 @@ def test_clamav_instream_protocol_sends_bounded_file_chunks_and_accepts_clean_re
         finally:
             server.close()
             await server.wait_closed()
+        return bytes(received)
 
-    asyncio.run(scenario())
-    assert bytes(received) == payload
+    received = asyncio.run(scenario())
+    assert received == payload
 
 
 def test_clamav_instream_protocol_rejects_infected_result(tmp_path, monkeypatch):
