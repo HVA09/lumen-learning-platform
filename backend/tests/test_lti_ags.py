@@ -1,6 +1,5 @@
 """Protocol-level tests for LTI AGS mappings, grade outbox, OAuth and score delivery."""
 import asyncio
-import json
 from types import SimpleNamespace
 from urllib.parse import urlsplit
 
@@ -118,17 +117,15 @@ def test_assignment_link_is_admin_only_and_unique(client, db_session):
 
 def test_launch_context_requires_score_scope_and_same_platform_origin(db_session):
     platform = _platform(db_session)
+    # Use a real user row for the assignment foreign key.
+    owner = User(email="ags-owner@example.test", hashed_password="not-used")
+    db_session.add(owner)
+    db_session.flush()
     assignment = Assignment(
-        created_by_user_id=1,
+        created_by_user_id=owner.id,
         title="Launch mapping",
         description="Test",
     )
-    # Use a real user row for the assignment foreign key.
-    from app.models.user import User as UserModel
-    owner = UserModel(email="ags-owner@example.test", hashed_password="not-used")
-    db_session.add(owner)
-    db_session.flush()
-    assignment.created_by_user_id = owner.id
     db_session.add(assignment)
     db_session.flush()
     mapping = LTIAssignmentLink(
@@ -182,9 +179,7 @@ def test_teacher_grading_creates_one_outbox_event_per_grade_version(client, db_s
     assert first_event.comment == "Good work"
 
     submission = db_session.get(AssignmentSubmission, first_event.submission_id)
-    teacher_token = auth(register_and_login(client, "ags-regrader@example.test"))
-    set_role(db_session, "ags-regrader@example.test", UserRole.teacher)
-    # Only the original assignment creator can grade; use the original teacher account.
+    # Only the original assignment creator can grade; use that account again.
     teacher_token = auth(register_and_login(client, "ags-teacher@example.test"))
     second = client.post(
         f"/assignments/{submission.assignment_id}/submissions/{submission.id}/grade",
