@@ -1,6 +1,8 @@
 """
 مسارات الإشعارات: عرض/تعليم كمقروء عبر REST، واتصال فوري عبر WebSocket
 """
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status
 from sqlalchemy.orm import Session
 
@@ -9,6 +11,7 @@ from app.auth.security import decode_token
 from app.config import settings
 from app.database import get_db
 from app.dependencies import get_current_user
+from app.models.auth_session import AuthSession
 from app.models.notification import Notification
 from app.models.user import User
 from app.notifications import manager
@@ -82,15 +85,24 @@ async def notifications_websocket(
             raise ValueError("invalid token type")
         user_id = int(payload.get("sub"))
         token_version = payload.get("ver", 0)
+        session_id = payload.get("sid")
+        if not isinstance(session_id, str):
+            raise ValueError("missing server-side session")
     except Exception:
         await websocket.close(code=4001)
         return
 
     user = db.get(User, user_id)
+    auth_session = db.get(AuthSession, session_id)
+    now = datetime.now(timezone.utc)
     if (
         user is None
         or not user.is_active
         or token_version != user.token_version
+        or auth_session is None
+        or auth_session.user_id != user_id
+        or auth_session.revoked_at is not None
+        or auth_session.expires_at <= now
     ):
         await websocket.close(code=4001)
         return
