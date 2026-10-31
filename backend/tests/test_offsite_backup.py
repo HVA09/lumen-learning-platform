@@ -48,8 +48,12 @@ exit 0
 if [ "$1" = "-e" ]; then
   shift
 fi
+source_path=""
 if [ "$1" = "--arg" ]; then
-  shift 3
+  shift
+  variable_name="$1"
+  source_path="$2"
+  shift 2
 fi
 expression="$1"
 input=$(cat)
@@ -58,7 +62,8 @@ case "$expression" in
     printf '%s\\n' "$input" | grep -q '^\\['
     ;;
   *)
-    [ "${SNAPSHOT_EXISTS:-0}" = "1" ]
+    [ -n "$source_path" ] || exit 1
+    printf '%s\\n' "$input" | grep -F -q "\\\"$source_path\\\""
     ;;
 esac
 """,
@@ -78,7 +83,6 @@ esac
             "BACKUP_DIR": str(tmp_path / "backups"),
             "RESTIC_CALL_LOG": str(calls_file),
             "RESTIC_SNAPSHOT_JSON": str(snapshots_file),
-            "SNAPSHOT_EXISTS": snapshot_exists,
             "RESTIC_FAIL_COMMAND": fail_command,
         }
     )
@@ -122,16 +126,18 @@ def test_offsite_backup_uploads_only_latest_archive_and_applies_retention(
 
     assert result.returncode == 0, result.stderr
     calls = _calls(calls_file)
+    oldest = backup_dir / "backup_20261029_010000.sql.gz"
     assert calls[0] == "cat config"
     assert calls[1] == "snapshots --json --tag lumen-postgres"
-    assert calls[2] == f"backup --tag lumen-postgres --group-by host,tags {latest}"
-    assert calls[3] == (
+    assert calls[2] == f"backup --tag lumen-postgres --group-by host,tags {oldest}"
+    assert calls[3] == f"backup --tag lumen-postgres --group-by host,tags {latest}"
+    assert calls[4] == (
         "forget --group-by host,tags --tag lumen-postgres "
         "--keep-daily 7 --keep-weekly 4 --keep-monthly 12 "
         "--keep-yearly 3 --prune"
     )
-    assert calls[4] == "check"
-    assert len(calls) == 5
+    assert calls[5] == "check"
+    assert len(calls) == 6
     assert latest.exists(), "Offsite upload must not delete local recovery copies."
 
 
@@ -139,15 +145,14 @@ def test_offsite_backup_skips_archive_already_present_in_repository(
     tmp_path: Path,
 ) -> None:
     backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
     latest = _archive(backup_dir, "backup_20261031_010000.sql.gz")
     snapshots = (
         '[{"id":"snapshot-id","paths":['
-        f'"/backups/{latest.name}"'
+        f'"{latest}"'
         '],"tags":["lumen-postgres"]}]'
     )
-    env, calls_file = _environment(
-        tmp_path, snapshots=snapshots, snapshot_exists="1"
-    )
+    env, calls_file = _environment(tmp_path, snapshots=snapshots)
 
     result = _run(env)
 
@@ -157,6 +162,30 @@ def test_offsite_backup_skips_archive_already_present_in_repository(
         "snapshots --json --tag lumen-postgres",
     ]
     assert "already present" in result.stdout
+
+
+def test_offsite_backup_uploads_only_archives_missing_from_remote_repository(
+    tmp_path: Path,
+) -> None:
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+    already_uploaded = _archive(backup_dir, "backup_20261029_010000.sql.gz")
+    pending = _archive(backup_dir, "backup_20261031_010000.sql.gz")
+    snapshots = (
+        '[{"id":"snapshot-id","paths":['
+        f'"{already_uploaded}"'
+        '],"tags":["lumen-postgres"]}]'
+    )
+    env, calls_file = _environment(tmp_path, snapshots=snapshots)
+
+    result = _run(env)
+
+    assert result.returncode == 0, result.stderr
+    calls = _calls(calls_file)
+    assert calls[2] == f"backup --tag lumen-postgres --group-by host,tags {pending}"
+    assert not any(str(already_uploaded) in call for call in calls)
+    assert calls[-2].startswith("forget ")
+    assert calls[-1] == "check"
 
 
 def test_offsite_backup_does_not_prune_when_upload_fails(tmp_path: Path) -> None:
