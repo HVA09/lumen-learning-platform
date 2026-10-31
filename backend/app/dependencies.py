@@ -35,6 +35,9 @@ def get_current_user(
         detail="بيانات الدخول غير صالحة",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    if not isinstance(token, str) or not token:
+        raise credentials_error
+
     try:
         payload = decode_token(token)
         if payload.get("type") != "access":
