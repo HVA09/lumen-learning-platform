@@ -39,8 +39,8 @@ def decrypt_totp_secret(stored_value: str) -> str:
         raise TOTPSecretError("TOTP secret is empty")
 
     if stored_value.startswith(TOTP_SECRET_PREFIX):
-        token = stored_value[len(TOTP_SECRET_PREFIX) :].encode("ascii")
         try:
+            token = stored_value[len(TOTP_SECRET_PREFIX) :].encode("ascii")
             return _fernet().decrypt(token).decode("utf-8")
         except (InvalidToken, UnicodeDecodeError, UnicodeEncodeError) as exc:
             raise TOTPSecretError("Stored TOTP secret cannot be decrypted") from exc
