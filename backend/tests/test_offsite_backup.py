@@ -18,7 +18,6 @@ def _environment(
     tmp_path: Path,
     *,
     snapshots: str = "[]",
-    snapshot_exists: str = "0",
     fail_command: str = "",
 ) -> tuple[dict[str, str], Path]:
     bin_dir = tmp_path / "bin"
@@ -114,7 +113,7 @@ def _calls(path: Path) -> list[str]:
     return path.read_text(encoding="utf-8").splitlines()
 
 
-def test_offsite_backup_uploads_only_latest_archive_and_applies_retention(
+def test_offsite_backup_uploads_pending_archives_and_applies_retention(
     tmp_path: Path,
 ) -> None:
     env, calls_file = _environment(tmp_path)
@@ -161,7 +160,7 @@ def test_offsite_backup_skips_archive_already_present_in_repository(
         "cat config",
         "snapshots --json --tag lumen-postgres",
     ]
-    assert "already present" in result.stdout
+    assert "already present" in result.stdout.lower()
 
 
 def test_offsite_backup_uploads_only_archives_missing_from_remote_repository(
