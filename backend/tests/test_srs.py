@@ -15,7 +15,7 @@ def _register_and_login(client, email="srs-security@example.com"):
         json={"email": email, "password": "StrongPass123"},
     )
     assert login.status_code == 200
-    return {"Authorization": f"Bearer {login.json()['access_token']}"}
+    return {"Authorization": f"Bearer {login.cookies.get('lumen_access')}"}
 
 
 def test_due_cards_limit_is_bounded(client):

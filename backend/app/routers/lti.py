@@ -3,18 +3,23 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode, urlsplit
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, Response, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.auth.security import create_access_token, create_refresh_token, hash_password
+from app.auth.cookies import (
+    create_csrf_token,
+    set_auth_cookies,
+    verify_csrf_request,
+)
+from app.auth.security import hash_password
+from app.auth.sessions import create_browser_session
 from app.config import settings
 from app.database import get_db
 from app.dependencies import require_admin
 from app.models.lti import LTIAuthCode, LTIAuthState, LTIPlatform, LTIUserLink
 from app.models.user import User
-from app.schemas.auth import Token
 from app.schemas.lti import LTIExchangeCodeRequest, LTIPlatformCreate, LTIPlatformOut
 from app.services.lti_service import (
     LTI_AUTH_CODE_TTL_SECONDS,
@@ -294,11 +299,18 @@ async def lti_launch(
     return _no_store_redirect(redirect_url)
 
 
-@router.post("/exchange-code", response_model=Token)
+@router.post("/exchange-code")
 def exchange_lti_code(
     payload: LTIExchangeCodeRequest,
+    request: Request,
+    response: Response,
     db: Session = Depends(get_db),
 ):
+    origin = request.headers.get("origin")
+    if origin:
+        if origin not in settings.CORS_ORIGINS:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Untrusted request origin")
+        verify_csrf_request(request)
     """يستبدل رمزًا عشوائيًا قصير العمر برموز JWT مرة واحدة فقط."""
     auth_code = (
         db.query(LTIAuthCode)
@@ -323,8 +335,8 @@ def exchange_lti_code(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="حساب الدخول غير متاح")
 
     auth_code.consumed_at = now
+    access_token, refresh_token, _ = create_browser_session(db, user)
     db.commit()
-    return Token(
-        access_token=create_access_token(user.id, user.token_version),
-        refresh_token=create_refresh_token(user.id, user.token_version),
-    )
+    csrf_token = create_csrf_token()
+    set_auth_cookies(response, access_token, refresh_token, csrf_token)
+    return {"authenticated": True, "csrf_token": csrf_token}

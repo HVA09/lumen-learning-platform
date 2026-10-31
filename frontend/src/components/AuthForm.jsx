@@ -22,9 +22,7 @@ export default function AuthForm({ onAuthenticated }) {
   };
 
   const completeLogin = async () => {
-    const data = await loginUser(email, password, needsTotp ? totpCode : null);
-    localStorage.setItem("access_token", data.access_token);
-    localStorage.setItem("refresh_token", data.refresh_token);
+    await loginUser(email, password, needsTotp ? totpCode : null);
     onAuthenticated();
   };
 

@@ -35,7 +35,7 @@ def _register_admin(
     login_response = client.post("/auth/login", json={"email": email, "password": password})
     if make_admin:
         set_role(db_session, email, UserRole.admin)
-    return login_response.json()["access_token"]
+    return login_response.cookies.get("lumen_access")
 
 
 def _register_platform(client, admin_token):
@@ -169,8 +169,12 @@ def test_full_launch_flow_creates_user_and_issues_tokens(client, db_session, mon
     exchange_code = parse_qs(urlparse(location).fragment)["code"][0]
     exchange = client.post("/lti/exchange-code", json={"code": exchange_code})
     assert exchange.status_code == 200
-    assert exchange.json()["access_token"]
-    assert exchange.json()["refresh_token"]
+    assert exchange.json()["authenticated"] is True
+    assert "access_token" not in exchange.json()
+    assert "refresh_token" not in exchange.json()
+    assert exchange.cookies.get("lumen_access")
+    assert exchange.cookies.get("lumen_refresh")
+    assert "httponly" in exchange.headers.get("set-cookie", "").lower()
 
     # رمز التبادل أحادي الاستخدام؛ إعادة إرساله يجب أن تفشل.
     replay = client.post("/lti/exchange-code", json={"code": exchange_code})
@@ -541,3 +545,56 @@ def test_lti_endpoint_pin_rejects_private_address_even_when_public_ip_is_first(m
             "https://moodle.example.com/jwks",
             ["8.8.8.8", "192.168.1.10"],
         )
+
+def test_browser_lti_exchange_requires_trusted_origin_and_csrf(client, db_session):
+    from datetime import datetime, timedelta, timezone
+    import secrets
+
+    from app.config import settings
+    from app.models.lti import LTIAuthCode
+    from app.models.user import User
+    from app.services.lti_service import hash_opaque_token
+
+    email = "lti-cookie-csrf@example.com"
+    client.post("/auth/register", json={"email": email, "password": "StrongPass123"})
+    user = db_session.query(User).filter(User.email == email).one()
+    code = secrets.token_urlsafe(32)
+    db_session.add(
+        LTIAuthCode(
+            code_hash=hash_opaque_token(code),
+            user_id=user.id,
+            token_version=user.token_version,
+            expires_at=datetime.now(timezone.utc) + timedelta(seconds=60),
+        )
+    )
+    db_session.commit()
+
+    csrf = client.get("/auth/csrf").json()["csrf_token"]
+    rejected_origin = client.post(
+        "/lti/exchange-code",
+        json={"code": code},
+        headers={
+            "origin": "https://attacker.invalid",
+            "X-CSRF-Token": csrf,
+        },
+    )
+    assert rejected_origin.status_code == 403
+
+    missing_csrf = client.post(
+        "/lti/exchange-code",
+        json={"code": code},
+        headers={"origin": settings.CORS_ORIGINS[0]},
+    )
+    assert missing_csrf.status_code == 403
+
+    accepted = client.post(
+        "/lti/exchange-code",
+        json={"code": code},
+        headers={
+            "origin": settings.CORS_ORIGINS[0],
+            "X-CSRF-Token": csrf,
+        },
+    )
+    assert accepted.status_code == 200
+    assert accepted.json()["authenticated"] is True
+    assert "access_token" not in accepted.json()

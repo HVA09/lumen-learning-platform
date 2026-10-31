@@ -90,7 +90,7 @@ def test_due_at_is_set_in_the_future_relative_to_now():
 def _register_and_login(client, email="srsuser@example.com", password="StrongPass123"):
     client.post("/auth/register", json={"email": email, "password": password})
     login_response = client.post("/auth/login", json={"email": email, "password": password})
-    return login_response.json()["access_token"]
+    return login_response.cookies.get("lumen_access")
 
 
 def test_create_and_list_cards(client):

@@ -8,7 +8,7 @@ from tests.quiz_helpers import make_student, take_quiz, topic_id_by_slug
 def _register_and_login(client, email="reportuser@example.com", password="StrongPass123"):
     client.post("/auth/register", json={"email": email, "password": password})
     login_response = client.post("/auth/login", json={"email": email, "password": password})
-    return login_response.json()["access_token"]
+    return login_response.cookies.get("lumen_access")
 
 
 def test_progress_report_reflects_zero_activity_for_new_user(client):

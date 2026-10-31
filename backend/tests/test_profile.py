@@ -6,7 +6,7 @@
 def _register_and_login(client, email="profile@example.com", password="StrongPass123"):
     client.post("/auth/register", json={"email": email, "password": password})
     login_response = client.post("/auth/login", json={"email": email, "password": password})
-    return login_response.json()["access_token"]
+    return login_response.cookies.get("lumen_access")
 
 
 def test_get_me_includes_profile_fields(client):

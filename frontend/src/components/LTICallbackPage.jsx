@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import api from "../lib/api";
+import { exchangeLtiCode } from "../lib/authApi";
 
 export default function LTICallbackPage() {
   const [error, setError] = useState(false);
@@ -21,11 +21,12 @@ export default function LTICallbackPage() {
       return;
     }
 
-    api
-      .post("/lti/exchange-code", { code })
-      .then(({ data }) => {
-        localStorage.setItem("access_token", data.access_token);
-        localStorage.setItem("refresh_token", data.refresh_token);
+    exchangeLtiCode(code)
+      .then((data) => {
+        if (!data.authenticated) {
+          setError(true);
+          return;
+        }
         window.location.replace("/");
       })
       .catch(() => setError(true));

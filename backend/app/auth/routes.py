@@ -3,12 +3,24 @@
 تأكيد البريد الإلكتروني، وإعادة تعيين كلمة المرور
 """
 from datetime import datetime, timedelta, timezone
+import secrets
 
 import pyotp
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from jose import JWTError
 from sqlalchemy.orm import Session
 
+from app.auth.cookies import (
+    ACCESS_COOKIE_NAME,
+    REFRESH_COOKIE_NAME,
+    clear_auth_cookies,
+    create_csrf_token,
+    issue_csrf_cookie,
+    set_auth_cookies,
+    set_csrf_cookie,
+    verify_csrf_request,
+)
+from app.auth.sessions import create_browser_session, hash_refresh_jti, refresh_jti_matches
 from app.auth.totp_secrets import (
     TOTPSecretError,
     decrypt_totp_secret,
@@ -28,6 +40,7 @@ from app.audit import log_event
 from app.config import settings
 from app.database import get_db
 from app.dependencies import get_current_user
+from app.models.auth_session import AuthSession
 from app.models.user import User, UserRole
 from app.notifications import notify
 from app.schemas.auth import (
@@ -35,8 +48,6 @@ from app.schemas.auth import (
     LoginRequest,
     PasswordResetConfirm,
     PasswordResetRequest,
-    RefreshRequest,
-    Token,
 )
 from app.schemas.user import UserCreate, UserOut
 from app.services.email_service import (
@@ -46,6 +57,12 @@ from app.services.email_service import (
 )
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+
+@router.get("/csrf")
+def csrf_token(request: Request, response: Response):
+    """Issue a CSRF token for the trusted browser origin."""
+    return {"csrf_token": issue_csrf_cookie(request, response)}
 
 
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
@@ -72,8 +89,18 @@ def register(payload: UserCreate, db: Session = Depends(get_db)):
     return user
 
 
-@router.post("/login", response_model=Token)
-def login(payload: LoginRequest, db: Session = Depends(get_db)):
+@router.post("/login")
+def login(
+    payload: LoginRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    origin = request.headers.get("origin")
+    if origin:
+        if origin not in settings.CORS_ORIGINS:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Untrusted request origin")
+        verify_csrf_request(request)
     invalid_credentials_error = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="بريد إلكتروني أو كلمة مرور غير صحيحة",
@@ -155,38 +182,141 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
         db.commit()
 
     log_event(db, "login", f"تسجيل دخول: {user.email}", user.id)
-    return Token(
-        access_token=create_access_token(user.id, user.token_version),
-        refresh_token=create_refresh_token(user.id, user.token_version),
-    )
+    access_token, refresh_token, _ = create_browser_session(db, user)
+    db.commit()
+    csrf_token = create_csrf_token()
+    set_auth_cookies(response, access_token, refresh_token, csrf_token)
+    return {"authenticated": True, "csrf_token": csrf_token}
 
 
-@router.post("/refresh", response_model=Token)
-def refresh(payload: RefreshRequest, db: Session = Depends(get_db)):
+@router.post("/refresh")
+def refresh(request: Request, response: Response, db: Session = Depends(get_db)):
+    verify_csrf_request(request)
+    refresh_token = request.cookies.get(REFRESH_COOKIE_NAME)
     invalid_token_error = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED, detail="refresh token غير صالح"
     )
+    if not refresh_token:
+        raise invalid_token_error
     try:
-        data = decode_token(payload.refresh_token)
+        data = decode_token(refresh_token)
         if data.get("type") != "refresh":
             raise ValueError("ليس refresh token")
         user_id = int(data.get("sub"))
+        session_id = data.get("sid")
+        refresh_jti = data.get("jti")
+        if not isinstance(session_id, str) or not isinstance(refresh_jti, str):
+            raise ValueError("refresh token is not bound to a server-side session")
     except (JWTError, TypeError, ValueError):
         raise invalid_token_error
 
-    # تأكد إن المستخدم لسه موجود ومفعّل قبل ما نصدر توكنات جديدة
+    auth_session = (
+        db.query(AuthSession)
+        .filter(AuthSession.id == session_id)
+        .with_for_update()
+        .first()
+    )
     user = db.get(User, user_id)
+    now = datetime.now(timezone.utc)
     if (
-        user is None
+        auth_session is None
+        or auth_session.user_id != user_id
+        or auth_session.revoked_at is not None
+        or auth_session.expires_at <= now
+        or user is None
         or not user.is_active
         or data.get("ver", 0) != user.token_version
     ):
         raise invalid_token_error
 
-    return Token(
-        access_token=create_access_token(user.id, user.token_version),
-        refresh_token=create_refresh_token(user.id, user.token_version),
+    if not refresh_jti_matches(auth_session, refresh_jti):
+        # A previously rotated refresh token was replayed. Revoke this session
+        # to prevent an attacker from continuing to use the same token family.
+        auth_session.revoked_at = now
+        db.commit()
+        raise invalid_token_error
+
+    next_refresh_jti = secrets.token_urlsafe(32)
+    auth_session.refresh_jti_hash = hash_refresh_jti(next_refresh_jti)
+    auth_session.last_used_at = now
+    auth_session.expires_at = now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+
+    access_token = create_access_token(
+        user.id, user.token_version, session_id=auth_session.id
     )
+    rotated_refresh_token = create_refresh_token(
+        user.id,
+        user.token_version,
+        session_id=auth_session.id,
+        jti=next_refresh_jti,
+    )
+    csrf_token = create_csrf_token()
+    db.commit()
+    set_auth_cookies(response, access_token, rotated_refresh_token, csrf_token)
+    return {"authenticated": True, "csrf_token": csrf_token}
+
+
+@router.post("/logout")
+def logout(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    access_cookie = request.cookies.get(ACCESS_COOKIE_NAME)
+    refresh_cookie = request.cookies.get(REFRESH_COOKIE_NAME)
+    authorization = request.headers.get("authorization", "")
+    bearer_token = (
+        authorization[7:].strip()
+        if authorization.lower().startswith("bearer ")
+        else None
+    )
+
+    # Logout must remain idempotent so an expired or already-revoked browser
+    # session can still clear its HttpOnly cookies from the client.
+    if access_cookie or refresh_cookie:
+        verify_csrf_request(request)
+
+    payload = None
+    candidates = [access_cookie, refresh_cookie, bearer_token]
+    for candidate in candidates:
+        if not candidate:
+            continue
+        try:
+            decoded = decode_token(candidate)
+            if decoded.get("type") in {"access", "refresh"}:
+                payload = decoded
+                break
+        except (JWTError, TypeError, ValueError):
+            continue
+
+    if payload is not None:
+        session_id = payload.get("sid")
+        try:
+            user_id = int(payload.get("sub"))
+        except (TypeError, ValueError):
+            user_id = None
+
+        if isinstance(session_id, str) and user_id is not None:
+            auth_session = db.get(AuthSession, session_id)
+            if auth_session is not None and auth_session.user_id == user_id:
+                if auth_session.revoked_at is None:
+                    auth_session.revoked_at = datetime.now(timezone.utc)
+        elif user_id is not None and payload.get("type") == "access":
+            # Legacy stateless tokens have no per-device row; revoke them by
+            # advancing the account version, but only when the token is current.
+            user = db.get(User, user_id)
+            if (
+                user is not None
+                and user.is_active
+                and payload.get("ver", 0) == user.token_version
+            ):
+                user.token_version += 1
+
+    db.commit()
+    clear_auth_cookies(response)
+    csrf_token = create_csrf_token()
+    set_csrf_cookie(response, csrf_token)
+    return {"authenticated": False, "csrf_token": csrf_token}
 
 
 @router.post("/verify-email/request", status_code=status.HTTP_202_ACCEPTED)

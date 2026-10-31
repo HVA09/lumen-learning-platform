@@ -190,6 +190,10 @@ def verify_archived_state(database_url: str, ids: tuple[int, int, int, int]) -> 
             text("SELECT to_regclass('public.processed_webhook_events')")
         ).scalar_one()
         assert webhook_table is not None
+        auth_sessions_table = connection.execute(
+            text("SELECT to_regclass('public.auth_sessions')")
+        ).scalar_one()
+        assert auth_sessions_table is not None
         totp_column_length = connection.execute(
             text(
                 """
@@ -284,6 +288,10 @@ def verify_downgraded_state(database_url: str, ids: tuple[int, int, int, int]) -
             text("SELECT to_regclass('public.processed_webhook_events')")
         ).scalar_one()
         assert webhook_table is None
+        auth_sessions_table = connection.execute(
+            text("SELECT to_regclass('public.auth_sessions')")
+        ).scalar_one()
+        assert auth_sessions_table is None
         totp_column_length = connection.execute(
             text(
                 """
@@ -367,7 +375,7 @@ def main() -> None:
     verify_downgraded_state(database_url, ids)
     print(
         "Database migration regression passed: legacy AI data, assessment data, TOTP "
-        "secrets, and webhook idempotency schema behaved correctly across upgrade/downgrade."
+        "secrets, webhook idempotency, and auth-session schema behaved correctly across upgrade/downgrade."
     )
 
 
