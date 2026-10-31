@@ -76,9 +76,13 @@ done
 
 if [ "$UPLOADED_ANY" -eq 0 ]; then
   echo "All local PostgreSQL backup archives are already present in Restic."
-  exit 0
+else
+  echo "Uploaded all pending local PostgreSQL backup archives."
 fi
 
+# Run retention and repository checks on every successful sync cycle, including
+# cycles where all local archives were already present. This retries a previous
+# forget/prune failure even when there are no new archives to upload.
 # All daily archive files have different paths. Group by stable host+tag identity,
 # not path, or retention would treat every date as an independent backup set.
 restic forget \
