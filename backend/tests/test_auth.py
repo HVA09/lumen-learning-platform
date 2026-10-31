@@ -236,6 +236,40 @@ def test_logout_revokes_cookie_session_and_clears_session_cookies(client):
     assert client.cookies.get("lumen_refresh") is None
     assert client.get("/users/me").status_code == 401
 
+
+def test_logout_revokes_only_the_current_device_session(client):
+    email = "multi-device-session@example.com"
+    client.post(
+        "/auth/register", json={"email": email, "password": "StrongPass123"}
+    )
+
+    first_login = client.post(
+        "/auth/login", json={"email": email, "password": "StrongPass123"}
+    )
+    first_access = first_login.cookies.get("lumen_access")
+    assert first_access
+
+    second_login = client.post(
+        "/auth/login", json={"email": email, "password": "StrongPass123"}
+    )
+    second_access = second_login.cookies.get("lumen_access")
+    assert second_access and second_access != first_access
+
+    logout = client.post(
+        "/auth/logout",
+        headers={"X-CSRF-Token": client.cookies.get("lumen_csrf")},
+    )
+    assert logout.status_code == 200
+
+    second_session = client.get(
+        "/users/me", headers={"Authorization": f"Bearer {second_access}"}
+    )
+    first_session = client.get(
+        "/users/me", headers={"Authorization": f"Bearer {first_access}"}
+    )
+    assert second_session.status_code == 401
+    assert first_session.status_code == 200
+
 def test_browser_login_requires_trusted_origin_and_csrf_header(client):
     email = "browser-login-csrf@example.com"
     client.post(
@@ -311,3 +345,12 @@ def test_refresh_rotates_cookie_tokens_and_csrf_token(client):
     )
     assert replayed.status_code == 401
     assert client.get("/users/me").status_code == 401
+
+    # Logout remains usable after replay detection has already revoked the session.
+    logout = client.post(
+        "/auth/logout",
+        headers={"X-CSRF-Token": client.cookies.get("lumen_csrf")},
+    )
+    assert logout.status_code == 200
+    assert client.cookies.get("lumen_access") is None
+    assert client.cookies.get("lumen_refresh") is None
