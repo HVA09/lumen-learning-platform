@@ -29,7 +29,14 @@ def setup_test_db():
     with engine.begin() as connection:
         seed_all(connection)
     yield
-    Base.metadata.drop_all(bind=engine)
+    # Migration 0015 retains legacy AI tables outside the active ORM metadata.
+    # Drop those archived tables first so their preserved foreign keys do not
+    # block teardown of the users table in this disposable test database.
+    with engine.begin() as connection:
+        connection.exec_driver_sql("DROP TABLE IF EXISTS legacy_ai_messages CASCADE")
+        connection.exec_driver_sql("DROP TABLE IF EXISTS legacy_ai_conversations CASCADE")
+        connection.exec_driver_sql("DROP TABLE IF EXISTS legacy_ai_usage_logs CASCADE")
+        Base.metadata.drop_all(bind=connection)
 
 
 @pytest.fixture()
