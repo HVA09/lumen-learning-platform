@@ -21,6 +21,7 @@ class WebhookEvent:
     status: str | None  # active | past_due | canceled ...
     client_reference_id: str | None  # user_id مررناه وقت الإنشاء
     plan_id: str | None = None  # الخطة (Plan.id عندنا) اللي مررناها وقت الإنشاء
+    event_id: str | None = None  # معرّف الحدث الفريد لدى مزوّد الدفع
 
 
 class PaymentProvider(ABC):
