@@ -97,9 +97,21 @@ def _validate_lti_resolved_addresses(addresses: list[str], *, allow_loopback: bo
     return validated
 
 
-def _pin_lti_endpoint_url(url: str, resolved_addresses: list[str]):
+def _pin_lti_endpoint_url(
+    url: str, resolved_addresses: list[str], *, allow_query: bool = False
+):
     """Pin the HTTP connection to a checked IP while retaining the original Host and TLS SNI."""
-    validate_lti_platform_endpoint_url(url)
+    if allow_query:
+        parsed_for_validation = urlsplit(url)
+        base_url = urlunsplit(
+            (parsed_for_validation.scheme, parsed_for_validation.netloc,
+             parsed_for_validation.path, "", "")
+        )
+        validate_lti_platform_endpoint_url(base_url)
+        if parsed_for_validation.fragment or len(parsed_for_validation.query) > 1000:
+            raise ValueError("LTI endpoint query or fragment is invalid")
+    else:
+        validate_lti_platform_endpoint_url(url)
     parsed = urlsplit(url)
     hostname = parsed.hostname.lower().rstrip(".")
     environment = settings.ENVIRONMENT.strip().lower()
@@ -115,16 +127,32 @@ def _pin_lti_endpoint_url(url: str, resolved_addresses: list[str]):
     pinned_host = f"[{selected.compressed}]" if isinstance(selected, ipaddress.IPv6Address) else selected.compressed
     port_suffix = f":{parsed.port}" if parsed.port is not None else ""
     pinned_url = urlunsplit(
-        (parsed.scheme.lower(), f"{pinned_host}{port_suffix}", parsed.path or "/", "", "")
+        (
+            parsed.scheme.lower(),
+            f"{pinned_host}{port_suffix}",
+            parsed.path or "/",
+            parsed.query if allow_query else "",
+            "",
+        )
     )
     headers = {"Host": parsed.netloc}
     extensions = {"sni_hostname": hostname} if parsed.scheme.lower() == "https" else {}
     return pinned_url, headers, extensions
 
 
-async def resolve_lti_platform_endpoint_url(url: str):
+async def resolve_lti_platform_endpoint_url(url: str, *, allow_query: bool = False):
     """Resolve DNS once, validate every answer, and return a connection pinned to a safe IP."""
-    validate_lti_platform_endpoint_url(url)
+    if allow_query:
+        parsed_for_validation = urlsplit(url)
+        base_url = urlunsplit(
+            (parsed_for_validation.scheme, parsed_for_validation.netloc,
+             parsed_for_validation.path, "", "")
+        )
+        validate_lti_platform_endpoint_url(base_url)
+        if parsed_for_validation.fragment or len(parsed_for_validation.query) > 1000:
+            raise ValueError("LTI endpoint query or fragment is invalid")
+    else:
+        validate_lti_platform_endpoint_url(url)
     parsed = urlsplit(url)
     hostname = parsed.hostname.lower().rstrip(".")
     port = parsed.port or (443 if parsed.scheme.lower() == "https" else 80)
@@ -145,7 +173,9 @@ async def resolve_lti_platform_endpoint_url(url: str):
             raise ValueError("Unable to resolve LTI platform hostname safely") from exc
         resolved_addresses = list(dict.fromkeys(record[4][0] for record in records))
 
-    return _pin_lti_endpoint_url(url, resolved_addresses)
+    return _pin_lti_endpoint_url(
+        url, resolved_addresses, allow_query=allow_query
+    )
 
 
 def long_to_base64url(value: int) -> bytes:
@@ -323,9 +353,24 @@ AGS_MAX_DELIVERY_ATTEMPTS = 8
 
 
 def validate_lti_ags_lineitem_url(url: str, platform) -> str:
-    """Accept only a safe HTTPS lineitem endpoint on the registered token-server origin."""
-    clean_url = validate_lti_platform_endpoint_url(url)
-    parsed = urlsplit(clean_url)
+    """Accept a safe HTTPS lineitem endpoint on the registered token-server origin.
+
+    AGS requires query parameters on the lineitem URL to be retained on the /scores endpoint.
+    """
+    if not isinstance(url, str) or not url or len(url) > 2000:
+        raise ValueError("LTI AGS lineitem URL is empty or too long")
+    parsed = urlsplit(url)
+    if (
+        not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.fragment
+        or len(parsed.query) > 1000
+    ):
+        raise ValueError("LTI AGS lineitem URL is malformed")
+    base_url = urlunsplit((parsed.scheme, parsed.netloc, parsed.path, "", ""))
+    validate_lti_platform_endpoint_url(base_url)
+    clean_url = url
     token_endpoint = urlsplit(platform.auth_token_url)
 
     def effective_port(parts):
@@ -508,9 +553,11 @@ async def post_lti_ags_score(platform, lineitem_url: str, payload: dict) -> None
     token = await request_ags_access_token(platform)
     parsed = urlsplit(safe_lineitem)
     score_url = urlunsplit(
-        (parsed.scheme, parsed.netloc, parsed.path.rstrip("/") + "/scores", "", "")
+        (parsed.scheme, parsed.netloc, parsed.path.rstrip("/") + "/scores", parsed.query, "")
     )
-    pinned_url, host_headers, extensions = await resolve_lti_platform_endpoint_url(score_url)
+    pinned_url, host_headers, extensions = await resolve_lti_platform_endpoint_url(
+        score_url, allow_query=True
+    )
     headers = {
         **host_headers,
         "Authorization": f"Bearer {token}",

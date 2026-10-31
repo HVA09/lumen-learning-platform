@@ -126,8 +126,8 @@ class LTIAGSGradeEvent(Base):
             name="uq_lti_ags_grade_event_version",
         ),
         CheckConstraint(
-            "score_given >= 0 AND score_given <= score_maximum",
-            name="ck_lti_ags_grade_event_score_range",
+            "score_given >= 0",
+            name="ck_lti_ags_grade_event_score_nonnegative",
         ),
         CheckConstraint(
             "status IN ('pending', 'sent', 'dead')",

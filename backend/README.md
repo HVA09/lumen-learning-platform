@@ -372,7 +372,8 @@ for ordinary assignment use.
    `platform_id`, a Lumen `assignment_id`, and the LMS `resource_link_id`.
 2. On a signed LTI Resource Link launch, Lumen records the AGS `lineitem` only when the launch
    includes the AGS score scope. The lineitem must use the same HTTPS origin as the registered
-   platform token endpoint; DNS resolution is pinned to a validated public IP at delivery time.
+   platform token endpoint; any lineitem query parameters are preserved on the `/scores` URL,
+   and DNS resolution is pinned to a validated public IP at delivery time.
 3. When a teacher grades or re-grades a submission, the grade and an outbox event are committed
    in the same database transaction. A matching LTI user link is required.
 4. The existing Celery beat process discovers pending events every minute. The worker obtains a

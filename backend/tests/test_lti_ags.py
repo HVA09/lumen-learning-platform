@@ -53,7 +53,7 @@ def _make_pending_event(client, db_session, *, grade=84.0):
         assignment_id=assignment.id,
         deployment_id=platform.deployment_id,
         resource_link_id="lms-resource-ags-1",
-        lineitem_url="https://moodle.example.test/mod/lti/lineitems/42",
+        lineitem_url="https://moodle.example.test/mod/lti/lineitems/42?tenant=ags-v1",
         score_scope_allowed=True,
         score_maximum=100.0,
     )
@@ -140,12 +140,13 @@ def test_launch_context_requires_score_scope_and_same_platform_origin(db_session
     base_claims = {
         AGS_RESOURCE_LINK_CLAIM: {"id": "resource-from-launch"},
         AGS_ENDPOINT_CLAIM: {
-            "lineitem": "https://moodle.example.test/mod/lti/lineitems/7",
+            "lineitem": "https://moodle.example.test/mod/lti/lineitems/7?tenant=ags-v1",
             "scope": [AGS_SCORE_SCOPE],
         },
     }
     assert record_lti_ags_launch_context(db_session, platform, base_claims) is True
     assert mapping.lineitem_ready is True
+    assert mapping.lineitem_url.endswith("?tenant=ags-v1")
 
     wrong_origin = {
         **base_claims,
@@ -244,7 +245,8 @@ def test_ags_outbox_dispatch_posts_signed_token_and_score(client, db_session, mo
     async def fake_resolve(url):
         parsed = urlsplit(url)
         return (
-            f"https://93.184.216.34{parsed.path}",
+            f"https://93.184.216.34{parsed.path}"
+            + (f"?{parsed.query}" if parsed.query else ""),
             {"Host": parsed.netloc},
             {"sni_hostname": parsed.hostname},
         )
@@ -312,7 +314,7 @@ def test_ags_outbox_dispatch_posts_signed_token_and_score(client, db_session, mo
 
     score_method, score_url, score_kwargs = calls[1]
     assert score_method == "POST"
-    assert score_url.endswith("/lineitems/42/scores")
+    assert score_url.endswith("/lineitems/42/scores?tenant=ags-v1")
     assert score_kwargs["headers"]["Authorization"] == "Bearer mock-access"
     score = score_kwargs["json"]
     assert score["userId"] == "moodle-subject-42"
