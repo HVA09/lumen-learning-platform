@@ -31,7 +31,13 @@ def setup_two_factor(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """يولّد سر TOTP جديد ويرجّعه مع QR code. ما يفعّل 2FA لحد ما يتأكد عبر /enable"""
+    """يولّد سر TOTP جديدًا. يجب تعطيل 2FA بالرمز الحالي قبل تدوير سر مفعّل."""
+    if current_user.is_2fa_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="عطّل التحقق الثنائي باستخدام الرمز الحالي قبل إعداد سر جديد",
+        )
+
     secret = pyotp.random_base32()
     current_user.totp_secret = secret
     db.commit()
