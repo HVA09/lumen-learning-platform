@@ -108,6 +108,7 @@ def register_assignment_link(
         assignment_id=assignment.id,
         deployment_id=platform.deployment_id,
         resource_link_id=payload.resource_link_id,
+        score_maximum=payload.score_maximum,
     )
     db.add(mapping)
     db.commit()

@@ -102,6 +102,7 @@ def test_assignment_link_is_admin_only_and_unique(client, db_session):
         "platform_id": platform.id,
         "assignment_id": assignment["id"],
         "resource_link_id": "lms-resource-1",
+        "score_maximum": 25.0,
     }
 
     denied = client.post("/lti/assignment-links", json=payload, headers=auth(teacher))
@@ -110,6 +111,7 @@ def test_assignment_link_is_admin_only_and_unique(client, db_session):
     created = client.post("/lti/assignment-links", json=payload, headers=auth(admin_token))
     assert created.status_code == 201, created.text
     assert created.json()["lineitem_ready"] is False
+    assert created.json()["score_maximum"] == 25.0
 
     duplicate = client.post("/lti/assignment-links", json=payload, headers=auth(admin_token))
     assert duplicate.status_code == 409

@@ -38,6 +38,7 @@ class LTIAssignmentLinkCreate(BaseModel):
     platform_id: int = Field(gt=0)
     assignment_id: int = Field(gt=0)
     resource_link_id: str = Field(min_length=1, max_length=255)
+    score_maximum: float = Field(default=100.0, gt=0, le=1000000, allow_inf_nan=False)
 
     @field_validator("resource_link_id")
     @classmethod
@@ -56,6 +57,7 @@ class LTIAssignmentLinkOut(BaseModel):
     resource_link_id: str
     lineitem_ready: bool
     score_scope_allowed: bool
+    score_maximum: float
     created_at: datetime
 
 

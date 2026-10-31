@@ -369,7 +369,8 @@ It does not change the existing local grading flow and does not require a live L
 for ordinary assignment use.
 
 1. An administrator registers a mapping with `POST /lti/assignment-links` using a registered
-   `platform_id`, a Lumen `assignment_id`, and the LMS `resource_link_id`.
+   `platform_id`, a Lumen `assignment_id`, the LMS `resource_link_id`, and an explicit
+   `score_maximum` matching the LMS line item's grading scale (defaults to 100).
 2. On a signed LTI Resource Link launch, Lumen records the AGS `lineitem` only when the launch
    includes the AGS score scope. The lineitem must use the same HTTPS origin as the registered
    platform token endpoint; any lineitem query parameters are preserved on the `/scores` URL,
