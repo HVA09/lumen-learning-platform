@@ -2,6 +2,7 @@
 تشفير كلمات المرور، وإنشاء/فك تشفير JWT tokens
 """
 from datetime import datetime, timedelta, timezone
+import secrets
 
 from jose import jwt
 from passlib.context import CryptContext
@@ -30,6 +31,8 @@ def _create_token(
     expires_delta: timedelta,
     token_type: str,
     token_version: int = 0,
+    session_id: str | None = None,
+    jti: str | None = None,
 ) -> str:
     now = datetime.now(timezone.utc)
     payload = {
@@ -40,24 +43,42 @@ def _create_token(
         # Missing version claims on older tokens are treated as version 0.
         "ver": token_version,
     }
+    if token_type in {"access", "refresh"}:
+        # JWT NumericDate timestamps have second precision; a unique jti keeps
+        # rapid token refreshes distinct even within the same second.
+        payload["jti"] = jti or secrets.token_urlsafe(24)
+    if session_id is not None:
+        payload["sid"] = session_id
     return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
-def create_access_token(user_id: int, token_version: int = 0) -> str:
+def create_access_token(
+    user_id: int,
+    token_version: int = 0,
+    session_id: str | None = None,
+) -> str:
     return _create_token(
         str(user_id),
         timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
         "access",
         token_version,
+        session_id=session_id,
     )
 
 
-def create_refresh_token(user_id: int, token_version: int = 0) -> str:
+def create_refresh_token(
+    user_id: int,
+    token_version: int = 0,
+    session_id: str | None = None,
+    jti: str | None = None,
+) -> str:
     return _create_token(
         str(user_id),
         timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
         "refresh",
         token_version,
+        session_id=session_id,
+        jti=jti,
     )
 
 
