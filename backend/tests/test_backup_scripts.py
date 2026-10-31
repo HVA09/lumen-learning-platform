@@ -135,6 +135,41 @@ def test_restore_rejects_corrupt_archive_before_running_psql(tmp_path: Path) -> 
     assert not psql_marker.exists()
 
 
+
+def test_restore_does_not_call_psql_when_decompression_fails(tmp_path: Path) -> None:
+    backup_dir = tmp_path / "backups"
+    bin_dir = tmp_path / "bin"
+    backup_dir.mkdir()
+    bin_dir.mkdir()
+    archive = backup_dir / "backup_decompression_failure.sql.gz"
+    archive.write_bytes(b"stubbed archive")
+    psql_marker = tmp_path / "psql-was-called"
+
+    _write_executable(
+        bin_dir / "gzip",
+        "#!/bin/sh\n# Simulate the prior archive validation succeeding.\nexit 0\n",
+    )
+    _write_executable(
+        bin_dir / "gunzip",
+        "#!/bin/sh\nprintf '%s\\n' 'SELECT 1;'\nexit 46\n",
+    )
+    _write_executable(
+        bin_dir / "psql",
+        f"#!/bin/sh\nprintf called > '{psql_marker}'\n",
+    )
+
+    result = subprocess.run(
+        ["sh", str(RESTORE_SCRIPT), str(archive), "--confirm"],
+        env=_script_env(tmp_path, backup_dir, bin_dir),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 46
+    assert not psql_marker.exists()
+    assert sorted(path.name for path in backup_dir.iterdir()) == [archive.name]
+
 def test_restore_requires_explicit_confirmation(tmp_path: Path) -> None:
     backup_dir = tmp_path / "backups"
     bin_dir = tmp_path / "bin"
