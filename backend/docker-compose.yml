@@ -119,7 +119,7 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      RESTIC_HOST: lumen-postgres-backup
+      RESTIC_HOST: ${RESTIC_HOST:-lumen-postgres-backup}
       RESTIC_PASSWORD_FILE: /run/secrets/restic-password
       BACKUP_DIR: /backups
       RESTIC_BACKUP_TAG: ${RESTIC_BACKUP_TAG:-lumen-postgres}
