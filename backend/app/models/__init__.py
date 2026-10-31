@@ -5,6 +5,7 @@ from app.models.plan import Plan
 from app.models.subscription import Subscription, SubscriptionStatus
 from app.models.notification import Notification
 from app.models.processed_webhook_event import ProcessedWebhookEvent
+from app.models.auth_session import AuthSession
 
 from app.models.subject import Subject
 from app.models.topic import Topic
@@ -53,4 +54,5 @@ __all__ = [
     "SubscriptionStatus",
     "Notification",
     "ProcessedWebhookEvent",
+    "AuthSession",
 ]
