@@ -3,6 +3,9 @@
 """
 import pyotp
 
+from app.auth.totp_secrets import TOTP_SECRET_PREFIX, decrypt_totp_secret
+from app.models.user import User
+
 
 def _register_and_login(client, email="twofa@example.com", password="StrongPass123"):
     client.post("/auth/register", json={"email": email, "password": password})
@@ -10,13 +13,21 @@ def _register_and_login(client, email="twofa@example.com", password="StrongPass1
     return login_response.json()["access_token"]
 
 
-def test_setup_returns_secret_and_qr_code(client):
+def test_setup_returns_secret_and_qr_code(client, db_session):
     token = _register_and_login(client)
-    response = client.post("/auth/2fa/setup", headers={"Authorization": f"Bearer {token}"})
+    response = client.post(
+        "/auth/2fa/setup",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert response.status_code == 200
     body = response.json()
     assert len(body["secret"]) > 0
     assert len(body["qr_code_base64"]) > 0
+
+    user = db_session.query(User).filter(User.email == "twofa@example.com").one()
+    assert user.totp_secret.startswith(TOTP_SECRET_PREFIX)
+    assert user.totp_secret != body["secret"]
+    assert decrypt_totp_secret(user.totp_secret) == body["secret"]
 
 
 def test_enable_with_correct_code_succeeds(client):
@@ -128,3 +139,47 @@ def test_setup_cannot_replace_secret_while_two_factor_is_enabled(client):
         },
     )
     assert login.status_code == 200
+
+
+
+def test_enable_migrates_legacy_plaintext_secret(client, db_session):
+    token = _register_and_login(client, "legacy-enable@example.com")
+    headers = {"Authorization": f"Bearer {token}"}
+    user = db_session.query(User).filter(User.email == "legacy-enable@example.com").one()
+    legacy_secret = pyotp.random_base32()
+    user.totp_secret = legacy_secret
+    db_session.commit()
+
+    response = client.post(
+        "/auth/2fa/enable",
+        json={"totp_code": pyotp.TOTP(legacy_secret).now()},
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    db_session.refresh(user)
+    assert user.totp_secret.startswith(TOTP_SECRET_PREFIX)
+    assert decrypt_totp_secret(user.totp_secret) == legacy_secret
+
+
+def test_successful_login_migrates_legacy_plaintext_secret(client, db_session):
+    _register_and_login(client, "legacy-login@example.com")
+    user = db_session.query(User).filter(User.email == "legacy-login@example.com").one()
+    legacy_secret = pyotp.random_base32()
+    user.totp_secret = legacy_secret
+    user.is_2fa_enabled = True
+    db_session.commit()
+
+    response = client.post(
+        "/auth/login",
+        json={
+            "email": "legacy-login@example.com",
+            "password": "StrongPass123",
+            "totp_code": pyotp.TOTP(legacy_secret).now(),
+        },
+    )
+
+    assert response.status_code == 200
+    db_session.refresh(user)
+    assert user.totp_secret.startswith(TOTP_SECRET_PREFIX)
+    assert decrypt_totp_secret(user.totp_secret) == legacy_secret
