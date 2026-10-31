@@ -298,15 +298,15 @@ def test_clamav_instream_protocol_sends_bounded_file_chunks_and_accepts_clean_re
         received = bytearray()
 
         async def handle(reader, writer):
-            command = await reader.readuntil(b"\\0")
-            assert command == b"zINSTREAM\\0"
+            command = await reader.readuntil(b"\0")
+            assert command == b"zINSTREAM\0"
             while True:
                 length = struct.unpack("!I", await reader.readexactly(4))[0]
                 if length == 0:
                     break
                 assert length <= 64 * 1024
                 received.extend(await reader.readexactly(length))
-            writer.write(b"stream: OK\\0")
+            writer.write(b"stream: OK\0")
             await writer.drain()
             writer.close()
             await writer.wait_closed()
@@ -335,13 +335,13 @@ def test_clamav_instream_protocol_rejects_infected_result(tmp_path, monkeypatch)
 
     async def scenario():
         async def handle(reader, writer):
-            await reader.readuntil(b"\\0")
+            await reader.readuntil(b"\0")
             while True:
                 length = struct.unpack("!I", await reader.readexactly(4))[0]
                 if length == 0:
                     break
                 await reader.readexactly(length)
-            writer.write(b"stream: Eicar-Test-Signature FOUND\\0")
+            writer.write(b"stream: Eicar-Test-Signature FOUND\0")
             await writer.drain()
             writer.close()
             await writer.wait_closed()
@@ -370,13 +370,13 @@ def test_clamav_instream_protocol_fails_closed_on_scanner_error(tmp_path, monkey
 
     async def scenario():
         async def handle(reader, writer):
-            await reader.readuntil(b"\\0")
+            await reader.readuntil(b"\0")
             while True:
                 length = struct.unpack("!I", await reader.readexactly(4))[0]
                 if length == 0:
                     break
                 await reader.readexactly(length)
-            writer.write(b"stream: INSTREAM size limit exceeded. ERROR\\0")
+            writer.write(b"stream: INSTREAM size limit exceeded. ERROR\0")
             await writer.drain()
             writer.close()
             await writer.wait_closed()
