@@ -142,6 +142,7 @@ alembic upgrade head
 - `0019_user_token_version`: يضيف إصدار جلسات للحساب ورموز LTI؛ تغيير كلمة المرور أو إعادة تعيينها يبطل الرموز الأقدم.
 - `0020_totp_secret_ciphertext`: يوسّع `users.totp_secret` من 64 إلى 255 حرفًا لاستيعاب Fernet ciphertext؛ لا يغيّر الأسرار القديمة مباشرة. تُرقّى الأسرار النصية القديمة إلى ciphertext عند نجاح رمز TOTP صحيح في التفعيل أو تسجيل الدخول.
 - `0021_webhook_idempotency`: ينشئ `processed_webhook_events` ويحفظ معرّف كل حدث Stripe/PayPal تمّت معالجته. قيد فريد على `(provider, provider_event_id)` يمنع تكرار تطبيق الحدث نفسه، ولا تُحفظ أجسام webhook الخام في الجدول.
+- `0022_auth_sessions`: ينشئ `auth_sessions` لتتبع جلسات المتصفح بشكل منفصل لكل جهاز، وتخزين بصمة معرّف refresh الحالي فقط، ودعم تدوير الرموز وإبطال الجلسة عند إعادة تشغيل رمز قديم. حذف المستخدم يحذف جلساته عبر FK cascade.
 
 لو عدّلت أي model، ولّد migration جديدة:
 
@@ -268,9 +269,9 @@ alembic upgrade head
 
 ## Browser session security
 
-Browser authentication uses server-issued `HttpOnly` access and refresh cookies. The login response intentionally contains no JWT values. The frontend bootstraps a CSRF token through `GET /auth/csrf` and sends it in the `X-CSRF-Token` header on state-changing requests. `POST /auth/refresh` rotates the browser cookies, and `POST /auth/logout` increments the user's token version to revoke the current account sessions.
+Browser authentication uses server-issued `HttpOnly` access and refresh cookies. The login response intentionally contains no JWT values. The frontend bootstraps a CSRF token through `GET /auth/csrf` and sends it in the `X-CSRF-Token` header on state-changing requests. Each browser/device receives a distinct `auth_sessions` row. Refresh rotates a one-time `jti` stored only as a SHA-256 digest; reuse of a previously rotated refresh token revokes that session. Logout revokes only the active browser session, while password changes and account security events can still invalidate all sessions through `token_version`.
 
-The notification WebSocket authenticates only from the access cookie and rejects untrusted `Origin` values. Bearer authentication remains available for non-browser API clients, but browser code must not persist JWTs in `localStorage` or put them in URLs.
+The notification WebSocket authenticates only from the access cookie, validates the active server-side session, and rejects untrusted `Origin` values. Bearer authentication remains available for non-browser API clients; legacy stateless Bearer tokens remain accepted until expiry, while new browser tokens are session-bound. Browser code must not persist JWTs in `localStorage` or put them in URLs.
 
 Cookie configuration:
 
