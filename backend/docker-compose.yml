@@ -132,6 +132,7 @@ services:
       - ./backups:/backups:ro
       - ./scripts/offsite-backup.sh:/scripts/offsite-backup.sh:ro
       - ./secrets:/run/secrets:ro
+      - ./secrets/ssh:/root/.ssh:ro
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
