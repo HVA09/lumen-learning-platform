@@ -280,8 +280,8 @@ alembic upgrade head
    مجلد `backend/secrets` مستثنى من Git باستثناء ملف `.gitkeep`؛ لا ترفع كلمة المرور إلى المستودع.
 3. اضبط `RESTIC_REPOSITORY` في `.env` بعنوان يدعمه Restic. أمثلة:
    - `s3:https://<endpoint>/<bucket>/lumen` لخدمات S3 والمتوافقة معها.
-   - `sftp:<user>@<host>:/<path>/lumen` لخادم SFTP؛ يحتاج إعداد مفتاح SSH المعروف والموثوق بشكل منفصل.
-   - يمكن استخدام Azure Blob وGoogle Cloud Storage وREST وrclone مع بيانات اعتماد كل مزوّد.
+   - `sftp:<user>@<host>:/<path>/lumen` لخادم SFTP؛ ضع المفتاح الخاص وملف `known_hosts` في `backend/secrets/ssh` (بصلاحيات ضيقة، مثل 0600 للمفتاح)؛ يركّبها Compose داخل حاوية Restic للقراءة فقط.
+   - تدعم Restic أيضًا Azure Blob وGoogle Cloud Storage وHTTP REST مباشرةً، مع متغيرات البيئة أو ملفات الاعتماد الخاصة بكل مزوّد. ملف اعتماد Google يمكن وضعه محليًا في `backend/secrets` وضبط `GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/<file>` في `.env`.
 4. لمخازن S3 المتوافقة، أضف `AWS_ACCESS_KEY_ID` و`AWS_SECRET_ACCESS_KEY` إلى ملف `.env` المحلي فقط، مع أقل صلاحيات لازمة على مسار المستودع.
 5. هيّئ المستودع مرة واحدة فقط بعد التأكد من قيمة `RESTIC_REPOSITORY`:
    ```bash
