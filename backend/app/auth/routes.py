@@ -260,28 +260,58 @@ def refresh(request: Request, response: Response, db: Session = Depends(get_db))
 def logout(
     request: Request,
     response: Response,
-    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    access_token = request.cookies.get(ACCESS_COOKIE_NAME)
+    access_cookie = request.cookies.get(ACCESS_COOKIE_NAME)
+    refresh_cookie = request.cookies.get(REFRESH_COOKIE_NAME)
     authorization = request.headers.get("authorization", "")
-    if not access_token and authorization.lower().startswith("bearer "):
-        access_token = authorization[7:].strip()
+    bearer_token = (
+        authorization[7:].strip()
+        if authorization.lower().startswith("bearer ")
+        else None
+    )
 
-    session_id = None
-    if access_token:
+    # Logout must remain idempotent so an expired or already-revoked browser
+    # session can still clear its HttpOnly cookies from the client.
+    if access_cookie or refresh_cookie:
+        verify_csrf_request(request)
+
+    payload = None
+    candidates = [access_cookie, refresh_cookie, bearer_token]
+    for candidate in candidates:
+        if not candidate:
+            continue
         try:
-            session_id = decode_token(access_token).get("sid")
-        except JWTError:
-            session_id = None
+            decoded = decode_token(candidate)
+            if decoded.get("type") in {"access", "refresh"}:
+                payload = decoded
+                break
+        except (JWTError, TypeError, ValueError):
+            continue
 
-    if isinstance(session_id, str):
-        auth_session = db.get(AuthSession, session_id)
-        if auth_session is not None and auth_session.user_id == current_user.id:
-            auth_session.revoked_at = datetime.now(timezone.utc)
-    else:
-        # Legacy stateless Bearer tokens have no server-side session to revoke.
-        current_user.token_version += 1
+    if payload is not None:
+        session_id = payload.get("sid")
+        try:
+            user_id = int(payload.get("sub"))
+        except (TypeError, ValueError):
+            user_id = None
+
+        if isinstance(session_id, str) and user_id is not None:
+            auth_session = db.get(AuthSession, session_id)
+            if auth_session is not None and auth_session.user_id == user_id:
+                if auth_session.revoked_at is None:
+                    auth_session.revoked_at = datetime.now(timezone.utc)
+        elif user_id is not None and payload.get("type") == "access":
+            # Legacy stateless tokens have no per-device row; revoke them by
+            # advancing the account version, but only when the token is current.
+            user = db.get(User, user_id)
+            if (
+                user is not None
+                and user.is_active
+                and payload.get("ver", 0) == user.token_version
+            ):
+                user.token_version += 1
+
     db.commit()
     clear_auth_cookies(response)
     csrf_token = create_csrf_token()
