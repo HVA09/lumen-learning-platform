@@ -58,8 +58,16 @@ def create_dedicated_database(database_url: str) -> None:
         connection.close()
 
 
+def create_test_engine(database_url: str):
+    # Match the explicit driver selected by the application and requirements.txt.
+    url = make_url(database_url)
+    if url.drivername in {"postgres", "postgresql"}:
+        url = url.set(drivername="postgresql+psycopg2")
+    return create_engine(url)
+
+
 def seed_legacy_rows(database_url: str) -> tuple[int, int, int, int]:
-    engine = create_engine(database_url)
+    engine = create_test_engine(database_url)
     with engine.begin() as connection:
         user_id = connection.execute(
             text(
@@ -152,7 +160,7 @@ def seed_legacy_rows(database_url: str) -> tuple[int, int, int, int]:
 
 def verify_archived_state(database_url: str, ids: tuple[int, int, int, int]) -> None:
     user_id, message_id, usage_id, submission_id = ids
-    engine = create_engine(database_url)
+    engine = create_test_engine(database_url)
     with engine.connect() as connection:
         message = connection.execute(
             text(
