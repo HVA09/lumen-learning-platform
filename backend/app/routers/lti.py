@@ -13,7 +13,8 @@ from app.auth.cookies import (
     set_auth_cookies,
     verify_csrf_request,
 )
-from app.auth.security import create_access_token, create_refresh_token, hash_password
+from app.auth.security import hash_password
+from app.auth.sessions import create_browser_session
 from app.config import settings
 from app.database import get_db
 from app.dependencies import require_admin
@@ -334,9 +335,8 @@ def exchange_lti_code(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="حساب الدخول غير متاح")
 
     auth_code.consumed_at = now
+    access_token, refresh_token, _ = create_browser_session(db, user)
     db.commit()
-    access_token = create_access_token(user.id, user.token_version)
-    refresh_token = create_refresh_token(user.id, user.token_version)
     csrf_token = create_csrf_token()
     set_auth_cookies(response, access_token, refresh_token, csrf_token)
     return {"authenticated": True, "csrf_token": csrf_token}
