@@ -282,7 +282,7 @@ alembic upgrade head
    - `s3:https://<endpoint>/<bucket>/lumen` لخدمات S3 والمتوافقة معها.
    - `sftp:<user>@<host>:/<path>/lumen` لخادم SFTP؛ ضع المفتاح الخاص وملف `known_hosts` في `backend/secrets/ssh` (بصلاحيات ضيقة، مثل 0600 للمفتاح)؛ يركّبها Compose داخل حاوية Restic للقراءة فقط.
    - تدعم Restic أيضًا Azure Blob وGoogle Cloud Storage وHTTP REST مباشرةً، مع متغيرات البيئة أو ملفات الاعتماد الخاصة بكل مزوّد. ملف اعتماد Google يمكن وضعه محليًا في `backend/secrets` وضبط `GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/<file>` في `.env`.
-4. لمخازن S3 المتوافقة، أضف `AWS_ACCESS_KEY_ID` و`AWS_SECRET_ACCESS_KEY` إلى ملف `.env` المحلي فقط، مع أقل صلاحيات لازمة على مسار المستودع.
+4. أدخل فقط متغيرات اعتماد مزوّد التخزين المطلوبة (مثل `AWS_ACCESS_KEY_ID` و`AWS_SECRET_ACCESS_KEY` و`AWS_DEFAULT_REGION` لـ S3) في `.env` المحلي. خدمة Restic تمرّر قائمة متغيرات Restic ومزوّد النسخ المحددة فقط، ولا تتلقى بقية أسرار Lumen مثل `DATABASE_URL` أو مفاتيح الدفع أو SMTP. استخدم أقل صلاحيات لازمة على مسار المستودع.
 5. هيّئ المستودع مرة واحدة فقط بعد التأكد من قيمة `RESTIC_REPOSITORY`:
    ```bash
    docker compose --profile offsite-backup run --rm --entrypoint restic offsite_backup init
