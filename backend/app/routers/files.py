@@ -152,6 +152,7 @@ async def upload_file(
         .scalar()
     )
     if locked_user_id is None:
+        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="الحساب غير متاح",
@@ -174,11 +175,13 @@ async def upload_file(
 
     # Reject exhausted accounts before creating an application-owned upload file or invoking ClamAV.
     if file_count >= max_user_files:
+        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             detail="وصلت إلى الحد الأقصى لعدد الملفات المسموح به لحسابك",
         )
     if used_bytes >= max_user_bytes:
+        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             detail="لا توجد مساحة تخزين كافية متبقية في حسابك",
