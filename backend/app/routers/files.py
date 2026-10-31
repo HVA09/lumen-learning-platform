@@ -144,10 +144,13 @@ async def upload_file(
     stored_filename = f"{uuid.uuid4().hex}{extension}"
     destination = _user_upload_dir(current_user.id) / stored_filename
     size_bytes = 0
+    destination_created = False
+    metadata_committed = False
 
     # Stream in bounded chunks; an oversized request never gets loaded all at once.
     try:
         with destination.open("xb") as output:
+            destination_created = True
             while chunk := await file.read(64 * 1024):
                 size_bytes += len(chunk)
                 if size_bytes > max_bytes:
@@ -234,10 +237,12 @@ async def upload_file(
         )
         db.add(attachment)
         db.commit()
+        metadata_committed = True
         db.refresh(attachment)
     except Exception:
         db.rollback()
-        destination.unlink(missing_ok=True)
+        if destination_created and not metadata_committed:
+            destination.unlink(missing_ok=True)
         raise
     finally:
         await file.close()
