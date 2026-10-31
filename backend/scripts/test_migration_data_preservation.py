@@ -1,4 +1,4 @@
-"""Exercise migration 0015 against populated legacy tables and verify downgrade.
+"""Exercise populated legacy-data preservation and verify schema downgrade.
 
 This script requires a dedicated, disposable PostgreSQL database. It refuses to
 use any database except the explicitly named CI database below.
@@ -276,6 +276,19 @@ def verify_downgraded_state(database_url: str, ids: tuple[int, int, int, int]) -
             {"user_id": user_id},
         ).one()
         assert legacy_totp == ("JBSWY3DPEHPK3PXP", True)
+        totp_column_length = connection.execute(
+            text(
+                """
+                SELECT character_maximum_length
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND table_name = 'users'
+                  AND column_name = 'totp_secret'
+                """
+            )
+        ).scalar_one()
+        # Downgrade deliberately keeps VARCHAR(255) to avoid truncating ciphertext.
+        assert totp_column_length == 255
 
         usage = connection.execute(
             text(
@@ -345,8 +358,8 @@ def main() -> None:
     run_alembic(database_url, "downgrade", "0014_lti")
     verify_downgraded_state(database_url, ids)
     print(
-        "Migration 0015 data-preservation check passed: legacy rows and assessment data "
-        "survived upgrade and downgrade."
+        "Database migration regression passed: legacy AI data, assessment data, and TOTP "
+        "secrets survived upgrade and downgrade."
     )
 
 
