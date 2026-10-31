@@ -117,10 +117,28 @@ services:
     profiles: ["offsite-backup"]
     hostname: lumen-offsite-backup
     restart: unless-stopped
-    env_file: .env
     environment:
+      RESTIC_REPOSITORY: ${RESTIC_REPOSITORY:-}
       RESTIC_HOST: ${RESTIC_HOST:-lumen-postgres-backup}
       RESTIC_PASSWORD_FILE: /run/secrets/restic-password
+      # Only pass backend-specific credentials; never expose the full Lumen .env.
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-}
+      AWS_PROFILE: ${AWS_PROFILE:-}
+      AWS_SHARED_CREDENTIALS_FILE: ${AWS_SHARED_CREDENTIALS_FILE:-}
+      AZURE_ACCOUNT_NAME: ${AZURE_ACCOUNT_NAME:-}
+      AZURE_ACCOUNT_KEY: ${AZURE_ACCOUNT_KEY:-}
+      AZURE_ACCOUNT_SAS: ${AZURE_ACCOUNT_SAS:-}
+      AZURE_ENDPOINT_SUFFIX: ${AZURE_ENDPOINT_SUFFIX:-}
+      B2_ACCOUNT_ID: ${B2_ACCOUNT_ID:-}
+      B2_ACCOUNT_KEY: ${B2_ACCOUNT_KEY:-}
+      GOOGLE_PROJECT_ID: ${GOOGLE_PROJECT_ID:-}
+      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-}
+      GOOGLE_ACCESS_TOKEN: ${GOOGLE_ACCESS_TOKEN:-}
+      RESTIC_REST_USERNAME: ${RESTIC_REST_USERNAME:-}
+      RESTIC_REST_PASSWORD: ${RESTIC_REST_PASSWORD:-}
       BACKUP_DIR: /backups
       RESTIC_BACKUP_TAG: ${RESTIC_BACKUP_TAG:-lumen-postgres}
       RESTIC_KEEP_DAILY: ${RESTIC_KEEP_DAILY:-7}
