@@ -7,9 +7,12 @@
 تجريبي (Moodle sandbox) قبل الاعتماد عليه بالإنتاج، ومن المتوقع تحتاج تعديلات
 طفيفة حسب تفاصيل المنصة اللي تربطها.
 """
+import asyncio
 import base64
 import hashlib
 import ipaddress
+import json
+import socket
 import uuid
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
@@ -26,7 +29,7 @@ LTI_AUTH_CODE_TTL_SECONDS = 60  # رمز تبادل الدخول صالح لدق
 
 
 def validate_lti_platform_endpoint_url(url: str) -> str:
-    """Allow HTTPS LMS endpoints; allow HTTP loopback only outside production."""
+    """Validate an LMS endpoint's URL syntax and reject unsafe literal/local hosts."""
     if not isinstance(url, str) or not url or len(url) > 2000:
         raise ValueError("LTI platform endpoint URL is empty or too long")
     parsed = urlsplit(url)
@@ -47,6 +50,7 @@ def validate_lti_platform_endpoint_url(url: str) -> str:
     hostname = parsed.hostname.lower().rstrip(".")
     local_http_allowed = (
         settings.ENVIRONMENT.strip().lower() in {"development", "test", "testing"}
+        and scheme == "http"
         and hostname in {"localhost", "127.0.0.1", "::1"}
     )
     try:
@@ -54,8 +58,6 @@ def validate_lti_platform_endpoint_url(url: str) -> str:
     except ValueError:
         address = None
 
-    # Do not let an admin-configured endpoint target private, loopback, link-local,
-    # multicast, or reserved IP literals. HTTP loopback remains available for local tests.
     local_hostname = (
         hostname == "localhost"
         or hostname.endswith(".localhost")
@@ -65,12 +67,85 @@ def validate_lti_platform_endpoint_url(url: str) -> str:
         raise ValueError("LTI platform endpoints cannot target local hostnames")
 
     if address is not None and not address.is_global:
-        if not (scheme == "http" and local_http_allowed and address.is_loopback):
+        if not (local_http_allowed and address.is_loopback):
             raise ValueError("LTI platform endpoints cannot target non-public IP addresses")
 
-    if scheme != "https" and not (scheme == "http" and local_http_allowed):
+    if scheme != "https" and not local_http_allowed:
         raise ValueError("LTI platform endpoints must use HTTPS outside local development")
     return url
+
+
+def _validate_lti_resolved_addresses(addresses: list[str], *, allow_loopback: bool = False):
+    """Fail closed unless every DNS result is public (or explicit local test loopback)."""
+    if not addresses:
+        raise ValueError("LTI platform hostname resolved to no addresses")
+
+    validated = []
+    for candidate in addresses:
+        try:
+            address = ipaddress.ip_address(candidate.split("%", 1)[0])
+        except ValueError as exc:
+            raise ValueError("LTI platform hostname resolved to an invalid IP address") from exc
+
+        if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:
+            address = address.ipv4_mapped
+
+        if not address.is_global and not (allow_loopback and address.is_loopback):
+            raise ValueError("LTI platform hostname resolves to a non-public IP address")
+        validated.append(address)
+
+    return validated
+
+
+def _pin_lti_endpoint_url(url: str, resolved_addresses: list[str]):
+    """Pin the HTTP connection to a checked IP while retaining the original Host and TLS SNI."""
+    validate_lti_platform_endpoint_url(url)
+    parsed = urlsplit(url)
+    hostname = parsed.hostname.lower().rstrip(".")
+    environment = settings.ENVIRONMENT.strip().lower()
+    allow_loopback = (
+        parsed.scheme.lower() == "http"
+        and environment in {"development", "test", "testing"}
+        and hostname in {"localhost", "127.0.0.1", "::1"}
+    )
+    addresses = _validate_lti_resolved_addresses(
+        resolved_addresses, allow_loopback=allow_loopback
+    )
+    selected = addresses[0]
+    pinned_host = f"[{selected.compressed}]" if isinstance(selected, ipaddress.IPv6Address) else selected.compressed
+    port_suffix = f":{parsed.port}" if parsed.port is not None else ""
+    pinned_url = urlunsplit(
+        (parsed.scheme.lower(), f"{pinned_host}{port_suffix}", parsed.path or "/", "", "")
+    )
+    headers = {"Host": parsed.netloc}
+    extensions = {"sni_hostname": hostname} if parsed.scheme.lower() == "https" else {}
+    return pinned_url, headers, extensions
+
+
+async def resolve_lti_platform_endpoint_url(url: str):
+    """Resolve DNS once, validate every answer, and return a connection pinned to a safe IP."""
+    validate_lti_platform_endpoint_url(url)
+    parsed = urlsplit(url)
+    hostname = parsed.hostname.lower().rstrip(".")
+    port = parsed.port or (443 if parsed.scheme.lower() == "https" else 80)
+
+    try:
+        literal = ipaddress.ip_address(hostname)
+    except ValueError:
+        literal = None
+
+    if literal is not None:
+        resolved_addresses = [literal.compressed]
+    else:
+        try:
+            records = await asyncio.get_running_loop().getaddrinfo(
+                hostname, port, type=socket.SOCK_STREAM
+            )
+        except OSError as exc:
+            raise ValueError("Unable to resolve LTI platform hostname safely") from exc
+        resolved_addresses = list(dict.fromkeys(record[4][0] for record in records))
+
+    return _pin_lti_endpoint_url(url, resolved_addresses)
 
 
 def long_to_base64url(value: int) -> bytes:
@@ -112,17 +187,37 @@ def build_tool_jwks() -> dict:
 
 
 async def fetch_platform_public_key(jwks_url: str, kid: str):
-    """يجيب مفتاح المنصة العام من jwks_url بتاعها، مطابق للـ kid المذكور بالـ id_token"""
-    validate_lti_platform_endpoint_url(jwks_url)
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        response = await client.get(jwks_url)
-        response.raise_for_status()
-    keys = response.json().get("keys", [])
-    matching_key = next((k for k in keys if k.get("kid") == kid), None)
+    """Fetch a bounded JWKS response over a DNS-pinned, public-IP-only connection."""
+    pinned_url, headers, extensions = await resolve_lti_platform_endpoint_url(jwks_url)
+    content = bytearray()
+    async with httpx.AsyncClient(
+        timeout=15.0,
+        follow_redirects=False,
+        trust_env=False,
+    ) as client:
+        async with client.stream(
+            "GET", pinned_url, headers=headers, extensions=extensions
+        ) as response:
+            if 300 <= response.status_code < 400:
+                raise ValueError("LTI JWKS endpoint redirects are not allowed")
+            response.raise_for_status()
+            async for chunk in response.aiter_bytes():
+                content.extend(chunk)
+                if len(content) > 1024 * 1024:
+                    raise ValueError("LTI JWKS response exceeds the 1 MiB limit")
+
+    try:
+        document = json.loads(bytes(content))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError("LTI JWKS response is not valid JSON") from exc
+
+    keys = document.get("keys") if isinstance(document, dict) else None
+    if not isinstance(keys, list):
+        raise ValueError("LTI JWKS response does not contain a keys array")
+    matching_key = next((key for key in keys if isinstance(key, dict) and key.get("kid") == kid), None)
     if not matching_key:
         raise ValueError("ما لقينا مفتاح مطابق بـ JWKS الخاص بالمنصة")
     return matching_key
-
 
 async def verify_platform_id_token(
     id_token: str, platform, expected_nonce: str, expected_target_link_uri: str
