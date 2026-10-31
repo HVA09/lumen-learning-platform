@@ -15,6 +15,12 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.auth import TwoFactorCodeRequest, TwoFactorSetupResponse
+from app.auth.totp_secrets import (
+    TOTPSecretError,
+    decrypt_totp_secret,
+    encrypt_totp_secret,
+    is_encrypted_totp_secret,
+)
 
 router = APIRouter(prefix="/auth/2fa", tags=["Two-Factor Authentication"])
 
@@ -39,7 +45,13 @@ def setup_two_factor(
         )
 
     secret = pyotp.random_base32()
-    current_user.totp_secret = secret
+    try:
+        current_user.totp_secret = encrypt_totp_secret(secret)
+    except TOTPSecretError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="تشفير أسرار التحقق الثنائي غير مُعدّ على الخادم",
+        ) from exc
     db.commit()
 
     totp = pyotp.TOTP(secret)
@@ -59,9 +71,25 @@ def enable_two_factor(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="لازم تسوي /2fa/setup أولًا"
         )
-    totp = pyotp.TOTP(current_user.totp_secret)
-    if not totp.verify(payload.totp_code, valid_window=1):
+    try:
+        secret = decrypt_totp_secret(current_user.totp_secret)
+    except TOTPSecretError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="تعذر فك سر التحقق الثنائي؛ تحقق من مفتاح التشفير",
+        ) from exc
+
+    if not pyotp.TOTP(secret).verify(payload.totp_code, valid_window=1):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="رمز التحقق غير صحيح")
+
+    if not is_encrypted_totp_secret(current_user.totp_secret):
+        try:
+            current_user.totp_secret = encrypt_totp_secret(secret)
+        except TOTPSecretError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="تشفير أسرار التحقق الثنائي غير مُعدّ على الخادم",
+            ) from exc
 
     current_user.is_2fa_enabled = True
     db.commit()
@@ -79,8 +107,15 @@ def disable_two_factor(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="التحقق الثنائي غير مفعّل أصلًا"
         )
-    totp = pyotp.TOTP(current_user.totp_secret)
-    if not totp.verify(payload.totp_code, valid_window=1):
+    try:
+        secret = decrypt_totp_secret(current_user.totp_secret)
+    except TOTPSecretError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="تعذر فك سر التحقق الثنائي؛ تحقق من مفتاح التشفير",
+        ) from exc
+
+    if not pyotp.TOTP(secret).verify(payload.totp_code, valid_window=1):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="رمز التحقق غير صحيح")
 
     current_user.is_2fa_enabled = False
