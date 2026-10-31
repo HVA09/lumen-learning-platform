@@ -85,11 +85,17 @@ def upgrade() -> None:
         "assignment_submissions", "simulation_passed",
         new_column_name="legacy_ai_simulation_passed",
     )
-    # التسليمات التي كانت graded بتقييم آلي تعود لانتظار تقييم المعلّم؛
-    # الدرجة والتغذية الراجعة الآليتان محفوظتان في أعمدة legacy أعلاه.
+    # احتفظ بالحالة الأصلية لإمكانية الرجوع، وأعد التسليمات المقيمة آليًا
+    # إلى قائمة انتظار تقييم المعلّم؛ لا تُعامل درجة AI القديمة كتقييم يدوي.
+    op.add_column(
+        "assignment_submissions", sa.Column("legacy_ai_status", sa.String(length=20), nullable=True)
+    )
+    op.execute(
+        "UPDATE assignment_submissions SET legacy_ai_status = status::text"
+    )
     op.execute(
         "UPDATE assignment_submissions SET status = 'submitted', graded_at = NULL "
-        "WHERE status = 'graded' AND grade_percentage IS NULL"
+        "WHERE status = 'graded'"
     )
 
     # ---- 4) جداول المحتوى والتقييم ----
@@ -201,6 +207,13 @@ def downgrade() -> None:
     op.drop_table("lesson_progress")
     op.drop_table("lessons")
 
+    # استعد حالة التقييم الآلي الأصلية قبل إزالة عمود الأرشيف.
+    op.execute(
+        "UPDATE assignment_submissions "
+        "SET status = legacy_ai_status::submissionstatus "
+        "WHERE legacy_ai_status IS NOT NULL"
+    )
+    op.drop_column("assignment_submissions", "legacy_ai_status")
     op.drop_constraint("fk_submission_graded_by", "assignment_submissions", type_="foreignkey")
     op.drop_column("assignment_submissions", "graded_by_user_id")
     op.drop_column("assignment_submissions", "is_late")
