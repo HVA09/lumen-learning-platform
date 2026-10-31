@@ -48,6 +48,13 @@ if [ "$HAS_ARCHIVES" -eq 0 ]; then
   exit 0
 fi
 
+# Validate every local archive before contacting the remote repository or
+# uploading any file, so a corrupt local copy cannot cause a partial sync.
+for candidate in "$BACKUP_DIR"/backup_*.sql.gz; do
+  [ -f "$candidate" ] || continue
+  gzip -t "$candidate"
+done
+
 # Fail closed when the repository is uninitialized, unavailable, or encrypted
 # with a different password. Never initialize a remote repository automatically.
 restic cat config >/dev/null
@@ -59,7 +66,6 @@ printf '%s\n' "$snapshots_json" | jq -e 'type == "array"' >/dev/null \
 UPLOADED_ANY=0
 for candidate in "$BACKUP_DIR"/backup_*.sql.gz; do
   [ -f "$candidate" ] || continue
-  gzip -t "$candidate"
 
   # Skip an archive already uploaded, including after a sidecar restart or a
   # period of provider downtime. The local seven-day retention is the retry queue.
