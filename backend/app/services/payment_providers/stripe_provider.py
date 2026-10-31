@@ -70,6 +70,7 @@ class StripeProvider(PaymentProvider):
                 provider_customer_id=data.get("customer"),
                 status="canceled",
                 client_reference_id=None,
+                event_id=event.get("id"),
             )
         return WebhookEvent(
             event_type="ignored",
