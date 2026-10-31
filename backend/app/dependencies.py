@@ -1,6 +1,8 @@
 """
 Dependencies مشتركة بين المسارات: المستخدم الحالي، وصلاحيات الأدوار (admin / معلّم)
 """
+from datetime import datetime, timezone
+
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError
@@ -10,6 +12,7 @@ from app.auth.cookies import ACCESS_COOKIE_NAME, verify_csrf_request
 from app.auth.security import decode_token
 from app.database import get_db
 from app.logging_config import get_logger
+from app.models.auth_session import AuthSession
 from app.models.user import User, UserRole
 
 logger = get_logger("dependencies")
@@ -25,6 +28,7 @@ def get_current_user(
 ) -> User:
     """Validate either a bearer token or a secure browser session cookie."""
     cookie_token = request.cookies.get(ACCESS_COOKIE_NAME)
+    using_bearer_token = bool(token)
     if cookie_token and request.method not in ("GET", "HEAD", "OPTIONS"):
         # Cookie-authenticated unsafe requests must prove same-origin intent.
         if not token:
@@ -54,6 +58,23 @@ def get_current_user(
         or token_version != user.token_version
     ):
         raise credentials_error
+
+    session_id = payload.get("sid")
+    if session_id:
+        auth_session = db.get(AuthSession, session_id)
+        now = datetime.now(timezone.utc)
+        if (
+            auth_session is None
+            or auth_session.user_id != user.id
+            or auth_session.revoked_at is not None
+            or auth_session.expires_at <= now
+        ):
+            raise credentials_error
+    elif not using_bearer_token:
+        # Browser cookies issued by the new flow must always be session-bound.
+        # Legacy stateless tokens remain accepted only via explicit Bearer auth.
+        raise credentials_error
+
     return user
 
 
