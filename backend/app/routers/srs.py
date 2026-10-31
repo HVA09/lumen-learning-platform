@@ -6,7 +6,7 @@ import csv
 import io
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import and_, func
 from sqlalchemy.orm import Session
@@ -23,6 +23,10 @@ from app.services.spaced_repetition import review_card as apply_review
 from app.services.study_activity import record_study_activity
 
 router = APIRouter(prefix="/srs", tags=["Spaced Repetition"])
+
+MAX_SRS_CSV_IMPORT_BYTES = 1024 * 1024
+MAX_SRS_CSV_IMPORT_ROWS = 500
+MAX_SRS_CARD_FIELD_CHARS = 2000
 
 
 @router.post("/cards", response_model=ReviewCardOut, status_code=status.HTTP_201_CREATED)
@@ -139,7 +143,7 @@ def add_deck_to_my_cards(
 
 @router.get("/due", response_model=list[ReviewCardOut])
 def get_due_cards(
-    limit: int = 20,
+    limit: int = Query(default=20, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -213,33 +217,118 @@ async def import_cards_csv(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    raw = (await file.read()).decode("utf-8-sig")
-    reader = csv.DictReader(io.StringIO(raw))
+    """Import a bounded CSV file after validating every row before writing any cards."""
+    raw = bytearray()
+    while True:
+        chunk = await file.read(64 * 1024)
+        if not chunk:
+            break
+        if len(raw) + len(chunk) > MAX_SRS_CSV_IMPORT_BYTES:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail="حجم ملف CSV يتجاوز الحد المسموح (1 MiB)",
+            )
+        raw.extend(chunk)
+    await file.close()
 
-    required = {"front_text", "back_text"}
-    if not reader.fieldnames or not required.issubset(set(reader.fieldnames)):
+    try:
+        decoded = raw.decode("utf-8-sig")
+    except UnicodeDecodeError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="ملف CSV يحتاج أعمدة front_text وback_text على الأقل",
+            detail="ملف CSV يجب أن يكون بترميز UTF-8",
+        ) from exc
+
+    reader = csv.DictReader(io.StringIO(decoded))
+    required = {"front_text", "back_text"}
+    fieldnames = reader.fieldnames or []
+    if (
+        not fieldnames
+        or len(fieldnames) != len(set(fieldnames))
+        or not required.issubset(set(fieldnames))
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="ملف CSV يحتاج أعمدة front_text وback_text بأسماء غير مكررة",
         )
 
-    created = []
-    for row in reader:
-        front = (row.get("front_text") or "").strip()
-        back = (row.get("back_text") or "").strip()
-        if not front or not back:
-            continue  # نتجاهل الأسطر الناقصة بدل ما نفشل الاستيراد كامل
-        topic_id_raw = (row.get("topic_id") or "").strip()
-        card = ReviewCard(
+    prepared_cards = []
+    topic_ids = set()
+    try:
+        for row in reader:
+            if None in row:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="يوجد صف يحتوي أعمدة إضافية غير موجودة في رأس CSV",
+                )
+
+            front = (row.get("front_text") or "").strip()
+            back = (row.get("back_text") or "").strip()
+            if not front or not back:
+                continue
+
+            if (
+                len(front) > MAX_SRS_CARD_FIELD_CHARS
+                or len(back) > MAX_SRS_CARD_FIELD_CHARS
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="طول وجه البطاقة أو ظهرها يتجاوز 2000 حرف",
+                )
+
+            topic_id_raw = (row.get("topic_id") or "").strip()
+            topic_id = None
+            if topic_id_raw:
+                if not topic_id_raw.isdigit() or int(topic_id_raw) <= 0:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail="topic_id يجب أن يكون رقم موضوع صحيحًا موجبًا",
+                    )
+                topic_id = int(topic_id_raw)
+                topic_ids.add(topic_id)
+
+            prepared_cards.append(
+                {
+                    "front_text": front,
+                    "back_text": back,
+                    "topic_id": topic_id,
+                }
+            )
+            if len(prepared_cards) > MAX_SRS_CSV_IMPORT_ROWS:
+                raise HTTPException(
+                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    detail="ملف CSV يتجاوز الحد الأقصى وهو 500 بطاقة",
+                )
+    except csv.Error as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="تعذر تحليل ملف CSV",
+        ) from exc
+
+    if topic_ids:
+        existing_topic_ids = {
+            row[0]
+            for row in db.query(Topic.id).filter(Topic.id.in_(topic_ids)).all()
+        }
+        missing_topic_ids = topic_ids - existing_topic_ids
+        if missing_topic_ids:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="الملف يحتوي topic_id غير موجود",
+            )
+
+    created = [
+        ReviewCard(
             user_id=current_user.id,
-            topic_id=int(topic_id_raw) if topic_id_raw.isdigit() else None,
-            front_text=front,
-            back_text=back,
+            topic_id=row["topic_id"],
+            front_text=row["front_text"],
+            back_text=row["back_text"],
         )
-        db.add(card)
-        created.append(card)
-
-    db.commit()
-    for c in created:
-        db.refresh(c)
+        for row in prepared_cards
+    ]
+    if created:
+        db.add_all(created)
+        db.commit()
+        for card in created:
+            db.refresh(card)
     return created
