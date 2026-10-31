@@ -242,7 +242,7 @@ def test_ags_outbox_dispatch_posts_signed_token_and_score(client, db_session, mo
     monkeypatch.setattr(lti_service.settings, "LTI_TOOL_PRIVATE_KEY", private_pem)
     monkeypatch.setattr(lti_service.settings, "LTI_TOOL_KID", "lumen-test-kid")
 
-    async def fake_resolve(url):
+    async def fake_resolve(url, **kwargs):
         parsed = urlsplit(url)
         return (
             f"https://93.184.216.34{parsed.path}"
@@ -335,7 +335,7 @@ def test_ags_delivery_failure_is_retried_without_persisting_remote_details(clien
     ).decode()
     monkeypatch.setattr(lti_service.settings, "LTI_TOOL_PRIVATE_KEY", private_pem)
 
-    async def fake_resolve(url):
+    async def fake_resolve(url, **kwargs):
         parsed = urlsplit(url)
         return (
             f"https://93.184.216.34{parsed.path}",
