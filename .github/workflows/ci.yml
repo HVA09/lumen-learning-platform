@@ -111,5 +111,16 @@ jobs:
         run: python scripts/test_migration_data_preservation.py
       - name: Validate database migrations
         run: alembic upgrade head
+      - name: Install PostgreSQL client tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+      - name: Run PostgreSQL backup/restore integration smoke test
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: "5432"
+          PGUSER: postgres
+          PGPASSWORD: postgres
+        run: sh scripts/test_backup_restore_integration.sh
       - name: Run backend tests
         run: pytest -v
