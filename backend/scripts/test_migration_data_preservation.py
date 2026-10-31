@@ -72,8 +72,12 @@ def seed_legacy_rows(database_url: str) -> tuple[int, int, int, int]:
         user_id = connection.execute(
             text(
                 """
-                INSERT INTO users (email, hashed_password, role, is_active)
-                VALUES (:email, :password_hash, 'user', TRUE)
+                INSERT INTO users (
+                    email, hashed_password, role, is_active, totp_secret, is_2fa_enabled
+                )
+                VALUES (
+                    :email, :password_hash, 'user', TRUE, 'JBSWY3DPEHPK3PXP', TRUE
+                )
                 RETURNING id
                 """
             ),
@@ -177,6 +181,24 @@ def verify_archived_state(database_url: str, ids: tuple[int, int, int, int]) -> 
         assert message["title"] == "Legacy conversation to preserve"
         assert message["user_id"] == user_id
 
+        legacy_totp = connection.execute(
+            text("SELECT totp_secret, is_2fa_enabled FROM users WHERE id = :user_id"),
+            {"user_id": user_id},
+        ).one()
+        assert legacy_totp == ("JBSWY3DPEHPK3PXP", True)
+        totp_column_length = connection.execute(
+            text(
+                """
+                SELECT character_maximum_length
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND table_name = 'users'
+                  AND column_name = 'totp_secret'
+                """
+            )
+        ).scalar_one()
+        assert totp_column_length == 255
+
         usage = connection.execute(
             text(
                 """
@@ -248,6 +270,12 @@ def verify_downgraded_state(database_url: str, ids: tuple[int, int, int, int]) -
         assert message["content"] == "Legacy message must survive the education migration."
         assert message["title"] == "Legacy conversation to preserve"
         assert message["user_id"] == user_id
+
+        legacy_totp = connection.execute(
+            text("SELECT totp_secret, is_2fa_enabled FROM users WHERE id = :user_id"),
+            {"user_id": user_id},
+        ).one()
+        assert legacy_totp == ("JBSWY3DPEHPK3PXP", True)
 
         usage = connection.execute(
             text(
