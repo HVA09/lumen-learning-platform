@@ -255,11 +255,21 @@ async def upload_file(
         db.refresh(attachment)
     except Exception:
         db.rollback()
-        if destination_created and not metadata_committed:
-            destination.unlink(missing_ok=True)
         raise
     finally:
-        await file.close()
+        # Run cleanup even when the request is cancelled (for example, a client
+        # disconnect) or file.close() itself raises.
+        try:
+            await file.close()
+        finally:
+            if destination_created and not metadata_committed:
+                try:
+                    destination.unlink(missing_ok=True)
+                except OSError:
+                    logger.exception(
+                        "Failed to remove incomplete upload for user %s",
+                        current_user.id,
+                    )
 
     log_event(
         db,
