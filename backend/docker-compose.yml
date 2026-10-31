@@ -23,6 +23,15 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+      clamav:
+        condition: service_started
+    environment:
+      MALWARE_SCAN_ENABLED: ${MALWARE_SCAN_ENABLED:-true}
+      CLAMAV_HOST: ${CLAMAV_HOST:-clamav}
+      CLAMAV_PORT: ${CLAMAV_PORT:-3310}
+      CLAMAV_TIMEOUT_SECONDS: ${CLAMAV_TIMEOUT_SECONDS:-30}
+      MAX_USER_STORAGE_MB: ${MAX_USER_STORAGE_MB:-100}
+      MAX_USER_FILES: ${MAX_USER_FILES:-100}
     ports:
       - "127.0.0.1:8000:8000"
     volumes:
@@ -31,6 +40,13 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+
+  # Internal malware scanner. Port 3310 is deliberately not published to the host.
+  clamav:
+    image: clamav/clamav:stable
+    restart: unless-stopped
+    volumes:
+      - clamav_db:/var/lib/clamav
 
   celery_worker:
     build: .
@@ -97,3 +113,4 @@ volumes:
   uploads:
   certbot_conf:
   certbot_www:
+  clamav_db:
