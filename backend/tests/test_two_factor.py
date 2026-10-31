@@ -100,3 +100,31 @@ def test_disable_two_factor(client):
 def test_2fa_endpoints_require_authentication(client):
     response = client.post("/auth/2fa/setup")
     assert response.status_code == 401
+
+
+def test_setup_cannot_replace_secret_while_two_factor_is_enabled(client):
+    token = _register_and_login(client, "keep2fa@example.com")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    setup = client.post("/auth/2fa/setup", headers=headers)
+    original_secret = setup.json()["secret"]
+    enabled = client.post(
+        "/auth/2fa/enable",
+        json={"totp_code": pyotp.TOTP(original_secret).now()},
+        headers=headers,
+    )
+    assert enabled.status_code == 200
+
+    attempted_setup = client.post("/auth/2fa/setup", headers=headers)
+    assert attempted_setup.status_code == 409
+
+    # The original factor remains active and can still authenticate the account.
+    login = client.post(
+        "/auth/login",
+        json={
+            "email": "keep2fa@example.com",
+            "password": "StrongPass123",
+            "totp_code": pyotp.TOTP(original_secret).now(),
+        },
+    )
+    assert login.status_code == 200
