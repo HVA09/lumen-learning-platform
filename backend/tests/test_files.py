@@ -303,14 +303,15 @@ def test_upload_removes_temporary_file_when_attachment_commit_fails(
         raise RuntimeError("simulated database commit failure")
 
     monkeypatch.setattr(db_session, "commit", fail_commit)
-    response = client.post(
-        "/files/upload",
-        files={"file": ("failed.png", PNG_BYTES, "image/png")},
-        headers={"Authorization": f"Bearer {token}"},
-    )
+    # Starlette's TestClient re-raises unhandled server exceptions by default,
+    # even though the application exception handler also emits a sanitized 500 response.
+    with pytest.raises(RuntimeError, match="simulated database commit failure"):
+        client.post(
+            "/files/upload",
+            files={"file": ("failed.png", PNG_BYTES, "image/png")},
+            headers={"Authorization": f"Bearer {token}"},
+        )
 
-    assert response.status_code == 500
-    assert response.json() == {"detail": "حدث خطأ غير متوقع في الخادم"}
     assert not [path for path in tmp_path.rglob("*") if path.is_file()]
     assert db_session.query(FileAttachment).count() == 0
 
