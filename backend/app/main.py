@@ -2,6 +2,7 @@
 نقطة تشغيل التطبيق — يجمع كل الطبقات: قاعدة البيانات، CORS، والمسارات (routers)
 """
 from contextlib import asynccontextmanager
+import hmac
 
 from fastapi import Depends, FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,6 +13,7 @@ from sqlalchemy.orm import Session
 
 # استيراد models لضمان تسجيلها في Base.metadata (يحتاجها Alembic --autogenerate)
 import app.models  # noqa: F401
+from app.auth.cookies import access_cookie_name, csrf_cookie_name, refresh_cookie_name
 from app.auth.routes import router as auth_router
 from app.auth.two_factor import router as two_factor_router
 from app.config import settings
@@ -62,6 +64,31 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def csrf_protection_middleware(request: Request, call_next):
+    """Require a double-submit CSRF token for trusted browser origins and cookie sessions."""
+    if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+        origin = request.headers.get("origin")
+        trusted_origins = {value.rstrip("/") for value in settings.CORS_ORIGINS}
+        has_session_cookie = bool(
+            request.cookies.get(access_cookie_name())
+            or request.cookies.get(refresh_cookie_name())
+        )
+        if (origin and origin.rstrip("/") in trusted_origins) or has_session_cookie:
+            cookie_token = request.cookies.get(csrf_cookie_name())
+            header_token = request.headers.get("X-CSRF-Token")
+            if (
+                not cookie_token
+                or not header_token
+                or not hmac.compare_digest(cookie_token, header_token)
+            ):
+                return JSONResponse(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    content={"detail": "CSRF token missing or invalid"},
+                )
+    return await call_next(request)
 
 
 @app.middleware("http")
