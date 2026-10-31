@@ -142,6 +142,48 @@ async def upload_file(
     max_bytes = max(0, settings.MAX_UPLOAD_SIZE_MB) * 1024 * 1024
     extension = Path(file.filename or "").suffix[:20].lower()
     stored_filename = f"{uuid.uuid4().hex}{extension}"
+
+    # Lock the account before touching the upload volume. This serializes uploads
+    # for the same user while the quota is checked and the file is scanned.
+    locked_user_id = (
+        db.query(User.id)
+        .filter(User.id == current_user.id)
+        .with_for_update()
+        .scalar()
+    )
+    if locked_user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="الحساب غير متاح",
+        )
+
+    used_bytes = (
+        db.query(func.coalesce(func.sum(FileAttachment.size_bytes), 0))
+        .filter(FileAttachment.user_id == current_user.id)
+        .scalar()
+        or 0
+    )
+    file_count = (
+        db.query(func.count(FileAttachment.id))
+        .filter(FileAttachment.user_id == current_user.id)
+        .scalar()
+        or 0
+    )
+    max_user_bytes = max(0, settings.MAX_USER_STORAGE_MB) * 1024 * 1024
+    max_user_files = max(0, settings.MAX_USER_FILES)
+
+    # Reject exhausted accounts before creating a temporary file or invoking ClamAV.
+    if file_count >= max_user_files:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="وصلت إلى الحد الأقصى لعدد الملفات المسموح به لحسابك",
+        )
+    if used_bytes >= max_user_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="لا توجد مساحة تخزين كافية متبقية في حسابك",
+        )
+
     destination = _user_upload_dir(current_user.id) / stored_filename
     size_bytes = 0
     destination_created = False
@@ -189,39 +231,8 @@ async def upload_file(
                 current_user.id,
             )
 
-        # Serialize quota checks for this user. The row lock is held until the
-        # attachment metadata is committed, preventing concurrent requests from
-        # both consuming the same remaining quota.
-        locked_user_id = (
-            db.query(User.id)
-            .filter(User.id == current_user.id)
-            .with_for_update()
-            .scalar()
-        )
-        if locked_user_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="الحساب غير متاح",
-            )
-
-        used_bytes = (
-            db.query(func.coalesce(func.sum(FileAttachment.size_bytes), 0))
-            .filter(FileAttachment.user_id == current_user.id)
-            .scalar()
-            or 0
-        )
-        file_count = (
-            db.query(func.count(FileAttachment.id))
-            .filter(FileAttachment.user_id == current_user.id)
-            .scalar()
-            or 0
-        )
-        max_user_bytes = max(0, settings.MAX_USER_STORAGE_MB) * 1024 * 1024
-        if file_count >= max(0, settings.MAX_USER_FILES):
-            raise HTTPException(
-                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                detail="وصلت إلى الحد الأقصى لعدد الملفات المسموح به لحسابك",
-            )
+        # The account row remains locked from before the temporary file is created.
+        # Re-check the final byte count after streaming because the actual size is authoritative.
         if used_bytes + size_bytes > max_user_bytes:
             raise HTTPException(
                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
