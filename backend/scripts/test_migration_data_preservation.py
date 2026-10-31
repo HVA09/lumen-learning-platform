@@ -39,7 +39,9 @@ def create_dedicated_database(database_url: str) -> None:
         )
 
     admin_url = url.set(database="postgres").render_as_string(hide_password=False)
-    with psycopg2.connect(admin_url) as connection:
+    connection = psycopg2.connect(admin_url)
+    try:
+        # CREATE DATABASE is forbidden inside a transaction block.
         connection.autocommit = True
         with connection.cursor() as cursor:
             cursor.execute(
@@ -52,6 +54,8 @@ def create_dedicated_database(database_url: str) -> None:
                     "Use a fresh disposable CI database; this script never drops databases."
                 )
             cursor.execute(f'CREATE DATABASE "{EXPECTED_DATABASE_NAME}"')
+    finally:
+        connection.close()
 
 
 def seed_legacy_rows(database_url: str) -> tuple[int, int, int, int]:
