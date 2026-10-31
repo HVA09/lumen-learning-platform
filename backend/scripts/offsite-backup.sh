@@ -1,5 +1,5 @@
 #!/bin/sh
-# Upload the newest verified PostgreSQL archive to an encrypted Restic repository.
+# Upload every verified PostgreSQL archive not yet present in an encrypted Restic repository.
 # This script deliberately does not initialize repositories or delete local backups.
 set -eu
 
@@ -33,20 +33,19 @@ require_positive_integer RESTIC_KEEP_WEEKLY "$RESTIC_KEEP_WEEKLY"
 require_positive_integer RESTIC_KEEP_MONTHLY "$RESTIC_KEEP_MONTHLY"
 require_positive_integer RESTIC_KEEP_YEARLY "$RESTIC_KEEP_YEARLY"
 
-# Filenames are UTC/local timestamped as YYYYMMDD_HHMMSS, so lexical order is
-# chronological. Avoid GNU-only find options to keep this script portable to Alpine.
-LATEST_BACKUP=""
+# Filenames are timestamped as YYYYMMDD_HHMMSS, so the shell's lexical glob
+# order is chronological. Avoid GNU-only find options to keep this portable to Alpine.
+HAS_ARCHIVES=0
 for candidate in "$BACKUP_DIR"/backup_*.sql.gz; do
   [ -f "$candidate" ] || continue
-  LATEST_BACKUP="$candidate"
+  HAS_ARCHIVES=1
+  break
 done
 
-if [ -z "$LATEST_BACKUP" ]; then
+if [ "$HAS_ARCHIVES" -eq 0 ]; then
   echo "No local PostgreSQL backup archive is available yet."
   exit 0
 fi
-
-gzip -t "$LATEST_BACKUP"
 
 # Fail closed when the repository is uninitialized, unavailable, or encrypted
 # with a different password. Never initialize a remote repository automatically.
@@ -56,16 +55,28 @@ snapshots_json=$(restic snapshots --json --tag "$RESTIC_BACKUP_TAG")
 printf '%s\n' "$snapshots_json" | jq -e 'type == "array"' >/dev/null \
   || fail "Restic returned invalid snapshot metadata."
 
-# The timestamped archive path is unique per backup. Skip it if this exact archive
-# has already been uploaded, including after the sidecar container restarts.
-if printf '%s\n' "$snapshots_json" \
-  | jq -e --arg source "$LATEST_BACKUP" 'any(.[]; any(.paths[]?; . == $source))' >/dev/null; then
-  echo "Latest backup is already present in the encrypted Restic repository: ${LATEST_BACKUP##*/}"
+UPLOADED_ANY=0
+for candidate in "$BACKUP_DIR"/backup_*.sql.gz; do
+  [ -f "$candidate" ] || continue
+  gzip -t "$candidate"
+
+  # Skip an archive already uploaded, including after a sidecar restart or a
+  # period of provider downtime. The local seven-day retention is the retry queue.
+  if printf '%s\n' "$snapshots_json" \
+    | jq -e --arg source "$candidate" 'any(.[]; any(.paths[]?; . == $source))' >/dev/null; then
+    echo "Already present in encrypted Restic repository: ${candidate##*/}"
+    continue
+  fi
+
+  echo "Uploading encrypted offsite backup: ${candidate##*/}"
+  restic backup --tag "$RESTIC_BACKUP_TAG" --group-by host,tags "$candidate"
+  UPLOADED_ANY=1
+done
+
+if [ "$UPLOADED_ANY" -eq 0 ]; then
+  echo "All local PostgreSQL backup archives are already present in Restic."
   exit 0
 fi
-
-echo "Uploading encrypted offsite backup: ${LATEST_BACKUP##*/}"
-restic backup --tag "$RESTIC_BACKUP_TAG" --group-by host,tags "$LATEST_BACKUP"
 
 # All daily archive files have different paths. Group by stable host+tag identity,
 # not path, or retention would treat every date as an independent backup set.
@@ -82,4 +93,4 @@ restic forget \
 # pack; schedule a separate full-data check as an operational maintenance task.
 restic check
 
-echo "Encrypted offsite backup completed: ${LATEST_BACKUP##*/}"
+echo "Encrypted offsite backup synchronization completed."
