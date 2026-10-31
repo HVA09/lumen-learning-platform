@@ -280,6 +280,10 @@ def verify_downgraded_state(database_url: str, ids: tuple[int, int, int, int]) -
             {"user_id": user_id},
         ).one()
         assert legacy_totp == ("JBSWY3DPEHPK3PXP", True)
+        webhook_table = connection.execute(
+            text("SELECT to_regclass('public.processed_webhook_events')")
+        ).scalar_one()
+        assert webhook_table is None
         totp_column_length = connection.execute(
             text(
                 """
