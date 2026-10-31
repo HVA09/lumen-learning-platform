@@ -360,3 +360,33 @@ Cookie configuration:
 - `AUTH_COOKIE_SAMESITE=lax` is the default for same-site deployments.
 - Set `AUTH_COOKIE_SAMESITE=none` only when the frontend and API are on different sites; production cookies are then marked `Secure` and require HTTPS.
 - Keep `CORS_ORIGINS` restricted to the exact trusted frontend origins. Credentialed CORS must never use a wildcard.
+
+
+## LTI 1.3 AGS grade passback (draft)
+
+The first AGS 2.0 score passback slice is implemented behind explicit resource-link mappings.
+It does not change the existing local grading flow and does not require a live LMS connection
+for ordinary assignment use.
+
+1. An administrator registers a mapping with `POST /lti/assignment-links` using a registered
+   `platform_id`, a Lumen `assignment_id`, and the LMS `resource_link_id`.
+2. On a signed LTI Resource Link launch, Lumen records the AGS `lineitem` only when the launch
+   includes the AGS score scope. The lineitem must use the same HTTPS origin as the registered
+   platform token endpoint; DNS resolution is pinned to a validated public IP at delivery time.
+3. When a teacher grades or re-grades a submission, the grade and an outbox event are committed
+   in the same database transaction. A matching LTI user link is required.
+4. The existing Celery beat process discovers pending events every minute. The worker obtains a
+   short-lived OAuth 2.0 client-credentials token using an RS256 client assertion and posts an
+   AGS Score object. Retry backoff is bounded; events stop after eight failed attempts and an
+   administrator can inspect `GET /lti/grade-events` and retry a dead event with
+   `POST /lti/grade-events/{id}/retry`.
+
+The tool's `LTI_TOOL_PRIVATE_KEY` and `LTI_TOOL_KID` settings must be configured and the public
+key exposed through `GET /lti/jwks` must be registered with the LMS. The Celery worker and beat
+services must be running. No access token, client assertion, or learner subject is exposed by the
+grade-event administration response.
+
+This is an at-least-once delivery outbox: an interrupted worker may repeat a score POST after its
+lease expires if the LMS accepted the request but the worker did not save the response. The stable
+grade version and timestamp make retries traceable; a production Moodle/Canvas sandbox test is
+still required to confirm each provider's exact AGS behavior, permissions, and endpoint shape.

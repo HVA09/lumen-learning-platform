@@ -32,6 +32,10 @@ try:
             "task": "send_due_cards_reminders_task",
             "schedule": crontab(hour=18, minute=0),  # يوميًا 6 مساءً
         },
+        "dispatch-lti-ags-grade-outbox": {
+            "task": "dispatch_lti_grade_outbox_task",
+            "schedule": 60.0,  # يلتقط الأحداث المحفوظة كل دقيقة
+        },
     }
 
     @celery_app.task(name="send_email_task")
@@ -82,6 +86,57 @@ try:
                     )
         finally:
             db.close()
+
+    @celery_app.task(name="dispatch_lti_grade_event_task")
+    def dispatch_lti_grade_event_task(event_id: int) -> None:
+        import asyncio
+
+        from app.database import SessionLocal
+        from app.services.lti_service import dispatch_lti_grade_event
+
+        db = SessionLocal()
+        try:
+            asyncio.run(dispatch_lti_grade_event(db, event_id))
+        finally:
+            db.close()
+
+    @celery_app.task(name="dispatch_lti_grade_outbox_task")
+    def dispatch_lti_grade_outbox_task() -> None:
+        from datetime import datetime, timezone
+
+        from sqlalchemy import or_
+
+        from app.database import SessionLocal
+        from app.models.lti import LTIAGSGradeEvent
+
+        db = SessionLocal()
+        try:
+            now = datetime.now(timezone.utc)
+            event_ids = [
+                row[0]
+                for row in (
+                    db.query(LTIAGSGradeEvent.id)
+                    .filter(
+                        LTIAGSGradeEvent.status == "pending",
+                        LTIAGSGradeEvent.next_attempt_at <= now,
+                        or_(
+                            LTIAGSGradeEvent.locked_until.is_(None),
+                            LTIAGSGradeEvent.locked_until <= now,
+                        ),
+                    )
+                    .order_by(LTIAGSGradeEvent.id)
+                    .limit(100)
+                    .all()
+                )
+            ]
+        finally:
+            db.close()
+
+        for event_id in event_ids:
+            try:
+                dispatch_lti_grade_event_task.delay(event_id)
+            except Exception:
+                logger.warning("تعذر جدولة LTI AGS outbox event %s؛ سيُعاد التقاطه لاحقًا", event_id)
 
     _CELERY_AVAILABLE = True
 except ImportError:

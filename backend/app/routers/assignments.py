@@ -26,6 +26,7 @@ from app.schemas.assignment import (
 )
 from app.services.achievements import check_and_award_achievements
 from app.services.study_activity import record_study_activity
+from app.services.lti_service import create_lti_ags_grade_events
 
 router = APIRouter(prefix="/assignments", tags=["Assignments"])
 
@@ -330,6 +331,8 @@ def grade_submission(
     submission.graded_by_user_id = teacher.id
     submission.graded_at = datetime.now(timezone.utc)
     submission.status = SubmissionStatus.graded
+    submission.grade_version = (submission.grade_version or 0) + 1
+    create_lti_ags_grade_events(db, assignment, submission)
     db.commit()
     db.refresh(submission)
 

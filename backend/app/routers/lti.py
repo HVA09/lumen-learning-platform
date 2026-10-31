@@ -18,13 +18,21 @@ from app.auth.sessions import create_browser_session
 from app.config import settings
 from app.database import get_db
 from app.dependencies import require_admin
-from app.models.lti import LTIAuthCode, LTIAuthState, LTIPlatform, LTIUserLink
+from app.models.assignment import Assignment
+from app.models.lti import (
+    LTIAuthCode, LTIAuthState, LTIPlatform, LTIUserLink,
+    LTIAssignmentLink, LTIAGSGradeEvent,
+)
 from app.models.user import User
-from app.schemas.lti import LTIExchangeCodeRequest, LTIPlatformCreate, LTIPlatformOut
+from app.schemas.lti import (
+    LTIExchangeCodeRequest, LTIPlatformCreate, LTIPlatformOut,
+    LTIAssignmentLinkCreate, LTIAssignmentLinkOut, LTIAGSGradeEventOut,
+)
 from app.services.lti_service import (
     LTI_AUTH_CODE_TTL_SECONDS,
     LTI_STATE_TTL_SECONDS,
     build_tool_jwks,
+    record_lti_ags_launch_context,
     hash_opaque_token,
     new_nonce,
     verify_platform_id_token,
@@ -63,6 +71,88 @@ def register_platform(
 @router.get("/platforms", response_model=list[LTIPlatformOut])
 def list_platforms(_=Depends(require_admin), db: Session = Depends(get_db)):
     return db.query(LTIPlatform).all()
+
+
+
+
+@router.post(
+    "/assignment-links",
+    response_model=LTIAssignmentLinkOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def register_assignment_link(
+    payload: LTIAssignmentLinkCreate,
+    _=Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Admin-only mapping between a Lumen assignment and an LMS resource link."""
+    platform = db.get(LTIPlatform, payload.platform_id)
+    assignment = db.get(Assignment, payload.assignment_id)
+    if platform is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="منصة LTI غير موجودة")
+    if assignment is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="الواجب غير موجود")
+    duplicate = (
+        db.query(LTIAssignmentLink)
+        .filter(
+            LTIAssignmentLink.platform_id == platform.id,
+            LTIAssignmentLink.deployment_id == platform.deployment_id,
+            LTIAssignmentLink.resource_link_id == payload.resource_link_id,
+        )
+        .first()
+    )
+    if duplicate:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="رابط المورد مسجل مسبقًا")
+    mapping = LTIAssignmentLink(
+        platform_id=platform.id,
+        assignment_id=assignment.id,
+        deployment_id=platform.deployment_id,
+        resource_link_id=payload.resource_link_id,
+    )
+    db.add(mapping)
+    db.commit()
+    db.refresh(mapping)
+    return mapping
+
+
+@router.get("/assignment-links", response_model=list[LTIAssignmentLinkOut])
+def list_assignment_links(_=Depends(require_admin), db: Session = Depends(get_db)):
+    return db.query(LTIAssignmentLink).order_by(LTIAssignmentLink.id.desc()).all()
+
+
+@router.get("/grade-events", response_model=list[LTIAGSGradeEventOut])
+def list_grade_events(_=Depends(require_admin), db: Session = Depends(get_db)):
+    """Expose delivery state without returning learner identifiers or access tokens."""
+    return (
+        db.query(LTIAGSGradeEvent)
+        .order_by(LTIAGSGradeEvent.id.desc())
+        .limit(200)
+        .all()
+    )
+
+
+@router.post("/grade-events/{event_id}/retry", response_model=LTIAGSGradeEventOut)
+def retry_grade_event(
+    event_id: int,
+    _=Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    event = db.get(LTIAGSGradeEvent, event_id)
+    if event is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="حدث التقييم غير موجود")
+    if event.status != "dead":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="إعادة المحاولة اليدوية متاحة للأحداث المتوقفة فقط",
+        )
+    event.status = "pending"
+    event.attempts = 0
+    event.last_error = None
+    event.locked_until = None
+    event.next_attempt_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(event)
+    return event
 
 
 @router.get("/jwks")
@@ -239,6 +329,8 @@ async def lti_launch(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="تعذّر التحقق من تسجيل الدخول عبر منصة التعليم",
         )
+
+    record_lti_ags_launch_context(db, platform, claims)
 
     lti_subject = claims.get("sub")
     if not isinstance(lti_subject, str) or not lti_subject or len(lti_subject) > 255:
