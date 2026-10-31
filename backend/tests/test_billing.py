@@ -4,6 +4,8 @@
 from unittest.mock import AsyncMock, MagicMock
 
 from app.routers import billing as billing_router_module
+from app.models.processed_webhook_event import ProcessedWebhookEvent
+from app.routers.billing import _claim_webhook_event
 from app.services.payment_providers.base import CheckoutResult, WebhookEvent
 
 
@@ -106,6 +108,7 @@ def test_webhook_checkout_completed_creates_active_subscription(client, monkeypa
             status="active",
             client_reference_id=str(me["id"]),
             plan_id=str(pro_plan["id"]),
+            event_id="evt_checkout_completed_001",
         )
     )
     monkeypatch.setattr(billing_router_module, "get_payment_provider", lambda: mock_provider)
@@ -143,6 +146,7 @@ def test_cancel_subscription(client, monkeypatch):
             status="active",
             client_reference_id=str(me["id"]),
             plan_id=str(pro_plan["id"]),
+            event_id="evt_checkout_cancel_test_001",
         )
     )
     monkeypatch.setattr(billing_router_module, "get_payment_provider", lambda: mock_provider)
@@ -159,3 +163,134 @@ def test_cancel_subscription(client, monkeypatch):
 def test_billing_requires_authentication(client):
     assert client.get("/billing/subscription").status_code == 401
     assert client.post("/billing/cancel").status_code == 401
+
+
+
+def test_repeated_checkout_webhook_is_processed_once(client, monkeypatch, db_session):
+    token = _register_and_login(client, "webhook-duplicate@example.com")
+    headers = {"Authorization": f"Bearer {token}"}
+    user = client.get("/users/me", headers=headers).json()
+    plan = next(p for p in client.get("/billing/plans").json() if p["name"] == "Pro")
+
+    event = WebhookEvent(
+        event_type="checkout_completed",
+        provider_subscription_id="sub_duplicate_001",
+        provider_customer_id="cus_duplicate_001",
+        status="active",
+        client_reference_id=str(user["id"]),
+        plan_id=str(plan["id"]),
+        event_id="evt_duplicate_checkout_001",
+    )
+    provider = MagicMock()
+    provider.verify_webhook.return_value = event
+    monkeypatch.setattr(billing_router_module, "get_payment_provider", lambda: provider)
+
+    activation_email = MagicMock()
+    realtime_notification = AsyncMock()
+    monkeypatch.setattr(
+        billing_router_module, "send_subscription_activated_email", activation_email
+    )
+    monkeypatch.setattr(
+        billing_router_module, "notify_realtime", realtime_notification
+    )
+
+    first = client.post("/billing/webhook/stripe", json={"type": "signed"})
+    second = client.post("/billing/webhook/stripe", json={"type": "signed"})
+
+    assert first.status_code == 200
+    assert first.json() == {"received": True, "duplicate": False}
+    assert second.status_code == 200
+    assert second.json() == {"received": True, "duplicate": True}
+    activation_email.assert_called_once_with(user["email"], "Pro")
+    realtime_notification.assert_awaited_once()
+    assert (
+        db_session.query(ProcessedWebhookEvent)
+        .filter_by(provider="stripe", provider_event_id="evt_duplicate_checkout_001")
+        .count()
+        == 1
+    )
+
+
+def test_webhook_event_ids_are_scoped_to_each_provider(db_session):
+    event = WebhookEvent(
+        event_type="ignored",
+        provider_subscription_id=None,
+        provider_customer_id=None,
+        status=None,
+        client_reference_id=None,
+        event_id="shared-event-id",
+    )
+
+    assert _claim_webhook_event(event, "stripe", db_session) is True
+    db_session.commit()
+    assert _claim_webhook_event(event, "stripe", db_session) is False
+    assert _claim_webhook_event(event, "paypal", db_session) is True
+    db_session.commit()
+
+    assert db_session.query(ProcessedWebhookEvent).count() == 2
+
+
+def test_webhook_without_provider_event_id_is_rejected(client, monkeypatch, db_session):
+    provider = MagicMock()
+    provider.verify_webhook.return_value = WebhookEvent(
+        event_type="ignored",
+        provider_subscription_id=None,
+        provider_customer_id=None,
+        status=None,
+        client_reference_id=None,
+    )
+    monkeypatch.setattr(billing_router_module, "get_payment_provider", lambda: provider)
+
+    response = client.post("/billing/webhook/stripe", json={"type": "signed"})
+
+    assert response.status_code == 400
+    assert db_session.query(ProcessedWebhookEvent).count() == 0
+
+
+def test_unmatched_subscription_update_is_retryable_and_not_recorded(
+    client, monkeypatch, db_session
+):
+    provider = MagicMock()
+    provider.verify_webhook.return_value = WebhookEvent(
+        event_type="subscription_updated",
+        provider_subscription_id="sub_not_created_yet",
+        provider_customer_id="cus_future",
+        status="past_due",
+        client_reference_id=None,
+        event_id="evt_subscription_before_checkout",
+    )
+    monkeypatch.setattr(billing_router_module, "get_payment_provider", lambda: provider)
+
+    response = client.post("/billing/webhook/stripe", json={"type": "signed"})
+
+    assert response.status_code == 503
+    assert (
+        db_session.query(ProcessedWebhookEvent)
+        .filter_by(provider_event_id="evt_subscription_before_checkout")
+        .count()
+        == 0
+    )
+
+
+def test_unknown_signed_provider_event_is_recorded_and_deduplicated(
+    client, monkeypatch, db_session
+):
+    provider = MagicMock()
+    provider.verify_webhook.return_value = WebhookEvent(
+        event_type="ignored",
+        provider_subscription_id=None,
+        provider_customer_id=None,
+        status=None,
+        client_reference_id=None,
+        event_id="evt_unknown_001",
+    )
+    monkeypatch.setattr(billing_router_module, "get_payment_provider", lambda: provider)
+
+    first = client.post("/billing/webhook/stripe", json={"type": "signed"})
+    second = client.post("/billing/webhook/stripe", json={"type": "signed"})
+
+    assert first.status_code == 200
+    assert first.json()["duplicate"] is False
+    assert second.status_code == 200
+    assert second.json()["duplicate"] is True
+    assert db_session.query(ProcessedWebhookEvent).count() == 1

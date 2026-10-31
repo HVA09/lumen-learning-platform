@@ -80,6 +80,7 @@ def test_websocket_receives_realtime_notification_on_subscription_activated(clie
         mock_provider = MagicMock()
         mock_provider.verify_webhook = MagicMock(
             return_value=WebhookEvent(
+                event_id="evt_ws_subscription_activated_001",
                 event_type="checkout_completed",
                 provider_subscription_id="sub_ws",
                 provider_customer_id="cus_ws",
@@ -89,7 +90,8 @@ def test_websocket_receives_realtime_notification_on_subscription_activated(clie
             )
         )
         monkeypatch.setattr(billing_router_module, "get_payment_provider", lambda: mock_provider)
-        client.post("/billing/webhook/stripe", json={"type": "fake"})
+        webhook_response = client.post("/billing/webhook/stripe", json={"type": "fake"})
+        assert webhook_response.status_code == 200
 
         data = websocket.receive_json()
         assert data["title"] == "تم تفعيل اشتراكك"
