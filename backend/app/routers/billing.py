@@ -2,6 +2,7 @@
 مسارات الاشتراكات والدفع: عرض الخطط، بدء الدفع، إلغاء الاشتراك، واستقبال webhooks
 """
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.audit import log_event
@@ -11,6 +12,7 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.logging_config import get_logger
 from app.models.plan import Plan
+from app.models.processed_webhook_event import ProcessedWebhookEvent
 from app.models.subscription import Subscription, SubscriptionStatus
 from app.models.user import User
 from app.notifications import notify_realtime
@@ -107,12 +109,82 @@ async def cancel_subscription(
     return {"detail": "تم إلغاء الاشتراك"}
 
 
-async def _apply_webhook_event(event, provider_name: str, db: Session) -> None:
-    if event.event_type == "checkout_completed" and event.client_reference_id and event.plan_id:
-        user_id = int(event.client_reference_id)
-        plan_id = int(event.plan_id)
+def _claim_webhook_event(event, provider_name: str, db: Session) -> bool:
+    """Atomically claim an event ID. The unique key is scoped to the provider."""
+    event_id = (event.event_id or "").strip()
+    if not event_id or len(event_id) > 255:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="معرّف حدث الدفع مفقود أو غير صالح",
+        )
+
+    try:
+        # A savepoint lets us handle a concurrent duplicate without poisoning the
+        # request's outer transaction. The unique constraint is the final arbiter.
+        with db.begin_nested():
+            db.add(
+                ProcessedWebhookEvent(
+                    provider=provider_name,
+                    provider_event_id=event_id,
+                    event_type=event.event_type[:100],
+                )
+            )
+            db.flush()
+    except IntegrityError:
+        logger.info("تجاهل حدث دفع مكرر من %s: %s", provider_name, event_id)
+        return False
+
+    return True
+
+
+def _safe_billing_audit(
+    db: Session, event_type: str, description: str, user_id: int
+) -> None:
+    try:
+        log_event(db, event_type, description, user_id)
+    except Exception:
+        db.rollback()
+        logger.exception("تعذر حفظ سجل تدقيق حدث الدفع %s", event_type)
+
+
+async def _safe_billing_notification(
+    db: Session, user_id: int, title: str, body: str
+) -> None:
+    try:
+        await notify_realtime(db, user_id, title, body, "billing")
+    except Exception:
+        db.rollback()
+        logger.exception("تعذر إنشاء أو بث إشعار الدفع للمستخدم %s", user_id)
+
+
+async def _apply_webhook_event(event, provider_name: str, db: Session) -> bool:
+    """Apply a verified event. Return False when a supported event cannot yet be matched."""
+    if event.event_type == "checkout_completed":
+        if not (
+            event.client_reference_id
+            and event.plan_id
+            and event.provider_subscription_id
+        ):
+            return False
+        try:
+            user_id = int(event.client_reference_id)
+            plan_id = int(event.plan_id)
+        except (TypeError, ValueError):
+            return False
+
+        user = db.get(User, user_id)
+        plan = db.get(Plan, plan_id)
+        if not user or not plan:
+            return False
 
         existing = db.query(Subscription).filter(Subscription.user_id == user_id).first()
+        should_notify = (
+            existing is None
+            or existing.status != SubscriptionStatus.active
+            or existing.plan_id != plan_id
+            or existing.provider != provider_name
+            or existing.provider_subscription_id != event.provider_subscription_id
+        )
         if existing:
             existing.plan_id = plan_id
             existing.provider = provider_name
@@ -130,46 +202,113 @@ async def _apply_webhook_event(event, provider_name: str, db: Session) -> None:
                     status=SubscriptionStatus.active,
                 )
             )
+
+        # Commit the event receipt and entitlement change in the same transaction.
         db.commit()
-        log_event(db, "subscription_activated", f"تفعيل اشتراك عبر {provider_name}", user_id)
+        _safe_billing_audit(
+            db,
+            "subscription_activated",
+            f"تفعيل اشتراك عبر {provider_name}",
+            user_id,
+        )
 
-        plan = db.get(Plan, plan_id)
-        user = db.get(User, user_id)
-        if plan and user:
-            send_subscription_activated_email(user.email, plan.name)
-            await notify_realtime(
-                db, user_id, "تم تفعيل اشتراكك", f"خطتك الحالية الآن: {plan.name}", "billing"
+        if should_notify:
+            try:
+                send_subscription_activated_email(user.email, plan.name)
+            except Exception:
+                logger.exception("تعذر إرسال رسالة تفعيل الاشتراك للمستخدم %s", user_id)
+            await _safe_billing_notification(
+                db, user_id, "تم تفعيل اشتراكك", f"خطتك الحالية الآن: {plan.name}"
             )
+        return True
 
-    elif event.event_type in ("subscription_updated", "subscription_canceled"):
+    if event.event_type in ("subscription_updated", "subscription_canceled"):
+        if not event.provider_subscription_id or not event.status:
+            return False
+
         subscription = (
             db.query(Subscription)
-            .filter(Subscription.provider_subscription_id == event.provider_subscription_id)
+            .filter(
+                Subscription.provider == provider_name,
+                Subscription.provider_subscription_id == event.provider_subscription_id,
+            )
             .first()
         )
-        if subscription and event.status:
-            try:
-                subscription.status = SubscriptionStatus(event.status)
-            except ValueError:
-                pass  # حالة غير معروفة من المزوّد — نتجاهلها بدل ما نفشل الـ webhook كامل
-            db.commit()
-            log_event(
+        if not subscription:
+            # Do not permanently claim an event that arrived before its checkout
+            # record; return a retryable response so the provider can deliver it again.
+            return False
+
+        try:
+            new_status = SubscriptionStatus(event.status)
+        except ValueError:
+            logger.warning(
+                "حالة اشتراك غير معروفة من %s: %s", provider_name, event.status
+            )
+            return True
+
+        status_changed = subscription.status != new_status
+        subscription.status = new_status
+        subscription.provider_customer_id = (
+            event.provider_customer_id or subscription.provider_customer_id
+        )
+        user_id = subscription.user_id
+        db.commit()
+
+        if status_changed:
+            _safe_billing_audit(
                 db,
                 "subscription_status_changed",
-                f"اشتراك #{subscription.id} صار: {event.status}",
-                subscription.user_id,
+                f"اشتراك #{subscription.id} صار: {new_status.value}",
+                user_id,
             )
-            if subscription.status == SubscriptionStatus.canceled:
-                user = db.get(User, subscription.user_id)
+            if new_status == SubscriptionStatus.canceled:
+                user = db.get(User, user_id)
                 if user:
-                    send_subscription_canceled_email(user.email)
-                    await notify_realtime(
+                    try:
+                        send_subscription_canceled_email(user.email)
+                    except Exception:
+                        logger.exception(
+                            "تعذر إرسال رسالة إلغاء الاشتراك للمستخدم %s", user_id
+                        )
+                    await _safe_billing_notification(
                         db,
-                        subscription.user_id,
+                        user_id,
                         "تم إلغاء اشتراكك",
                         "رجعت لحدود الخطة المجانية.",
-                        "billing",
                     )
+        return True
+
+    # Unknown but correctly signed provider events are recorded and acknowledged.
+    return True
+
+
+async def _process_verified_webhook_event(event, provider_name: str, db: Session) -> dict:
+    if not _claim_webhook_event(event, provider_name, db):
+        return {"received": True, "duplicate": True}
+
+    try:
+        handled = await _apply_webhook_event(event, provider_name, db)
+        if not handled:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="تعذر ربط حدث الدفع باشتراك حالي؛ سيعيد مزود الدفع المحاولة",
+            )
+        # Also persist verified, intentionally ignored event types.
+        db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        logger.exception("فشل تطبيق حدث webhook من %s", provider_name)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="تعذر معالجة حدث الدفع",
+        ) from exc
+
+    return {"received": True, "duplicate": False}
 
 
 @router.post("/webhook/stripe", include_in_schema=False)
@@ -182,8 +321,7 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
         logger.warning("توقيع Stripe webhook غير صالح: %s", exc)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="توقيع غير صالح")
 
-    await _apply_webhook_event(event, "stripe", db)
-    return {"received": True}
+    return await _process_verified_webhook_event(event, "stripe", db)
 
 
 @router.post("/webhook/paypal", include_in_schema=False)
@@ -199,5 +337,4 @@ async def paypal_webhook(request: Request, db: Session = Depends(get_db)):
         logger.warning("توقيع PayPal webhook غير صالح: %s", exc)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="توقيع غير صالح")
 
-    await _apply_webhook_event(event, "paypal", db)
-    return {"received": True}
+    return await _process_verified_webhook_event(event, "paypal", db)
