@@ -269,7 +269,7 @@ def test_upload_runs_malware_scan_before_persisting_attachment(
     ("setting_name", "setting_value"),
     [("MAX_USER_STORAGE_MB", 0), ("MAX_USER_FILES", 0)],
 )
-def test_upload_rejects_exhausted_quota_before_disk_write_or_scan(
+def test_upload_rejects_exhausted_quota_before_storage_write_or_scan(
     client, tmp_path, monkeypatch, setting_name, setting_value
 ):
     monkeypatch.setattr(app_settings, "UPLOAD_DIR", str(tmp_path))
@@ -303,13 +303,14 @@ def test_upload_removes_temporary_file_when_attachment_commit_fails(
         raise RuntimeError("simulated database commit failure")
 
     monkeypatch.setattr(db_session, "commit", fail_commit)
-    with pytest.raises(RuntimeError, match="simulated database commit failure"):
-        client.post(
-            "/files/upload",
-            files={"file": ("failed.png", PNG_BYTES, "image/png")},
-            headers={"Authorization": f"Bearer {token}"},
-        )
+    response = client.post(
+        "/files/upload",
+        files={"file": ("failed.png", PNG_BYTES, "image/png")},
+        headers={"Authorization": f"Bearer {token}"},
+    )
 
+    assert response.status_code == 500
+    assert response.json() == {"detail": "حدث خطأ غير متوقع في الخادم"}
     assert not [path for path in tmp_path.rglob("*") if path.is_file()]
     assert db_session.query(FileAttachment).count() == 0
 
