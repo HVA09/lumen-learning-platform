@@ -232,7 +232,7 @@ def verify_archived_state(database_url: str, ids: tuple[int, int, int, int]) -> 
 
 def verify_downgraded_state(database_url: str, ids: tuple[int, int, int, int]) -> None:
     user_id, message_id, usage_id, submission_id = ids
-    engine = create_engine(database_url)
+    engine = create_test_engine(database_url)
     with engine.connect() as connection:
         message = connection.execute(
             text(
