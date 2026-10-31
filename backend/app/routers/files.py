@@ -172,7 +172,7 @@ async def upload_file(
     max_user_bytes = max(0, settings.MAX_USER_STORAGE_MB) * 1024 * 1024
     max_user_files = max(0, settings.MAX_USER_FILES)
 
-    # Reject exhausted accounts before creating a temporary file or invoking ClamAV.
+    # Reject exhausted accounts before creating an application-owned upload file or invoking ClamAV.
     if file_count >= max_user_files:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
