@@ -5,6 +5,7 @@ psycopg2-binary>=2.9
 pydantic[email]>=2.9
 pydantic-settings>=2.6
 python-jose[cryptography]>=3.3
+cryptography>=42.0
 passlib[bcrypt]>=1.7
 # passlib 1.7.4 is incompatible with bcrypt 5.x; pin to a compatible API range.
 bcrypt>=4.0.1,<4.1
