@@ -121,6 +121,8 @@ jobs:
           chmod 600 "$test_dir/secrets/restic-password"
           printf '%s\n' 'ci offsite restore sentinel' | gzip -c > "$test_dir/backups/backup_20261031_010000.sql.gz"
           docker run --rm --user "$(id -u):$(id -g)" --entrypoint /bin/sh \
+            -e HOME=/tmp/restic-home \
+            -e RESTIC_CACHE_DIR=/tmp/restic-cache \
             -e RESTIC_REPOSITORY=/repo \
             -e RESTIC_PASSWORD_FILE=/run/secrets/restic-password \
             -e RESTIC_HOST=lumen-ci-backup \
@@ -137,6 +139,7 @@ jobs:
             -v "$GITHUB_WORKSPACE/backend/scripts/offsite-backup.sh:/scripts/offsite-backup.sh:ro" \
             restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510 \
             -ec '
+              mkdir -p "$HOME" "$RESTIC_CACHE_DIR"
               restic init
               /bin/sh /scripts/offsite-backup.sh
               /bin/sh /scripts/offsite-backup.sh
