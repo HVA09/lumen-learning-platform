@@ -52,6 +52,7 @@ class StripeProvider(PaymentProvider):
                 status="active",
                 client_reference_id=data.get("client_reference_id"),
                 plan_id=(data.get("metadata") or {}).get("plan_id"),
+                event_id=event.get("id"),
             )
         if stripe_type == "customer.subscription.updated":
             return WebhookEvent(
@@ -60,6 +61,7 @@ class StripeProvider(PaymentProvider):
                 provider_customer_id=data.get("customer"),
                 status=data.get("status"),
                 client_reference_id=None,
+                event_id=event.get("id"),
             )
         if stripe_type == "customer.subscription.deleted":
             return WebhookEvent(
@@ -75,4 +77,5 @@ class StripeProvider(PaymentProvider):
             provider_customer_id=None,
             status=None,
             client_reference_id=None,
+            event_id=event.get("id"),
         )
