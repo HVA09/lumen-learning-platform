@@ -297,3 +297,17 @@ def test_refresh_rotates_cookie_tokens_and_csrf_token(client):
     assert client.cookies.get("lumen_access") != old_access
     assert client.cookies.get("lumen_refresh") != old_refresh
     assert client.cookies.get("lumen_csrf") == refreshed.json()["csrf_token"]
+
+    # Replaying the old refresh token revokes only this browser session.
+    client.cookies.set(
+        "lumen_refresh",
+        old_refresh,
+        domain="testserver.local",
+        path="/auth",
+    )
+    replayed = client.post(
+        "/auth/refresh",
+        headers={"X-CSRF-Token": client.cookies.get("lumen_csrf")},
+    )
+    assert replayed.status_code == 401
+    assert client.get("/users/me").status_code == 401
