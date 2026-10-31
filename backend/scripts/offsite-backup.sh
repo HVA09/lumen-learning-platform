@@ -17,10 +17,11 @@ fail() {
 
 require_positive_integer() {
   case "$2" in
-    ""|*[!0-9]*|0)
+    ""|*[!0-9]*)
       fail "$1 must be a positive integer."
       ;;
   esac
+  [ "$2" -gt 0 ] || fail "$1 must be greater than zero."
 }
 
 [ -n "${RESTIC_REPOSITORY:-}" ] || fail "RESTIC_REPOSITORY is required."
