@@ -3,6 +3,7 @@
 تأكيد البريد الإلكتروني، وإعادة تعيين كلمة المرور
 """
 from datetime import datetime, timedelta, timezone
+import secrets
 
 import pyotp
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -10,6 +11,7 @@ from jose import JWTError
 from sqlalchemy.orm import Session
 
 from app.auth.cookies import (
+    ACCESS_COOKIE_NAME,
     REFRESH_COOKIE_NAME,
     clear_auth_cookies,
     create_csrf_token,
@@ -18,6 +20,7 @@ from app.auth.cookies import (
     set_csrf_cookie,
     verify_csrf_request,
 )
+from app.auth.sessions import create_browser_session, hash_refresh_jti, refresh_jti_matches
 from app.auth.totp_secrets import (
     TOTPSecretError,
     decrypt_totp_secret,
@@ -37,6 +40,7 @@ from app.audit import log_event
 from app.config import settings
 from app.database import get_db
 from app.dependencies import get_current_user
+from app.models.auth_session import AuthSession
 from app.models.user import User, UserRole
 from app.notifications import notify
 from app.schemas.auth import (
@@ -178,8 +182,8 @@ def login(
         db.commit()
 
     log_event(db, "login", f"تسجيل دخول: {user.email}", user.id)
-    access_token = create_access_token(user.id, user.token_version)
-    refresh_token = create_refresh_token(user.id, user.token_version)
+    access_token, refresh_token, _ = create_browser_session(db, user)
+    db.commit()
     csrf_token = create_csrf_token()
     set_auth_cookies(response, access_token, refresh_token, csrf_token)
     return {"authenticated": True, "csrf_token": csrf_token}
@@ -199,31 +203,85 @@ def refresh(request: Request, response: Response, db: Session = Depends(get_db))
         if data.get("type") != "refresh":
             raise ValueError("ليس refresh token")
         user_id = int(data.get("sub"))
+        session_id = data.get("sid")
+        refresh_jti = data.get("jti")
+        if not isinstance(session_id, str) or not isinstance(refresh_jti, str):
+            raise ValueError("refresh token is not bound to a server-side session")
     except (JWTError, TypeError, ValueError):
         raise invalid_token_error
 
+    auth_session = (
+        db.query(AuthSession)
+        .filter(AuthSession.id == session_id)
+        .with_for_update()
+        .first()
+    )
     user = db.get(User, user_id)
+    now = datetime.now(timezone.utc)
     if (
-        user is None
+        auth_session is None
+        or auth_session.user_id != user_id
+        or auth_session.revoked_at is not None
+        or auth_session.expires_at <= now
+        or user is None
         or not user.is_active
         or data.get("ver", 0) != user.token_version
     ):
         raise invalid_token_error
 
-    access_token = create_access_token(user.id, user.token_version)
-    rotated_refresh_token = create_refresh_token(user.id, user.token_version)
+    if not refresh_jti_matches(auth_session, refresh_jti):
+        # A previously rotated refresh token was replayed. Revoke this session
+        # to prevent an attacker from continuing to use the same token family.
+        auth_session.revoked_at = now
+        db.commit()
+        raise invalid_token_error
+
+    next_refresh_jti = secrets.token_urlsafe(32)
+    auth_session.refresh_jti_hash = hash_refresh_jti(next_refresh_jti)
+    auth_session.last_used_at = now
+    auth_session.expires_at = now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+
+    access_token = create_access_token(
+        user.id, user.token_version, session_id=auth_session.id
+    )
+    rotated_refresh_token = create_refresh_token(
+        user.id,
+        user.token_version,
+        session_id=auth_session.id,
+        jti=next_refresh_jti,
+    )
     csrf_token = create_csrf_token()
+    db.commit()
     set_auth_cookies(response, access_token, rotated_refresh_token, csrf_token)
     return {"authenticated": True, "csrf_token": csrf_token}
 
 
 @router.post("/logout")
 def logout(
+    request: Request,
     response: Response,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    current_user.token_version += 1
+    access_token = request.cookies.get(ACCESS_COOKIE_NAME)
+    authorization = request.headers.get("authorization", "")
+    if not access_token and authorization.lower().startswith("bearer "):
+        access_token = authorization[7:].strip()
+
+    session_id = None
+    if access_token:
+        try:
+            session_id = decode_token(access_token).get("sid")
+        except JWTError:
+            session_id = None
+
+    if isinstance(session_id, str):
+        auth_session = db.get(AuthSession, session_id)
+        if auth_session is not None and auth_session.user_id == current_user.id:
+            auth_session.revoked_at = datetime.now(timezone.utc)
+    else:
+        # Legacy stateless Bearer tokens have no server-side session to revoke.
+        current_user.token_version += 1
     db.commit()
     clear_auth_cookies(response)
     csrf_token = create_csrf_token()
