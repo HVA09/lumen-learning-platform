@@ -20,6 +20,7 @@ def test_totp_secret_round_trip_is_encrypted(monkeypatch):
     assert stored.startswith(TOTP_SECRET_PREFIX)
     assert stored != secret
     assert secret not in stored
+    assert len(stored) <= 255
     assert is_encrypted_totp_secret(stored)
     assert decrypt_totp_secret(stored) == secret
 
