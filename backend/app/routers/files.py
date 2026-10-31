@@ -9,17 +9,25 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.audit import log_event
 from app.config import settings
 from app.database import get_db
 from app.dependencies import get_current_user
+from app.logging_config import get_logger
 from app.models.file_attachment import FileAttachment
 from app.models.user import User
+from app.services.malware_scanner import (
+    MalwareDetected,
+    MalwareScannerUnavailable,
+    scan_file_with_clamav,
+)
 from app.schemas.file import FileOut
 
 router = APIRouter(prefix="/files", tags=["Files"])
+logger = get_logger("files")
 
 ALLOWED_CONTENT_TYPES = {
     "image/jpeg",
@@ -139,7 +147,7 @@ async def upload_file(
 
     # Stream in bounded chunks; an oversized request never gets loaded all at once.
     try:
-        with destination.open("wb") as output:
+        with destination.open("xb") as output:
             while chunk := await file.read(64 * 1024):
                 size_bytes += len(chunk)
                 if size_bytes > max_bytes:
@@ -154,22 +162,86 @@ async def upload_file(
                 status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
                 detail="محتوى الملف أو امتداده لا يطابق نوع الملف المعلن",
             )
+
+        if settings.MALWARE_SCAN_ENABLED:
+            try:
+                await scan_file_with_clamav(destination)
+            except MalwareDetected as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="تم رفض الملف لأنه يحتوي على محتوى ضار",
+                ) from exc
+            except MalwareScannerUnavailable as exc:
+                logger.error(
+                    "Malware scanner unavailable; rejecting upload for user %s",
+                    current_user.id,
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="فحص الملفات غير متاح حالياً. حاول مرة أخرى لاحقاً",
+                ) from exc
+        else:
+            logger.warning(
+                "Malware scanning is disabled for upload by user %s",
+                current_user.id,
+            )
+
+        # Serialize quota checks for this user. The row lock is held until the
+        # attachment metadata is committed, preventing concurrent requests from
+        # both consuming the same remaining quota.
+        locked_user_id = (
+            db.query(User.id)
+            .filter(User.id == current_user.id)
+            .with_for_update()
+            .scalar()
+        )
+        if locked_user_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="الحساب غير متاح",
+            )
+
+        used_bytes = (
+            db.query(func.coalesce(func.sum(FileAttachment.size_bytes), 0))
+            .filter(FileAttachment.user_id == current_user.id)
+            .scalar()
+            or 0
+        )
+        file_count = (
+            db.query(func.count(FileAttachment.id))
+            .filter(FileAttachment.user_id == current_user.id)
+            .scalar()
+            or 0
+        )
+        max_user_bytes = max(0, settings.MAX_USER_STORAGE_MB) * 1024 * 1024
+        if file_count >= max(0, settings.MAX_USER_FILES):
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail="وصلت إلى الحد الأقصى لعدد الملفات المسموح به لحسابك",
+            )
+        if used_bytes + size_bytes > max_user_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail="لا توجد مساحة تخزين كافية متبقية في حسابك",
+            )
+
+        attachment = FileAttachment(
+            user_id=current_user.id,
+            original_filename=file.filename or stored_filename,
+            stored_filename=stored_filename,
+            content_type=file.content_type,
+            size_bytes=size_bytes,
+        )
+        db.add(attachment)
+        db.commit()
+        db.refresh(attachment)
     except Exception:
+        db.rollback()
         destination.unlink(missing_ok=True)
         raise
     finally:
         await file.close()
 
-    attachment = FileAttachment(
-        user_id=current_user.id,
-        original_filename=file.filename or stored_filename,
-        stored_filename=stored_filename,
-        content_type=file.content_type,
-        size_bytes=size_bytes,
-    )
-    db.add(attachment)
-    db.commit()
-    db.refresh(attachment)
     log_event(
         db,
         "file_uploaded",
