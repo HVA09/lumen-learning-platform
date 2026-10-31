@@ -183,3 +183,18 @@ def test_successful_login_migrates_legacy_plaintext_secret(client, db_session):
     db_session.refresh(user)
     assert user.totp_secret.startswith(TOTP_SECRET_PREFIX)
     assert decrypt_totp_secret(user.totp_secret) == legacy_secret
+
+
+
+def test_setup_fails_closed_when_encryption_key_is_missing(client, monkeypatch):
+    from app.config import settings
+
+    token = _register_and_login(client, "missing-totp-key@example.com")
+    monkeypatch.setattr(settings, "TOTP_ENCRYPTION_KEY", "")
+
+    response = client.post(
+        "/auth/2fa/setup",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 503
