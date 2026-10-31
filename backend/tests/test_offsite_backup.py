@@ -159,8 +159,41 @@ def test_offsite_backup_skips_archive_already_present_in_repository(
     assert _calls(calls_file) == [
         "cat config",
         "snapshots --json --tag lumen-postgres",
+        (
+            "forget --group-by host,tags --tag lumen-postgres "
+            "--keep-daily 7 --keep-weekly 4 --keep-monthly 12 "
+            "--keep-yearly 3 --prune"
+        ),
+        "check",
     ]
     assert "already present" in result.stdout.lower()
+
+
+def test_offsite_backup_retries_retention_when_all_archives_are_already_uploaded(
+    tmp_path: Path,
+) -> None:
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+    latest = _archive(backup_dir, "backup_20261031_010000.sql.gz")
+    snapshots = (
+        '[{"id":"snapshot-id","paths":['
+        f'"{latest}"'
+        '],"tags":["lumen-postgres"]}]'
+    )
+    env, calls_file = _environment(
+        tmp_path, snapshots=snapshots, fail_command="forget"
+    )
+
+    result = _run(env)
+
+    assert result.returncode == 47
+    calls = _calls(calls_file)
+    assert calls[:2] == [
+        "cat config",
+        "snapshots --json --tag lumen-postgres",
+    ]
+    assert calls[2].startswith("forget ")
+    assert "check" not in calls
 
 
 def test_offsite_backup_uploads_only_archives_missing_from_remote_repository(
