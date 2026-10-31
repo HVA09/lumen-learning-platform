@@ -506,3 +506,38 @@ def test_lti_endpoint_validator_blocks_local_hostnames_in_production(monkeypatch
         with pytest.raises(ValueError):
             lti_service_module.validate_lti_platform_endpoint_url(url)
 
+
+
+def test_lti_dns_validation_rejects_any_non_public_answer():
+    with pytest.raises(ValueError):
+        lti_service_module._validate_lti_resolved_addresses(
+            ["8.8.8.8", "10.20.30.40"]
+        )
+
+    with pytest.raises(ValueError):
+        lti_service_module._validate_lti_resolved_addresses(
+            ["2606:4700:4700::1111", "fe80::1"]
+        )
+
+
+def test_lti_endpoint_pin_preserves_original_host_and_tls_sni(monkeypatch):
+    monkeypatch.setattr(lti_service_module.settings, "ENVIRONMENT", "production")
+
+    pinned_url, headers, extensions = lti_service_module._pin_lti_endpoint_url(
+        "https://moodle.example.com:8443/jwks",
+        ["8.8.8.8", "1.1.1.1"],
+    )
+
+    assert pinned_url == "https://8.8.8.8:8443/jwks"
+    assert headers == {"Host": "moodle.example.com:8443"}
+    assert extensions == {"sni_hostname": "moodle.example.com"}
+
+
+def test_lti_endpoint_pin_rejects_private_address_even_when_public_ip_is_first(monkeypatch):
+    monkeypatch.setattr(lti_service_module.settings, "ENVIRONMENT", "production")
+
+    with pytest.raises(ValueError):
+        lti_service_module._pin_lti_endpoint_url(
+            "https://moodle.example.com/jwks",
+            ["8.8.8.8", "192.168.1.10"],
+        )
