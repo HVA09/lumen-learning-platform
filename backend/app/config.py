@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    AUTH_COOKIE_SAMESITE: str = "lax"  # lax | strict | none
 
     # رابط الفرونت اند — يُستخدم لبناء روابط تأكيد البريد/إعادة تعيين كلمة المرور
     FRONTEND_URL: str = "http://localhost:5173"
@@ -73,6 +74,12 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_production_settings(self) -> "Settings":
+        same_site = self.AUTH_COOKIE_SAMESITE.strip().lower()
+        if same_site not in {"lax", "strict", "none"}:
+            raise ValueError("AUTH_COOKIE_SAMESITE must be lax, strict, or none")
+        if same_site == "none" and self.ENVIRONMENT.strip().lower() != "production":
+            raise ValueError("AUTH_COOKIE_SAMESITE=none requires production HTTPS cookies")
+
         encryption_key = self.TOTP_ENCRYPTION_KEY.strip()
         if encryption_key:
             try:
