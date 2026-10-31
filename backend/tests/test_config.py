@@ -1,4 +1,5 @@
 import pytest
+from cryptography.fernet import Fernet
 from pydantic import ValidationError
 
 from app.config import Settings
@@ -13,6 +14,7 @@ def _production_settings(**overrides):
         "DEBUG": False,
         "FRONTEND_URL": "https://learn.example.com",
         "CORS_ORIGINS": ["https://learn.example.com"],
+        "TOTP_ENCRYPTION_KEY": Fernet.generate_key().decode("ascii"),
     }
     values.update(overrides)
     return Settings(**values)
@@ -50,3 +52,14 @@ def test_postgresql_urls_select_installed_psycopg2_driver():
     assert normalize_database_url("postgresql+psycopg://user:pass@db:5432/lumen") == (
         "postgresql+psycopg2://user:pass@db:5432/lumen"
     )
+
+
+
+def test_production_requires_totp_encryption_key():
+    with pytest.raises(ValidationError, match="TOTP_ENCRYPTION_KEY is required"):
+        _production_settings(TOTP_ENCRYPTION_KEY="")
+
+
+def test_production_rejects_invalid_totp_encryption_key():
+    with pytest.raises(ValidationError, match="valid URL-safe Fernet key"):
+        _production_settings(TOTP_ENCRYPTION_KEY="not-a-fernet-key")
