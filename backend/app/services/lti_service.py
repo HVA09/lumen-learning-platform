@@ -15,7 +15,7 @@ import json
 import socket
 import uuid
 from datetime import datetime, timezone
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 from cryptography.hazmat.primitives import serialization
