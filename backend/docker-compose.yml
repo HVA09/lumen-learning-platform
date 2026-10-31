@@ -45,7 +45,7 @@ services:
   # Internal malware scanner. Port 3310 is deliberately not published to the host.
   clamav:
     # The _base image is intended for a persistent signature volume.
-    image: clamav/clamav:stable_base
+    image: clamav/clamav:1.4.6_base
     restart: unless-stopped
     volumes:
       - clamav_db:/var/lib/clamav
