@@ -1,11 +1,12 @@
 """
 Dependencies مشتركة بين المسارات: المستخدم الحالي، وصلاحيات الأدوار (admin / معلّم)
 """
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError
 from sqlalchemy.orm import Session
 
+from app.auth.cookies import access_cookie_name
 from app.auth.security import decode_token
 from app.database import get_db
 from app.logging_config import get_logger
@@ -14,19 +15,23 @@ from app.models.user import User, UserRole
 logger = get_logger("dependencies")
 
 # tokenUrl هنا لأغراض توثيق Swagger فقط — الدخول الفعلي عبر /auth/login بصيغة JSON
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
 
 
 def get_current_user(
-    token: str = Depends(oauth2_scheme),
+    request: Request,
+    token: str | None = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
 ) -> User:
-    """Validate JWT and its account session version before loading the user."""
+    """Validate bearer tokens for API clients or HttpOnly cookies for browsers."""
     credentials_error = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="بيانات الدخول غير صالحة",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    token = token or request.cookies.get(access_cookie_name())
+    if not token:
+        raise credentials_error
     try:
         payload = decode_token(token)
         if payload.get("type") != "access":
