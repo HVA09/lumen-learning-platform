@@ -42,5 +42,6 @@ class User(Base):
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Two Factor Authentication (TOTP)
-    totp_secret: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Fernet ciphertext is longer than a base32 secret; legacy plaintext is upgraded lazily.
+    totp_secret: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_2fa_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
