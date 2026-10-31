@@ -221,6 +221,18 @@ def test_offsite_backup_rejects_missing_repository_or_password_file(
     assert _calls(calls_file) == []
 
 
+def test_offsite_backup_rejects_zero_retention_policy(tmp_path: Path) -> None:
+    env, calls_file = _environment(tmp_path)
+    _archive(Path(env["BACKUP_DIR"]), "backup_20261031_010000.sql.gz")
+    env["RESTIC_KEEP_DAILY"] = "0"
+
+    result = _run(env)
+
+    assert result.returncode != 0
+    assert "greater than zero" in result.stderr
+    assert _calls(calls_file) == []
+
+
 def test_offsite_backup_waits_without_local_archive(tmp_path: Path) -> None:
     env, calls_file = _environment(tmp_path)
     Path(env["BACKUP_DIR"]).mkdir()
