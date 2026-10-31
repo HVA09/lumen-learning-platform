@@ -111,6 +111,40 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes postgresql-client-16
+      - name: Exercise encrypted offsite backups with Restic
+        run: |
+          set -eu
+          test_dir="$(mktemp -d)"
+          trap 'rm -rf "$test_dir"' EXIT
+          mkdir -p "$test_dir/backups" "$test_dir/repository" "$test_dir/secrets" "$test_dir/restore"
+          printf '%s\\n' 'ci-only-restic-passphrase-not-for-deployment' > "$test_dir/secrets/restic-password"
+          chmod 600 "$test_dir/secrets/restic-password"
+          printf '%s\\n' 'ci offsite restore sentinel' | gzip -c > "$test_dir/backups/backup_20261031_010000.sql.gz"
+          docker run --rm --entrypoint /bin/sh \\
+            -e RESTIC_REPOSITORY=/repo \\
+            -e RESTIC_PASSWORD_FILE=/run/secrets/restic-password \\
+            -e RESTIC_HOST=lumen-ci-backup \\
+            -e RESTIC_BACKUP_TAG=lumen-ci \\
+            -e RESTIC_KEEP_DAILY=7 \\
+            -e RESTIC_KEEP_WEEKLY=4 \\
+            -e RESTIC_KEEP_MONTHLY=12 \\
+            -e RESTIC_KEEP_YEARLY=3 \\
+            -e BACKUP_DIR=/backups \\
+            -v "$test_dir/backups:/backups:ro" \\
+            -v "$test_dir/repository:/repo" \\
+            -v "$test_dir/secrets:/run/secrets:ro" \\
+            -v "$GITHUB_WORKSPACE/backend/scripts/offsite-backup.sh:/scripts/offsite-backup.sh:ro" \\
+            restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510 \\
+            -ec '
+              restic init
+              /bin/sh /scripts/offsite-backup.sh
+              /bin/sh /scripts/offsite-backup.sh
+              test "$(restic snapshots --json --tag lumen-ci | jq length)" -eq 1
+              restic restore latest --target /restore
+              restored="$(find /restore -type f -name "backup_*.sql.gz" -print -quit)"
+              test -n "$restored"
+              gzip -dc "$restored" | grep -q "ci offsite restore sentinel"
+            '
       - name: Verify migration data preservation and downgrade
         env:
           MIGRATION_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/lumen_migration_preservation_test
