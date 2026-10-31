@@ -38,8 +38,8 @@ def _platform(db_session):
 
 
 def _make_pending_event(client, db_session, *, grade=84.0):
-    teacher_token = make_teacher(client, db_session, "ags-teacher@example.test")
-    student_token = make_student(client, "ags-student@example.test")
+    teacher_token = make_teacher(client, db_session, "ags-teacher@example.com")
+    student_token = make_student(client, "ags-student@example.com")
     assignment_response = client.post(
         "/assignments",
         json={"title": "AGS assignment", "description": "Grade passback test"},
@@ -57,7 +57,7 @@ def _make_pending_event(client, db_session, *, grade=84.0):
         score_scope_allowed=True,
         score_maximum=100.0,
     )
-    student = db_session.query(User).filter(User.email == "ags-student@example.test").one()
+    student = db_session.query(User).filter(User.email == "ags-student@example.com").one()
     db_session.add(mapping)
     db_session.add(
         LTIUserLink(
@@ -89,14 +89,14 @@ def _make_pending_event(client, db_session, *, grade=84.0):
 
 
 def test_assignment_link_is_admin_only_and_unique(client, db_session):
-    teacher = make_teacher(client, db_session, "ags-map-teacher@example.test")
+    teacher = make_teacher(client, db_session, "ags-map-teacher@example.com")
     assignment = client.post(
         "/assignments",
         json={"title": "Mapped assignment", "description": "For LTI"},
         headers=auth(teacher),
     ).json()
-    admin_token = register_and_login(client, "ags-map-admin@example.test")
-    set_role(db_session, "ags-map-admin@example.test", UserRole.admin)
+    admin_token = register_and_login(client, "ags-map-admin@example.com")
+    set_role(db_session, "ags-map-admin@example.com", UserRole.admin)
     platform = _platform(db_session)
     payload = {
         "platform_id": platform.id,
@@ -118,7 +118,7 @@ def test_assignment_link_is_admin_only_and_unique(client, db_session):
 def test_launch_context_requires_score_scope_and_same_platform_origin(db_session):
     platform = _platform(db_session)
     # Use a real user row for the assignment foreign key.
-    owner = User(email="ags-owner@example.test", hashed_password="not-used")
+    owner = User(email="ags-owner@example.com", hashed_password="not-used")
     db_session.add(owner)
     db_session.flush()
     assignment = Assignment(
@@ -181,7 +181,7 @@ def test_teacher_grading_creates_one_outbox_event_per_grade_version(client, db_s
 
     submission = db_session.get(AssignmentSubmission, first_event.submission_id)
     # Only the original assignment creator can grade; use that account again.
-    teacher_token = auth(register_and_login(client, "ags-teacher@example.test"))
+    teacher_token = auth(register_and_login(client, "ags-teacher@example.com"))
     second = client.post(
         f"/assignments/{submission.assignment_id}/submissions/{submission.id}/grade",
         json={"grade_percentage": 91, "feedback": "Regraded"},
