@@ -13,7 +13,7 @@ PDF_BYTES = b"%PDF-1.7\nvalid-test-pdf-payload"
 def _register_and_login(client, email="files@example.com", password="StrongPass123"):
     client.post("/auth/register", json={"email": email, "password": password})
     login_response = client.post("/auth/login", json={"email": email, "password": password})
-    return login_response.json()["access_token"]
+    return login_response.cookies.get("lumen_access")
 
 
 def _minimal_docx_bytes():

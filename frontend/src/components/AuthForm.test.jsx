@@ -25,10 +25,10 @@ describe("AuthForm", () => {
     expect(screen.getByRole("button", { name: "إنشاء حساب" })).toBeInTheDocument();
   });
 
-  it("عند نجاح الدخول يخزّن التوكن وينادي onAuthenticated", async () => {
+  it("عند نجاح الدخول لا يخزّن JWT في localStorage وينادي onAuthenticated", async () => {
     authApi.loginUser.mockResolvedValue({
-      access_token: "fake-access",
-      refresh_token: "fake-refresh",
+      authenticated: true,
+      csrf_token: "fake-csrf",
     });
     const onAuthenticated = vi.fn();
     const user = userEvent.setup();
@@ -39,7 +39,8 @@ describe("AuthForm", () => {
     await user.click(screen.getByRole("button", { name: "دخول" }));
 
     await waitFor(() => expect(onAuthenticated).toHaveBeenCalled());
-    expect(localStorage.getItem("access_token")).toBe("fake-access");
+    expect(localStorage.getItem("access_token")).toBeNull();
+    expect(localStorage.getItem("refresh_token")).toBeNull();
     expect(authApi.registerUser).not.toHaveBeenCalled();
   });
 
@@ -60,8 +61,8 @@ describe("AuthForm", () => {
   it("عند إنشاء حساب جديد ينادي registerUser ثم loginUser بنفس البيانات", async () => {
     authApi.registerUser.mockResolvedValue({ id: 1, email: "new@example.com" });
     authApi.loginUser.mockResolvedValue({
-      access_token: "fake-access",
-      refresh_token: "fake-refresh",
+      authenticated: true,
+      csrf_token: "fake-csrf",
     });
     const onAuthenticated = vi.fn();
     const user = userEvent.setup();

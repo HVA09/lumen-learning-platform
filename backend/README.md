@@ -265,3 +265,15 @@ alembic upgrade head
 
 **ملاحظة:** تصحيح الدرجات التلقائي (Grade Passback / AGS) ما بُني بهذي المرحلة —
 المستخدم يدخل ويشتغل بـ Lumen عاديًا، بس درجاته ما ترجع تلقائيًا لسجل درجات Moodle.
+
+## Browser session security
+
+Browser authentication uses server-issued `HttpOnly` access and refresh cookies. The login response intentionally contains no JWT values. The frontend bootstraps a CSRF token through `GET /auth/csrf` and sends it in the `X-CSRF-Token` header on state-changing requests. `POST /auth/refresh` rotates the browser cookies, and `POST /auth/logout` increments the user's token version to revoke the current account sessions.
+
+The notification WebSocket authenticates only from the access cookie and rejects untrusted `Origin` values. Bearer authentication remains available for non-browser API clients, but browser code must not persist JWTs in `localStorage` or put them in URLs.
+
+Cookie configuration:
+
+- `AUTH_COOKIE_SAMESITE=lax` is the default for same-site deployments.
+- Set `AUTH_COOKIE_SAMESITE=none` only when the frontend and API are on different sites; production cookies are then marked `Secure` and require HTTPS.
+- Keep `CORS_ORIGINS` restricted to the exact trusted frontend origins. Credentialed CORS must never use a wildcard.

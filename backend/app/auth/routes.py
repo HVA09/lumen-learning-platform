@@ -5,10 +5,19 @@
 from datetime import datetime, timedelta, timezone
 
 import pyotp
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from jose import JWTError
 from sqlalchemy.orm import Session
 
+from app.auth.cookies import (
+    REFRESH_COOKIE_NAME,
+    clear_auth_cookies,
+    create_csrf_token,
+    issue_csrf_cookie,
+    set_auth_cookies,
+    set_csrf_cookie,
+    verify_csrf_request,
+)
 from app.auth.totp_secrets import (
     TOTPSecretError,
     decrypt_totp_secret,
@@ -35,8 +44,6 @@ from app.schemas.auth import (
     LoginRequest,
     PasswordResetConfirm,
     PasswordResetRequest,
-    RefreshRequest,
-    Token,
 )
 from app.schemas.user import UserCreate, UserOut
 from app.services.email_service import (
@@ -46,6 +53,12 @@ from app.services.email_service import (
 )
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+
+@router.get("/csrf")
+def csrf_token(request: Request, response: Response):
+    """Issue a CSRF token for the trusted browser origin."""
+    return {"csrf_token": issue_csrf_cookie(request, response)}
 
 
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
@@ -72,8 +85,18 @@ def register(payload: UserCreate, db: Session = Depends(get_db)):
     return user
 
 
-@router.post("/login", response_model=Token)
-def login(payload: LoginRequest, db: Session = Depends(get_db)):
+@router.post("/login")
+def login(
+    payload: LoginRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    origin = request.headers.get("origin")
+    if origin:
+        if origin not in settings.CORS_ORIGINS:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Untrusted request origin")
+        verify_csrf_request(request)
     invalid_credentials_error = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="بريد إلكتروني أو كلمة مرور غير صحيحة",
@@ -155,26 +178,30 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
         db.commit()
 
     log_event(db, "login", f"تسجيل دخول: {user.email}", user.id)
-    return Token(
-        access_token=create_access_token(user.id, user.token_version),
-        refresh_token=create_refresh_token(user.id, user.token_version),
-    )
+    access_token = create_access_token(user.id, user.token_version)
+    refresh_token = create_refresh_token(user.id, user.token_version)
+    csrf_token = create_csrf_token()
+    set_auth_cookies(response, access_token, refresh_token, csrf_token)
+    return {"authenticated": True, "csrf_token": csrf_token}
 
 
-@router.post("/refresh", response_model=Token)
-def refresh(payload: RefreshRequest, db: Session = Depends(get_db)):
+@router.post("/refresh")
+def refresh(request: Request, response: Response, db: Session = Depends(get_db)):
+    verify_csrf_request(request)
+    refresh_token = request.cookies.get(REFRESH_COOKIE_NAME)
     invalid_token_error = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED, detail="refresh token غير صالح"
     )
+    if not refresh_token:
+        raise invalid_token_error
     try:
-        data = decode_token(payload.refresh_token)
+        data = decode_token(refresh_token)
         if data.get("type") != "refresh":
             raise ValueError("ليس refresh token")
         user_id = int(data.get("sub"))
     except (JWTError, TypeError, ValueError):
         raise invalid_token_error
 
-    # تأكد إن المستخدم لسه موجود ومفعّل قبل ما نصدر توكنات جديدة
     user = db.get(User, user_id)
     if (
         user is None
@@ -183,10 +210,25 @@ def refresh(payload: RefreshRequest, db: Session = Depends(get_db)):
     ):
         raise invalid_token_error
 
-    return Token(
-        access_token=create_access_token(user.id, user.token_version),
-        refresh_token=create_refresh_token(user.id, user.token_version),
-    )
+    access_token = create_access_token(user.id, user.token_version)
+    rotated_refresh_token = create_refresh_token(user.id, user.token_version)
+    csrf_token = create_csrf_token()
+    set_auth_cookies(response, access_token, rotated_refresh_token, csrf_token)
+    return {"authenticated": True, "csrf_token": csrf_token}
+
+
+@router.post("/logout")
+def logout(
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    current_user.token_version += 1
+    db.commit()
+    clear_auth_cookies(response)
+    csrf_token = create_csrf_token()
+    set_csrf_cookie(response, csrf_token)
+    return {"authenticated": False, "csrf_token": csrf_token}
 
 
 @router.post("/verify-email/request", status_code=status.HTTP_202_ACCEPTED)

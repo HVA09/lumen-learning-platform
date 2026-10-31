@@ -16,8 +16,8 @@ export async function markAllNotificationsRead() {
 }
 
 export function buildNotificationsWebSocketUrl() {
-  const token = localStorage.getItem("access_token");
   const baseURL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
   const wsBase = baseURL.replace(/^http/, "ws");
-  return `${wsBase}/ws/notifications?token=${encodeURIComponent(token || "")}`;
+  // The browser sends the HttpOnly session cookie during the WebSocket handshake.
+  return `${wsBase}/ws/notifications`;
 }

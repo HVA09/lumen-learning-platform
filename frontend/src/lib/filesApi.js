@@ -23,8 +23,8 @@ export async function deleteFile(id) {
   await api.delete(`/files/${id}`);
 }
 
-// التحميل يحتاج نفس هيدر الـ Authorization، ورابط <a> عادي ما يقدر يرسله —
-// فنجيب الملف كـ blob عبر axios (اللي يرفق التوكن تلقائيًا) وننزّله يدويًا
+// نحمّل الملف عبر Axios حتى تُرسل Cookies الجلسة مع الطلب؛
+// رابط <a> مباشر لا يسمح بضبط إعدادات الاعتماد بشكل صريح.
 export async function fetchFileBlob(id) {
   const response = await api.get(`/files/${id}`, { responseType: "blob" });
   return response.data;

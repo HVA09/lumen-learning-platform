@@ -8,7 +8,7 @@ from tests.quiz_helpers import set_role, take_quiz, topic_id_by_slug
 def _register_and_login(client, email, password="StrongPass123"):
     client.post("/auth/register", json={"email": email, "password": password})
     login_response = client.post("/auth/login", json={"email": email, "password": password})
-    return login_response.json()["access_token"]
+    return login_response.cookies.get("lumen_access")
 
 def _register_admin(client, db_session, email, password="StrongPass123"):
     token = _register_and_login(client, email, password)
@@ -196,8 +196,8 @@ def test_admin_deactivate_reactivate_does_not_revive_old_tokens(client, db_sessi
         "/auth/login", json={"email": user_email, "password": "StrongPass123"}
     )
     assert original_login.status_code == 200
-    original_tokens = original_login.json()
-    user_headers = {"Authorization": f"Bearer {original_tokens['access_token']}"}
+    original_tokens = original_login.cookies
+    user_headers = {"Authorization": f"Bearer {original_tokens.get('lumen_access')}"}
 
     user = next(
         item
@@ -222,7 +222,8 @@ def test_admin_deactivate_reactivate_does_not_revive_old_tokens(client, db_sessi
     assert reactivated.status_code == 200
     assert client.get("/users/me", headers=user_headers).status_code == 401
     assert client.post(
-        "/auth/refresh", json={"refresh_token": original_tokens["refresh_token"]}
+        "/auth/refresh",
+        headers={"X-CSRF-Token": client.cookies.get("lumen_csrf")},
     ).status_code == 401
 
     new_login = client.post(

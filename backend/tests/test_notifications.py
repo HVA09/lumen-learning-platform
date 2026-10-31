@@ -3,6 +3,7 @@
 """
 from unittest.mock import MagicMock
 
+from app.config import settings
 from app.routers import billing as billing_router_module
 from app.services.payment_providers.base import WebhookEvent
 
@@ -10,7 +11,7 @@ from app.services.payment_providers.base import WebhookEvent
 def _register_and_login(client, email="notify@example.com", password="StrongPass123"):
     client.post("/auth/register", json={"email": email, "password": password})
     login_response = client.post("/auth/login", json={"email": email, "password": password})
-    return login_response.json()["access_token"]
+    return login_response.cookies.get("lumen_access")
 
 
 def test_welcome_notification_created_on_register(client):
@@ -65,7 +66,7 @@ def test_websocket_rejects_invalid_token(client):
     from starlette.websockets import WebSocketDisconnect
 
     with pytest.raises(WebSocketDisconnect):
-        with client.websocket_connect("/ws/notifications?token=not-a-real-token") as websocket:
+        with client.websocket_connect("/ws/notifications?token=not-a-real-token", headers={"origin": settings.CORS_ORIGINS[0]}) as websocket:
             websocket.receive_json()
 
 
@@ -76,7 +77,7 @@ def test_websocket_receives_realtime_notification_on_subscription_activated(clie
     plans = client.get("/billing/plans").json()
     pro_plan = next(p for p in plans if p["name"] == "Pro")
 
-    with client.websocket_connect(f"/ws/notifications?token={token}") as websocket:
+    with client.websocket_connect("/ws/notifications", headers={"origin": settings.CORS_ORIGINS[0]}) as websocket:
         mock_provider = MagicMock()
         mock_provider.verify_webhook = MagicMock(
             return_value=WebhookEvent(
@@ -96,3 +97,15 @@ def test_websocket_receives_realtime_notification_on_subscription_activated(clie
         data = websocket.receive_json()
         assert data["title"] == "تم تفعيل اشتراكك"
         assert data["notification_type"] == "billing"
+
+def test_websocket_rejects_untrusted_origin_even_with_session_cookie(client):
+    import pytest
+    from starlette.websockets import WebSocketDisconnect
+
+    _register_and_login(client, "ws-origin@example.com")
+    with pytest.raises(WebSocketDisconnect):
+        with client.websocket_connect(
+            "/ws/notifications",
+            headers={"origin": "https://attacker.invalid"},
+        ) as websocket:
+            websocket.receive_json()

@@ -1,10 +1,12 @@
 """
 مسارات الإشعارات: عرض/تعليم كمقروء عبر REST، واتصال فوري عبر WebSocket
 """
-from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status
 from sqlalchemy.orm import Session
 
+from app.auth.cookies import ACCESS_COOKIE_NAME
 from app.auth.security import decode_token
+from app.config import settings
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.notification import Notification
@@ -63,27 +65,39 @@ def mark_all_notifications_read(
 
 @router.websocket("/ws/notifications")
 async def notifications_websocket(
-    websocket: WebSocket, token: str = Query(...), db: Session = Depends(get_db)
+    websocket: WebSocket, db: Session = Depends(get_db)
 ):
-    """اتصال WebSocket طويل الأمد — التوكن يجي كـ query param لأن متصفحات الويب
-    ما تقدر ترسل Authorization header مع اتصالات WebSocket."""
+    """Authenticate notification sockets from the HttpOnly access cookie only."""
+    origin = websocket.headers.get("origin")
+    if origin not in settings.CORS_ORIGINS:
+        await websocket.close(code=1008)
+        return
+
+    token = websocket.cookies.get(ACCESS_COOKIE_NAME)
     try:
+        if not token:
+            raise ValueError("missing access cookie")
         payload = decode_token(token)
         if payload.get("type") != "access":
-            raise ValueError
+            raise ValueError("invalid token type")
         user_id = int(payload.get("sub"))
+        token_version = payload.get("ver", 0)
     except Exception:
         await websocket.close(code=4001)
         return
 
     user = db.get(User, user_id)
-    if user is None or not user.is_active:
+    if (
+        user is None
+        or not user.is_active
+        or token_version != user.token_version
+    ):
         await websocket.close(code=4001)
         return
 
     await manager.connect(user_id, websocket)
     try:
         while True:
-            await websocket.receive_text()  # نبقي الاتصال مفتوح؛ ما نحتاج نعالج شيء من العميل
+            await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(user_id, websocket)

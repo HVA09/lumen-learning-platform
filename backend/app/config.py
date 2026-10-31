@@ -2,6 +2,7 @@
 إعدادات التطبيق — كل القيم تُقرأ من متغيرات البيئة (ملف .env)
 لا يوجد أي مفتاح أو كلمة مرور مكتوبة هنا مباشرة.
 """
+from typing import Literal
 from urllib.parse import urlparse
 
 from cryptography.fernet import Fernet
@@ -23,6 +24,8 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    # Browser auth cookies; use "none" only when frontend and API are cross-site.
+    AUTH_COOKIE_SAMESITE: Literal["lax", "strict", "none"] = "lax"
 
     # رابط الفرونت اند — يُستخدم لبناء روابط تأكيد البريد/إعادة تعيين كلمة المرور
     FRONTEND_URL: str = "http://localhost:5173"

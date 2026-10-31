@@ -4,6 +4,8 @@ import AppHeader from "./components/AppHeader";
 import LearningPath from "./components/LearningPath";
 import TopicPanel from "./components/TopicPanel";
 import AuthForm from "./components/AuthForm";
+import { logoutUser, refreshSession } from "./lib/authApi";
+import { setAuthSessionActive } from "./lib/api";
 import Toast from "./components/Toast";
 import useDirection from "./hooks/useDirection";
 
@@ -50,7 +52,8 @@ function ModalLoadingFallback() {
 }
 
 export default function App() {
-  const [authed, setAuthed] = useState(!!localStorage.getItem("access_token"));
+  const [authed, setAuthed] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
   const [lang, setLang] = useState("ar");
   const [error, setError] = useState("");
   const [toast, setToast] = useState(null); // { message, type }
@@ -76,8 +79,9 @@ export default function App() {
   const isTeacher = currentUser?.role === "teacher" || isAdmin;
 
   const logout = useCallback(() => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
+    setAuthSessionActive(false);
+    // Revoke the server session and clear HttpOnly cookies; UI logout is immediate.
+    logoutUser().catch(() => {});
     setAuthed(false);
     setError("");
     setCurrentUser(null);
@@ -98,6 +102,37 @@ export default function App() {
     window.addEventListener("auth:unauthorized", handleUnauthorized);
     return () => window.removeEventListener("auth:unauthorized", handleUnauthorized);
   }, [logout]);
+
+  useEffect(() => {
+    // Remove legacy browser-stored JWTs during migration to HttpOnly cookies.
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    getCurrentUser()
+      .catch(async (error) => {
+        if (error.response?.status !== 401) throw error;
+        await refreshSession();
+        return getCurrentUser();
+      })
+      .then((user) => {
+        if (!mounted) return;
+        setCurrentUser(user);
+        setAuthSessionActive(true);
+        setAuthed(true);
+      })
+      .catch(() => {
+        if (mounted) setAuthSessionActive(false);
+      })
+      .finally(() => {
+        if (mounted) setAuthReady(true);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const refreshCurrentUser = async () => {
     try {
@@ -205,6 +240,10 @@ export default function App() {
         <LTICallbackPage />
       </Suspense>
     );
+  }
+
+  if (!authReady) {
+    return <PageLoadingFallback />;
   }
 
   if (!authed) {

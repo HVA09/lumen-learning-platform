@@ -10,7 +10,7 @@ from app.models.user import User
 def _register_and_login(client, email="twofa@example.com", password="StrongPass123"):
     client.post("/auth/register", json={"email": email, "password": password})
     login_response = client.post("/auth/login", json={"email": email, "password": password})
-    return login_response.json()["access_token"]
+    return login_response.cookies.get("lumen_access")
 
 
 def test_setup_returns_secret_and_qr_code(client, db_session):

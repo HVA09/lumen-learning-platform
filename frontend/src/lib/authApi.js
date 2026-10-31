@@ -1,4 +1,4 @@
-import api from "./api";
+import api, { setAuthSessionActive, setCsrfToken } from "./api";
 
 export async function registerUser(email, password) {
   const { data } = await api.post("/auth/register", { email, password });
@@ -11,6 +11,33 @@ export async function loginUser(email, password, totpCode = null) {
     password,
     totp_code: totpCode,
   });
+  if (data.authenticated) {
+    setCsrfToken(data.csrf_token);
+    setAuthSessionActive(true);
+  }
+  return data;
+}
+
+export async function logoutUser() {
+  const { data } = await api.post("/auth/logout");
+  setCsrfToken(data.csrf_token);
+  setAuthSessionActive(false);
+  return data;
+}
+
+export async function refreshSession() {
+  const { data } = await api.post("/auth/refresh");
+  setCsrfToken(data.csrf_token);
+  setAuthSessionActive(true);
+  return data;
+}
+
+export async function exchangeLtiCode(code) {
+  const { data } = await api.post("/lti/exchange-code", { code });
+  if (data.authenticated) {
+    setCsrfToken(data.csrf_token);
+    setAuthSessionActive(true);
+  }
   return data;
 }
 
