@@ -6,6 +6,7 @@ drop or recreate an existing database.
 """
 from __future__ import annotations
 
+import ipaddress
 import os
 import re
 import subprocess
@@ -47,6 +48,17 @@ def create_dedicated_database(database_url: str) -> None:
     if url.database != EXPECTED_DATABASE_NAME:
         raise RuntimeError(
             f"Refusing to use {url.database!r}; expected {EXPECTED_DATABASE_NAME!r}."
+        )
+
+    host = (url.host or "").lower().rstrip(".")
+    try:
+        is_loopback = host == "localhost" or ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        is_loopback = False
+    if not is_loopback:
+        raise RuntimeError(
+            f"Refusing to run against remote PostgreSQL host {host!r}; "
+            "the integration drill must use a local loopback service."
         )
 
     admin_url = url.set(database="postgres").render_as_string(hide_password=False)
