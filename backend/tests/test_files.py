@@ -269,11 +269,18 @@ def test_upload_runs_malware_scan_before_persisting_attachment(
     ("setting_name", "setting_value"),
     [("MAX_USER_STORAGE_MB", 0), ("MAX_USER_FILES", 0)],
 )
-def test_upload_enforces_per_user_storage_and_file_count_quotas(
+def test_upload_rejects_exhausted_quota_before_disk_write_or_scan(
     client, tmp_path, monkeypatch, setting_name, setting_value
 ):
     monkeypatch.setattr(app_settings, "UPLOAD_DIR", str(tmp_path))
     monkeypatch.setattr(app_settings, setting_name, setting_value)
+    monkeypatch.setattr(app_settings, "MALWARE_SCAN_ENABLED", True)
+    scan_calls = []
+
+    async def unexpected_scan(_path):
+        scan_calls.append(_path)
+
+    monkeypatch.setattr(files_router, "scan_file_with_clamav", unexpected_scan)
     token = _register_and_login(client, f"quota-{setting_name.lower()}@example.com")
     response = client.post(
         "/files/upload",
@@ -282,7 +289,29 @@ def test_upload_enforces_per_user_storage_and_file_count_quotas(
     )
 
     assert response.status_code == 413
+    assert scan_calls == []
     assert not [path for path in tmp_path.rglob("*") if path.is_file()]
+
+
+def test_upload_removes_temporary_file_when_attachment_commit_fails(
+    client, tmp_path, monkeypatch, db_session
+):
+    monkeypatch.setattr(app_settings, "UPLOAD_DIR", str(tmp_path))
+    token = _register_and_login(client, "upload-commit-failure@example.com")
+
+    def fail_commit():
+        raise RuntimeError("simulated database commit failure")
+
+    monkeypatch.setattr(db_session, "commit", fail_commit)
+    with pytest.raises(RuntimeError, match="simulated database commit failure"):
+        client.post(
+            "/files/upload",
+            files={"file": ("failed.png", PNG_BYTES, "image/png")},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert not [path for path in tmp_path.rglob("*") if path.is_file()]
+    assert db_session.query(FileAttachment).count() == 0
 
 
 def test_clamav_instream_protocol_sends_bounded_file_chunks_and_accepts_clean_result(
