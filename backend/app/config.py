@@ -4,6 +4,7 @@
 """
 from urllib.parse import urlparse
 
+from cryptography.fernet import Fernet
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -40,8 +41,9 @@ class Settings(BaseSettings):
     MAX_FAILED_LOGIN_ATTEMPTS: int = 5
     ACCOUNT_LOCKOUT_MINUTES: int = 15
 
-    # Two Factor Authentication
+    # Two Factor Authentication — stable Fernet key stored in the deployment secret manager
     TOTP_ISSUER_NAME: str = "Lumen"
+    TOTP_ENCRYPTION_KEY: str = ""
 
     # CORS — 5173 هو منفذ Vite dev server الافتراضي (الفرونت React+Vite)
     CORS_ORIGINS: list[str] = ["http://localhost:5173"]
@@ -71,6 +73,15 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_production_settings(self) -> "Settings":
+        encryption_key = self.TOTP_ENCRYPTION_KEY.strip()
+        if encryption_key:
+            try:
+                Fernet(encryption_key.encode("ascii"))
+            except (UnicodeEncodeError, ValueError, TypeError) as exc:
+                raise ValueError("TOTP_ENCRYPTION_KEY must be a valid URL-safe Fernet key") from exc
+        elif self.ENVIRONMENT.strip().lower() == "production":
+            raise ValueError("TOTP_ENCRYPTION_KEY is required in production")
+
         if self.ENVIRONMENT.strip().lower() != "production":
             return self
 

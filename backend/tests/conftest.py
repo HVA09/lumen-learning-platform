@@ -4,6 +4,11 @@
 """
 import os
 
+from cryptography.fernet import Fernet
+
+# Test-only key; never reuse this value outside the automated test process.
+os.environ["TOTP_ENCRYPTION_KEY"] = Fernet.generate_key().decode("ascii")
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
