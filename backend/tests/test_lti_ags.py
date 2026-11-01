@@ -13,7 +13,10 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from jose import jwt
 
 from app.models.assignment import Assignment, AssignmentSubmission
-from app.models.lti import LTIAGSGradeEvent, LTIAssignmentLink, LTIPlatform, LTIUserLink
+from app.models.lti import (
+    LTIAGSGradeEvent, LTIAssignmentLink, LTIPlatform, LTIUserLink,
+    LTIResourceLinkDiscovery,
+)
 from app.models.user import User, UserRole
 from app.services import lti_service
 from app.services.lti_service import (
@@ -120,6 +123,72 @@ def test_assignment_link_is_admin_only_and_unique(client, db_session):
 
     duplicate = client.post("/lti/assignment-links", json=payload, headers=auth(admin_token))
     assert duplicate.status_code == 409
+
+
+def test_unmapped_resource_link_is_discovered_admin_only_and_prefills_mapping(
+    client, db_session
+):
+    teacher_token = make_teacher(client, db_session, "ags-discovery-teacher@example.com")
+    assignment_response = client.post(
+        "/assignments",
+        json={"title": "Discoverable assignment", "description": "Sandbox mapping"},
+        headers=auth(teacher_token),
+    )
+    assert assignment_response.status_code == 201, assignment_response.text
+
+    admin_token = register_and_login(client, "ags-discovery-admin@example.com")
+    set_role(db_session, "ags-discovery-admin@example.com", UserRole.admin)
+    platform = _platform(db_session)
+    claims = {
+        AGS_RESOURCE_LINK_CLAIM: {"id": "new-lms-resource-9"},
+        AGS_ENDPOINT_CLAIM: {
+            "lineitem": "https://moodle.example.test/mod/lti/lineitems/9?tenant=discovery",
+            "scope": [AGS_SCORE_SCOPE],
+        },
+    }
+
+    assert record_lti_ags_launch_context(db_session, platform, claims) is True
+    db_session.commit()
+
+    discovery = (
+        db_session.query(LTIResourceLinkDiscovery)
+        .filter(LTIResourceLinkDiscovery.resource_link_id == "new-lms-resource-9")
+        .one()
+    )
+    assert discovery.lineitem_ready is True
+
+    denied = client.get("/lti/resource-links", headers=auth(teacher_token))
+    assert denied.status_code == 403
+
+    observed = client.get("/lti/resource-links", headers=auth(admin_token))
+    assert observed.status_code == 200, observed.text
+    row = next(
+        item for item in observed.json()
+        if item["resource_link_id"] == "new-lms-resource-9"
+    )
+    assert row["lineitem_ready"] is True
+    assert row["score_scope_allowed"] is True
+    assert row["mapped_assignment_id"] is None
+    assert "lti_subject" not in row
+    assert "lineitem_url" not in row
+
+    created = client.post(
+        "/lti/assignment-links",
+        json={
+            "platform_id": platform.id,
+            "assignment_id": assignment_response.json()["id"],
+            "resource_link_id": "new-lms-resource-9",
+            "score_maximum": 25.0,
+        },
+        headers=auth(admin_token),
+    )
+    assert created.status_code == 201, created.text
+    assert created.json()["lineitem_ready"] is True
+    assert created.json()["score_scope_allowed"] is True
+    assert created.json()["score_maximum"] == 25.0
+
+    db_mapping = db_session.get(LTIAssignmentLink, created.json()["id"])
+    assert db_mapping.lineitem_url.endswith("?tenant=discovery")
 
 
 def test_launch_context_requires_score_scope_and_same_platform_origin(db_session):

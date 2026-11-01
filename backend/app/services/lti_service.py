@@ -388,13 +388,55 @@ def validate_lti_ags_lineitem_url(url: str, platform) -> str:
 
 
 def record_lti_ags_launch_context(db, platform, claims: dict) -> bool:
-    """Record score permission only for a pre-registered resource link and trusted LMS origin."""
-    from app.models.lti import LTIAssignmentLink
+    """Discover resource links without learner identifiers and refresh a mapped link's AGS context."""
+    from app.models.lti import LTIResourceLinkDiscovery, LTIAssignmentLink
 
     resource = claims.get(AGS_RESOURCE_LINK_CLAIM)
     resource_link_id = resource.get("id") if isinstance(resource, dict) else None
-    if not isinstance(resource_link_id, str):
+    if (
+        not isinstance(resource_link_id, str)
+        or not resource_link_id
+        or len(resource_link_id) > 255
+        or not resource_link_id.isascii()
+    ):
         return False
+
+    endpoint = claims.get(AGS_ENDPOINT_CLAIM)
+    scopes = endpoint.get("scope") if isinstance(endpoint, dict) else None
+    lineitem = endpoint.get("lineitem") if isinstance(endpoint, dict) else None
+    safe_lineitem = None
+    score_scope_allowed = False
+    if isinstance(scopes, list) and AGS_SCORE_SCOPE in scopes and isinstance(lineitem, str):
+        try:
+            safe_lineitem = validate_lti_ags_lineitem_url(lineitem, platform)
+        except ValueError:
+            pass
+        else:
+            score_scope_allowed = True
+
+    now = datetime.now(timezone.utc)
+    discovery = (
+        db.query(LTIResourceLinkDiscovery)
+        .filter(
+            LTIResourceLinkDiscovery.platform_id == platform.id,
+            LTIResourceLinkDiscovery.deployment_id == platform.deployment_id,
+            LTIResourceLinkDiscovery.resource_link_id == resource_link_id,
+        )
+        .with_for_update()
+        .first()
+    )
+    if discovery is None:
+        discovery = LTIResourceLinkDiscovery(
+            platform_id=platform.id,
+            deployment_id=platform.deployment_id,
+            resource_link_id=resource_link_id,
+            first_seen_at=now,
+            last_seen_at=now,
+        )
+        db.add(discovery)
+    discovery.lineitem_url = safe_lineitem
+    discovery.score_scope_allowed = score_scope_allowed
+    discovery.last_seen_at = now
 
     mapping = (
         db.query(LTIAssignmentLink)
@@ -405,24 +447,9 @@ def record_lti_ags_launch_context(db, platform, claims: dict) -> bool:
         )
         .first()
     )
-    if mapping is None:
-        return False
-
-    endpoint = claims.get(AGS_ENDPOINT_CLAIM)
-    scopes = endpoint.get("scope") if isinstance(endpoint, dict) else None
-    lineitem = endpoint.get("lineitem") if isinstance(endpoint, dict) else None
-    if not isinstance(scopes, list) or AGS_SCORE_SCOPE not in scopes or not isinstance(lineitem, str):
-        mapping.lineitem_url = None
-        mapping.score_scope_allowed = False
-        return True
-
-    try:
-        mapping.lineitem_url = validate_lti_ags_lineitem_url(lineitem, platform)
-    except ValueError:
-        mapping.lineitem_url = None
-        mapping.score_scope_allowed = False
-    else:
-        mapping.score_scope_allowed = True
+    if mapping is not None:
+        mapping.lineitem_url = safe_lineitem
+        mapping.score_scope_allowed = score_scope_allowed
     return True
 
 

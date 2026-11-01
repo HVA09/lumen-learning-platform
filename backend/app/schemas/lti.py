@@ -61,6 +61,18 @@ class LTIAssignmentLinkOut(BaseModel):
     created_at: datetime
 
 
+class LTIDiscoveredResourceLinkOut(BaseModel):
+    id: int
+    platform_id: int
+    deployment_id: str
+    resource_link_id: str
+    lineitem_ready: bool
+    score_scope_allowed: bool
+    first_seen_at: datetime
+    last_seen_at: datetime
+    mapped_assignment_id: int | None = None
+
+
 class LTIAGSGradeEventOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int

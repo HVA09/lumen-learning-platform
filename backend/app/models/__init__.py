@@ -22,7 +22,7 @@ from app.models.assignment import Assignment, AssignmentSubmission, SubmissionSt
 from app.models.user_achievement import UserAchievement
 from app.models.lti import (
     LTIPlatform, LTIUserLink, LTIAuthState, LTIAuthCode,
-    LTIAssignmentLink, LTIAGSGradeEvent,
+    LTIAssignmentLink, LTIAGSGradeEvent, LTIResourceLinkDiscovery,
 )
 
 __all__ = [
@@ -50,6 +50,7 @@ __all__ = [
     "LTIAuthCode",
     "LTIAssignmentLink",
     "LTIAGSGradeEvent",
+    "LTIResourceLinkDiscovery",
     "User",
     "UserRole",
     "FileAttachment",

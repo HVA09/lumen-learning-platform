@@ -117,6 +117,41 @@ class LTIAssignmentLink(Base):
         return bool(self.lineitem_url and self.score_scope_allowed)
 
 
+class LTIResourceLinkDiscovery(Base):
+    """Admin-visible, privacy-minimal record of LMS resource links observed at launch."""
+    __tablename__ = "lti_resource_link_discoveries"
+    __table_args__ = (
+        UniqueConstraint(
+            "platform_id", "deployment_id", "resource_link_id",
+            name="uq_lti_resource_link_discovery",
+        ),
+        Index("ix_lti_resource_link_discoveries_seen", "last_seen_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    platform_id: Mapped[int] = mapped_column(
+        ForeignKey("lti_platforms.id", ondelete="CASCADE"), nullable=False
+    )
+    deployment_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    resource_link_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    lineitem_url: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    score_scope_allowed: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
+    )
+    first_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    platform = relationship("LTIPlatform")
+
+    @property
+    def lineitem_ready(self) -> bool:
+        return bool(self.lineitem_url and self.score_scope_allowed)
+
+
 class LTIAGSGradeEvent(Base):
     """Transactional outbox for at-least-once LTI AGS score delivery."""
     __tablename__ = "lti_ags_grade_events"

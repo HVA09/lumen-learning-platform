@@ -21,12 +21,13 @@ from app.dependencies import require_admin
 from app.models.assignment import Assignment
 from app.models.lti import (
     LTIAuthCode, LTIAuthState, LTIPlatform, LTIUserLink,
-    LTIAssignmentLink, LTIAGSGradeEvent,
+    LTIAssignmentLink, LTIAGSGradeEvent, LTIResourceLinkDiscovery,
 )
 from app.models.user import User
 from app.schemas.lti import (
     LTIExchangeCodeRequest, LTIPlatformCreate, LTIPlatformOut,
     LTIAssignmentLinkCreate, LTIAssignmentLinkOut, LTIAGSGradeEventOut,
+    LTIDiscoveredResourceLinkOut,
 )
 from app.services.lti_service import (
     LTI_AUTH_CODE_TTL_SECONDS,
@@ -75,6 +76,40 @@ def list_platforms(_=Depends(require_admin), db: Session = Depends(get_db)):
 
 
 
+@router.get(
+    "/resource-links",
+    response_model=list[LTIDiscoveredResourceLinkOut],
+)
+def list_discovered_resource_links(_=Depends(require_admin), db: Session = Depends(get_db)):
+    """List recently observed LMS resource links without learner identifiers or raw URLs."""
+    rows = (
+        db.query(LTIResourceLinkDiscovery, LTIAssignmentLink.assignment_id)
+        .outerjoin(
+            LTIAssignmentLink,
+            (LTIAssignmentLink.platform_id == LTIResourceLinkDiscovery.platform_id)
+            & (LTIAssignmentLink.deployment_id == LTIResourceLinkDiscovery.deployment_id)
+            & (LTIAssignmentLink.resource_link_id == LTIResourceLinkDiscovery.resource_link_id),
+        )
+        .order_by(LTIResourceLinkDiscovery.last_seen_at.desc())
+        .limit(200)
+        .all()
+    )
+    return [
+        LTIDiscoveredResourceLinkOut(
+            id=discovery.id,
+            platform_id=discovery.platform_id,
+            deployment_id=discovery.deployment_id,
+            resource_link_id=discovery.resource_link_id,
+            lineitem_ready=discovery.lineitem_ready,
+            score_scope_allowed=discovery.score_scope_allowed,
+            first_seen_at=discovery.first_seen_at,
+            last_seen_at=discovery.last_seen_at,
+            mapped_assignment_id=assignment_id,
+        )
+        for discovery, assignment_id in rows
+    ]
+
+
 @router.post(
     "/assignment-links",
     response_model=LTIAssignmentLinkOut,
@@ -103,11 +138,22 @@ def register_assignment_link(
     )
     if duplicate:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="رابط المورد مسجل مسبقًا")
+    discovery = (
+        db.query(LTIResourceLinkDiscovery)
+        .filter(
+            LTIResourceLinkDiscovery.platform_id == platform.id,
+            LTIResourceLinkDiscovery.deployment_id == platform.deployment_id,
+            LTIResourceLinkDiscovery.resource_link_id == payload.resource_link_id,
+        )
+        .first()
+    )
     mapping = LTIAssignmentLink(
         platform_id=platform.id,
         assignment_id=assignment.id,
         deployment_id=platform.deployment_id,
         resource_link_id=payload.resource_link_id,
+        lineitem_url=discovery.lineitem_url if discovery else None,
+        score_scope_allowed=discovery.score_scope_allowed if discovery else False,
         score_maximum=payload.score_maximum,
     )
     db.add(mapping)
