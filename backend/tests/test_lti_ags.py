@@ -1,5 +1,10 @@
 """Protocol-level tests for LTI AGS mappings, grade outbox, OAuth and score delivery."""
 import asyncio
+import subprocess
+import sys
+from pathlib import Path
+
+from dotenv import dotenv_values
 from types import SimpleNamespace
 from urllib.parse import urlsplit
 
@@ -384,3 +389,22 @@ def test_ags_delivery_failure_is_retried_without_persisting_remote_details(clien
     assert event.next_attempt_at is not None
     assert "secret upstream diagnostics" not in (event.last_error or "")
     assert "AGS delivery failed" in event.last_error
+
+
+def test_lti_key_generator_outputs_dotenv_compatible_private_key(tmp_path):
+    script = Path(__file__).resolve().parents[1] / "scripts" / "generate_lti_key.py"
+    completed = subprocess.run(
+        [sys.executable, str(script)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    env_file = tmp_path / ".env"
+    env_file.write_text(completed.stdout, encoding="utf-8")
+
+    generated = dotenv_values(env_file)
+    private_pem = generated["LTI_TOOL_PRIVATE_KEY"]
+    assert generated["LTI_TOOL_KID"] == "lumen-key-1"
+    key = serialization.load_pem_private_key(private_pem.encode("ascii"), password=None)
+    assert isinstance(key, rsa.RSAPrivateKey)
+    assert key.key_size >= 2048

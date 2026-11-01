@@ -383,7 +383,7 @@ for ordinary assignment use.
    administrator can inspect `GET /lti/grade-events` and retry a dead event with
    `POST /lti/grade-events/{id}/retry`.
 
-The tool's `LTI_TOOL_PRIVATE_KEY` and `LTI_TOOL_KID` settings must be configured and the public
+Generate the signing key with `python scripts/generate_lti_key.py` and copy both dotenv-compatible lines it prints into the private `.env`/deployment secret settings. Never commit or share the private key. The tool's `LTI_TOOL_PRIVATE_KEY` and `LTI_TOOL_KID` settings must be configured and the public
 key exposed through `GET /lti/jwks` must be registered with the LMS. The Celery worker and beat
 services must be running. No access token, client assertion, or learner subject is exposed by the
 grade-event administration response.

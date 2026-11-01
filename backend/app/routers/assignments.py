@@ -317,6 +317,8 @@ def grade_submission(
             AssignmentSubmission.id == submission_id,
             AssignmentSubmission.assignment_id == assignment_id,
         )
+        # Serialize grading/re-grading so concurrent requests cannot reuse a grade version.
+        .with_for_update()
         .first()
     )
     if not submission:
