@@ -316,38 +316,26 @@ docker compose --profile offsite-backup run --rm \
 
 ## LTI 1.3 ومرحلة التكامل مع Moodle/Canvas
 
-**الحالة الحالية: تنفيذ أولي لتدفق LTI 1.3، وليس تكاملًا إنتاجيًا معتمدًا أو مختبرًا مع LMS حقيقي.**
-الموجود في الكود:
-- تسجيل منصات LMS وعرضها (admin فقط).
-- نقطة JWKS العامة الخاصة بأداة Lumen.
-- بدء تدفق OIDC عبر GET/POST `/lti/login`.
-- استقبال إطلاق LTI عبر `/lti/launch` والتحقق من توقيع ID token وissuer وaudience/azp وnonce وdeployment_id ونوع الرسالة وإصدار LTI ومعرّف Resource Link ووقت الصلاحية.
-- رمز تبادل عشوائي قصير العمر وأحادي الاستخدام عبر `/lti/exchange-code`، ثم إنشاء جلسة متصفح باستخدام Cookies من نوع HttpOnly.
-- اختبارات محاكاة تولّد زوج مفاتيح RSA، وتوقّع ID token فعليًا، وتتحقق من تدفق الإطلاق وتبادل الرمز. هذه الاختبارات لا تثبت التوافق الشبكي مع Moodle أو Canvas.
+**الحالة الحالية:** تدفق LTI 1.3 الأساسي وطبقة AGS 2.0 الأولى موجودان في فرع التطوير، واجتازا اختبارات CI الآلية. لم يُثبت الاتصال الفعلي بعد مع Moodle أو Canvas، لذلك لا يُعامل التكامل على أنه معتمد للإنتاج.
 
-**غير منفّذ بعد:**
-- اختبار اتصال وتسجيل حقيقي مع Moodle أو Canvas (sandbox).
-- LTI Assignment and Grade Services (AGS) لإرسال الدرجات إلى سجل درجات LMS.
-- Names and Role Provisioning Services (NRPS) لجلب عضويات المقرر والأدوار.
-- Deep Linking لاختيار محتوى Lumen وإضافته من داخل LMS.
+**الوظائف المنفّذة:**
+- تسجيل منصة LMS وعرضها للمسؤول فقط، مع التحقق من عناوين HTTPS ومنع عناوين الشبكات الداخلية.
+- OIDC login عبر `/lti/login`، والتحقق من توقيع ID token وissuer وaudience/azp وnonce وdeployment_id ونوع الرسالة وإصدار LTI وResource Link.
+- إطلاق آمن عبر `/lti/launch` ثم رمز تبادل أحادي الاستخدام عبر `/lti/exchange-code` وجلسة متصفح HttpOnly.
+- اكتشاف Resource Links التي تظهر عند إطلاق المدرّس/الطالب عبر `GET /lti/resource-links`؛ هذه القائمة إدارية ولا تعرض معرّفات المتعلمين أو عنوان lineitem الخام.
+- ربط Resource Link بواجب Lumen عبر `POST /lti/assignment-links`.
+- AGS 2.0 score passback عبر RS256 client assertions وOAuth client credentials، مع DNS pinning، وحفظ outbox ذري، وإعادة محاولة محدودة، وسجل إداري لحالة التسليم.
+- مفتاح أداة Lumen العام متاح عبر `GET /lti/jwks`، ومفتاح التوقيع الخاص يُنشأ بواسطة `python scripts/generate_lti_key.py`.
+
+**ما لم يكتمل بعد:**
+- تجربة تسجيل وإطلاق وإرسال درجة على Moodle sandbox ثم Canvas sandbox كلٌّ على حدة.
+- NRPS لجلب عضويات المقرر والأدوار.
+- Deep Linking لاختيار محتوى Lumen من داخل LMS.
 - شهادة توافق رسمية من 1EdTech.
 
-**متطلبات اختبار LMS حقيقي:**
-1. نشر Lumen على دومين عام يمكن لمنصة LMS الوصول إليه عبر HTTPS بشهادة صالحة؛ إعداد Nginx الحالي لا يفعّل HTTPS تلقائيًا، لذا راجع قسم HTTPS أعلاه.
-2. إنشاء تسجيل External Tool تجريبي في Moodle أو Canvas والحصول على issuer وclient_id وdeployment_id وروابط المصادقة والرموز وJWKS الخاصة بالمنصة.
-3. توليد مفتاح أداة Lumen: `python scripts/generate_lti_key.py`، ثم حفظ المفتاح الخاص في Secret Manager عبر `LTI_TOOL_PRIVATE_KEY` وعدم إضافته إلى Git.
-4. ضبط `LTI_TARGET_LINK_URI=https://your-domain.com/lti/launch`، وتسجيل بيانات المنصة في Lumen عبر `POST /lti/platforms` باستخدام حساب admin.
-5. تنفيذ سيناريوهات إطلاق ناجح وفاشل، وانتهاء nonce/state، وإعادة استخدام رمز التبادل، ثم توثيق النتائج لكل LMS وإصداره.
+**بوابات ما قبل أي نشر إنتاجي:** دومين عام يعمل عبر HTTPS بشهادة صالحة؛ ضبط `LTI_TARGET_LINK_URI` مطابقًا تمامًا لـ `https://<lumen-host>/lti/launch`؛ حفظ `LTI_TOOL_PRIVATE_KEY` و`LTI_TOOL_KID` بأمان؛ وتمكين Celery worker وbeat. لا تفعّل التكامل على قاعدة إنتاج قبل اختبار sandbox والاستعادة الاحتياطية.
 
-**ملاحظات أمنية:** يجب أن يطابق `target_link_uri` القيمة المضبوطة في `LTI_TARGET_LINK_URI` بالإنتاج، كما يجب أن يطابق claim الموقّع في ID token عنوان حالة OIDC نفسها. تُخزّن حالة OIDC كبصمة hash وتُستهلك مرة واحدة. لا تُمرّر JWT tokens في URL؛ يستخدم التدفق رمز تبادل قصير العمر وأحادي الاستخدام. عناوين منصة LMS يجب أن تكون HTTPS في الإنتاج، مع رفض عناوين IP/مضيفات الشبكات الداخلية لمنع SSRF.
-
-**خطة LTI Advantage التالية:**
-1. تنفيذ AGS v2.0 بصورة منفصلة: حفظ ربط Resource Link/Assignment، الحصول على OAuth 2.0 access token باستخدام client assertion موقّع، ثم إرسال نتيجة الطالب بعد تقييمها وفق صلاحيات AGS والـ line item الصحيح.
-2. إضافة سجل إرسال درجات قابل لإعادة المحاولة (idempotent outbox) حتى لا يؤدي انقطاع الشبكة أو إعادة طلب المعلم إلى إرسال درجات متكررة أو فقدها.
-3. إضافة اختبارات بروتوكول باستخدام خادم LMS تجريبي، ثم اختبار Moodle وCanvas كلٌّ على حدة.
-4. بعد استقرار AGS، دراسة NRPS وDeep Linking حسب احتياج المنتج.
-
-مرجع المواصفات: [LTI 1.3 Core](https://www.imsglobal.org/spec/lti/v1p3)، [LTI Advantage Implementation Guide](https://developers.imsglobal.org/spec/lti/v1p3/impl)، [Assignment and Grade Services v2.0](https://www.imsglobal.org/spec/lti-ags/v2p0/)، [AGS OpenAPI](https://www.imsglobal.org/spec/lti-ags/v2p0/openapi).
+راجع [دليل اختبار Moodle/Canvas AGS](LTI_AGS_SANDBOX_RUNBOOK.md) للحصول على الحقول المطلوبة وتسلسل التجربة.
 
 ## Browser session security
 
@@ -360,3 +348,26 @@ Cookie configuration:
 - `AUTH_COOKIE_SAMESITE=lax` is the default for same-site deployments.
 - Set `AUTH_COOKIE_SAMESITE=none` only when the frontend and API are on different sites; production cookies are then marked `Secure` and require HTTPS.
 - Keep `CORS_ORIGINS` restricted to the exact trusted frontend origins. Credentialed CORS must never use a wildcard.
+
+
+## LTI 1.3 AGS grade passback
+
+The first AGS 2.0 score passback slice is implemented behind explicit resource-link mappings.
+It does not change the existing local grading flow and does not require a live LMS connection
+for ordinary assignment use.
+
+1. Launch the LMS resource once as an instructor, then inspect `GET /lti/resource-links` as an administrator to discover its `resource_link_id` and whether the AGS lineitem is ready.
+2. Register the mapping with `POST /lti/assignment-links` using the observed `resource_link_id`, a Lumen `assignment_id`, and an explicit `score_maximum` matching the LMS grade item.
+3. On every verified launch Lumen refreshes the discovered/mapped AGS context. It accepts only a lineitem on the registered platform token endpoint's HTTPS origin; query parameters are preserved on `/scores`, and DNS resolution is pinned to a validated public IP.
+4. The learner must launch the same LMS resource at least once so the local LTI user link exists. When a teacher grades or re-grades the matching Lumen submission, the grade and outbox event are committed in the same database transaction.
+5. Celery beat discovers pending events every minute. A worker obtains a short-lived OAuth 2.0 client-credentials token using an RS256 client assertion and posts an AGS Score object. Retries are bounded to eight attempts; admins inspect `GET /lti/grade-events` and can retry a dead event with `POST /lti/grade-events/{id}/retry`.
+
+Generate the signing key with `python scripts/generate_lti_key.py` and copy both dotenv-compatible lines it prints into the private `.env`/deployment secret settings. Never commit or share the private key. The tool's `LTI_TOOL_PRIVATE_KEY` and `LTI_TOOL_KID` settings must be configured and the public
+key exposed through `GET /lti/jwks` must be registered with the LMS. The Celery worker and beat
+services must be running. No access token, client assertion, or learner subject is exposed by the
+grade-event administration response.
+
+This is an at-least-once delivery outbox: an interrupted worker may repeat a score POST after its
+lease expires if the LMS accepted the request but the worker did not save the response. The stable
+grade version and timestamp make retries traceable; a production Moodle/Canvas sandbox test is
+still required to confirm each provider's exact AGS behavior, permissions, and endpoint shape.
