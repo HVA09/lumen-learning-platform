@@ -36,3 +36,11 @@
 Thumbs.db
 .vscode/
 .idea/
+
+# Offsite backup credentials (keep only the empty directory marker)
+backend/secrets/*
+!backend/secrets/.gitkeep
+
+!backend/secrets/ssh/
+backend/secrets/ssh/*
+!backend/secrets/ssh/.gitkeep

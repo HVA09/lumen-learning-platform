@@ -97,7 +97,7 @@ services:
     entrypoint: >
       /bin/sh -c "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot; sleep 12h & wait $${!}; done;"
 
-  # نسخة احتياطية يومية لقاعدة البيانات — تُحفظ بمجلد ./backups (آخر 7 أيام فقط)
+  # نسخة احتياطية يومية لقاعدة البيانات — تُحفظ محليًا بمجلد ./backups
   backup:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -109,6 +109,69 @@ services:
     depends_on:
       db:
         condition: service_healthy
+
+  # Optional encrypted offsite copy. Activate only after configuring the repository
+  # and creating ./secrets/restic-password (see README).
+  offsite_backup:
+    image: restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
+    profiles: ["offsite-backup"]
+    hostname: lumen-offsite-backup
+    restart: unless-stopped
+    environment:
+      RESTIC_REPOSITORY: ${RESTIC_REPOSITORY:-}
+      RESTIC_HOST: ${RESTIC_HOST:-lumen-postgres-backup}
+      RESTIC_PASSWORD_FILE: /run/secrets/restic-password
+      # Only pass backend-specific credentials; never expose the full Lumen .env.
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-}
+      AWS_PROFILE: ${AWS_PROFILE:-}
+      AWS_SHARED_CREDENTIALS_FILE: ${AWS_SHARED_CREDENTIALS_FILE:-}
+      AZURE_ACCOUNT_NAME: ${AZURE_ACCOUNT_NAME:-}
+      AZURE_ACCOUNT_KEY: ${AZURE_ACCOUNT_KEY:-}
+      AZURE_ACCOUNT_SAS: ${AZURE_ACCOUNT_SAS:-}
+      AZURE_ENDPOINT_SUFFIX: ${AZURE_ENDPOINT_SUFFIX:-}
+      B2_ACCOUNT_ID: ${B2_ACCOUNT_ID:-}
+      B2_ACCOUNT_KEY: ${B2_ACCOUNT_KEY:-}
+      GOOGLE_PROJECT_ID: ${GOOGLE_PROJECT_ID:-}
+      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-}
+      GOOGLE_ACCESS_TOKEN: ${GOOGLE_ACCESS_TOKEN:-}
+      RESTIC_REST_USERNAME: ${RESTIC_REST_USERNAME:-}
+      RESTIC_REST_PASSWORD: ${RESTIC_REST_PASSWORD:-}
+      BACKUP_DIR: /backups
+      RESTIC_BACKUP_TAG: ${RESTIC_BACKUP_TAG:-lumen-postgres}
+      RESTIC_KEEP_DAILY: ${RESTIC_KEEP_DAILY:-7}
+      RESTIC_KEEP_WEEKLY: ${RESTIC_KEEP_WEEKLY:-4}
+      RESTIC_KEEP_MONTHLY: ${RESTIC_KEEP_MONTHLY:-12}
+      RESTIC_KEEP_YEARLY: ${RESTIC_KEEP_YEARLY:-3}
+      OFFSITE_BACKUP_INTERVAL_SECONDS: ${OFFSITE_BACKUP_INTERVAL_SECONDS:-3600}
+    volumes:
+      - ./backups:/backups:ro
+      - ./scripts/offsite-backup.sh:/scripts/offsite-backup.sh:ro
+      - ./secrets:/run/secrets:ro
+      - ./secrets/ssh:/root/.ssh:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        interval="${OFFSITE_BACKUP_INTERVAL_SECONDS:-3600}"
+        case "$interval" in
+          ""|*[!0-9]*)
+            echo "OFFSITE_BACKUP_INTERVAL_SECONDS must be a positive integer." >&2
+            exit 1
+            ;;
+        esac
+        if [ "$interval" -eq 0 ]; then
+          echo "OFFSITE_BACKUP_INTERVAL_SECONDS must be greater than zero." >&2
+          exit 1
+        fi
+        while true; do
+          /bin/sh /scripts/offsite-backup.sh || echo "Offsite backup attempt failed; will retry."
+          sleep "$interval"
+        done
+    depends_on:
+      backup:
+        condition: service_started
 
 volumes:
   pgdata:
