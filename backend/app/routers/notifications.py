@@ -3,7 +3,7 @@
 """
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
 from sqlalchemy.orm import Session
 
 from app.auth.cookies import ACCESS_COOKIE_NAME
@@ -22,7 +22,7 @@ router = APIRouter(tags=["Notifications"])
 
 @router.get("/notifications", response_model=list[NotificationOut])
 def list_notifications(
-    limit: int = 50,
+    limit: int = Query(default=50, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):

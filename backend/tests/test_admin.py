@@ -230,3 +230,17 @@ def test_admin_deactivate_reactivate_does_not_revive_old_tokens(client, db_sessi
         "/auth/login", json={"email": user_email, "password": "StrongPass123"}
     )
     assert new_login.status_code == 200
+
+
+
+def test_admin_analytics_and_pagination_inputs_are_bounded(client, db_session):
+    token = _register_admin(client, db_session, "bounded-admin@example.com")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    assert client.get("/admin/analytics/daily?days=0", headers=headers).status_code == 422
+    assert client.get("/admin/analytics/daily?days=366", headers=headers).status_code == 422
+    assert client.get("/admin/analytics/export.csv?days=366", headers=headers).status_code == 422
+    assert client.get("/admin/users?limit=101", headers=headers).status_code == 422
+    assert client.get("/admin/users?offset=-1", headers=headers).status_code == 422
+    assert client.get("/admin/logs?limit=101", headers=headers).status_code == 422
+    assert client.get("/admin/logs?offset=-1", headers=headers).status_code == 422

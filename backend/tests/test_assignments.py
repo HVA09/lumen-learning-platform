@@ -68,6 +68,7 @@ def test_list_shows_my_status_and_teacher_only_counts(client, db_session):
     before = client.get("/assignments", headers=auth(student)).json()
     item = next(a for a in before if a["id"] == assignment["id"])
     assert item["my_status"] is None
+    assert item["can_manage"] is False
     assert item["submissions_count"] is None  # الطالب ما يشوف أعداد التسليمات
 
     _submit(client, student, assignment["id"])
@@ -77,6 +78,7 @@ def test_list_shows_my_status_and_teacher_only_counts(client, db_session):
 
     teacher_list = client.get("/assignments", headers=auth(teacher)).json()
     teacher_item = next(a for a in teacher_list if a["id"] == assignment["id"])
+    assert teacher_item["can_manage"] is True
     assert teacher_item["submissions_count"] == 1
     assert teacher_item["pending_grading_count"] == 1
 

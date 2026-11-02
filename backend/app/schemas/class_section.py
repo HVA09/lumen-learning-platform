@@ -11,7 +11,7 @@ class ClassOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     name: str
-    invite_code: str
+    invite_code: str | None = None
     teacher_user_id: int
     is_archived: bool
     created_at: datetime

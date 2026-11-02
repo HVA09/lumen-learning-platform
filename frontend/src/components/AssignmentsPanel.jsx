@@ -212,6 +212,23 @@ function TeacherSubmissions({ assignment, onBack }) {
   );
 }
 
+function TeacherReadOnlyAssignment({ assignment, onBack }) {
+  return (
+    <div>
+      <button onClick={onBack} className="mb-3 text-sm text-slate-500 hover:text-slate-700">
+        ← رجوع
+      </button>
+      <h3 className="mb-2 font-semibold text-slate-900">{assignment.title}</h3>
+      <MathText className="mb-3 whitespace-pre-line text-sm text-slate-600">
+        {assignment.description}
+      </MathText>
+      <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+        هذا واجب عام أنشأه معلّم آخر. يمكنك الاطلاع على تفاصيله، لكن لا تملك صلاحية إدارة تسليماته أو تقييم الطلاب.
+      </p>
+    </div>
+  );
+}
+
 function StudentAssignment({ assignment, onBack }) {
   const [submission, setSubmission] = useState(null);
   const [answer, setAnswer] = useState("");
@@ -334,7 +351,11 @@ export default function AssignmentsPanel({ onClose, isTeacher }) {
 
         {selected ? (
           isTeacher ? (
-            <TeacherSubmissions assignment={selected} onBack={() => setSelected(null)} />
+            selected.can_manage ? (
+              <TeacherSubmissions assignment={selected} onBack={() => setSelected(null)} />
+            ) : (
+              <TeacherReadOnlyAssignment assignment={selected} onBack={() => setSelected(null)} />
+            )
           ) : (
             <StudentAssignment assignment={selected} onBack={() => setSelected(null)} />
           )
@@ -380,7 +401,7 @@ export default function AssignmentsPanel({ onClose, isTeacher }) {
                       </p>
                       <div className="mt-1 flex flex-wrap items-center gap-x-3 text-xs text-slate-400">
                         {a.due_at && <span>الموعد النهائي: {new Date(a.due_at).toLocaleDateString()}</span>}
-                        {isTeacher ? (
+                        {isTeacher && a.can_manage ? (
                           <span>{a.submissions_count} تسليم · {a.pending_grading_count} بانتظار التقييم</span>
                         ) : (
                           a.my_status && (
@@ -393,7 +414,7 @@ export default function AssignmentsPanel({ onClose, isTeacher }) {
                         )}
                       </div>
                     </button>
-                    {isTeacher && (
+                    {isTeacher && a.can_manage && (
                       <button
                         onClick={() => handleDelete(a)}
                         className="mt-2 rounded-lg border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50"

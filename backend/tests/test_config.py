@@ -18,6 +18,8 @@ def _production_settings(**overrides):
         "MALWARE_SCAN_ENABLED": True,
         "SMTP_HOST": "smtp.lumen.test",
         "SMTP_FROM_EMAIL": "noreply@lumen.test",
+        "STRIPE_SECRET_KEY": "sk_live_test_configuration",
+        "STRIPE_WEBHOOK_SECRET": "whsec_test_configuration",
     }
     values.update(overrides)
     return Settings(**values)
@@ -121,3 +123,69 @@ def test_production_requires_valid_clamav_endpoint():
 def test_production_requires_positive_user_upload_quotas(setting, value):
     with pytest.raises(ValidationError, match="Per-user upload quotas"):
         _production_settings(**{setting: value})
+
+
+
+def test_production_requires_live_stripe_credentials():
+    with pytest.raises(ValidationError, match="live Stripe secret"):
+        _production_settings(PAYMENT_PROVIDER="stripe", STRIPE_SECRET_KEY="sk_test_not_live")
+    with pytest.raises(ValidationError, match="STRIPE_WEBHOOK_SECRET"):
+        _production_settings(PAYMENT_PROVIDER="stripe", STRIPE_WEBHOOK_SECRET="")
+
+
+def test_production_requires_live_paypal_endpoint_and_credentials():
+    with pytest.raises(ValidationError, match="PayPal client credentials"):
+        _production_settings(
+            PAYMENT_PROVIDER="paypal",
+            PAYPAL_API_BASE="https://api-m.paypal.com",
+        )
+    with pytest.raises(ValidationError, match="PAYPAL_WEBHOOK_ID"):
+        _production_settings(
+            PAYMENT_PROVIDER="paypal",
+            PAYPAL_CLIENT_ID="client",
+            PAYPAL_CLIENT_SECRET="secret",
+            PAYPAL_WEBHOOK_ID="",
+            PAYPAL_API_BASE="https://api-m.paypal.com",
+        )
+    with pytest.raises(ValidationError, match="live https://api-m.paypal.com"):
+        _production_settings(
+            PAYMENT_PROVIDER="paypal",
+            PAYPAL_CLIENT_ID="client",
+            PAYPAL_CLIENT_SECRET="secret",
+            PAYPAL_WEBHOOK_ID="webhook",
+            PAYPAL_API_BASE="https://api-m.sandbox.paypal.com",
+        )
+
+
+def test_production_accepts_explicit_live_paypal_configuration():
+    settings = _production_settings(
+        PAYMENT_PROVIDER="paypal",
+        PAYPAL_CLIENT_ID="client",
+        PAYPAL_CLIENT_SECRET="secret",
+        PAYPAL_WEBHOOK_ID="webhook",
+        PAYPAL_API_BASE="https://api-m.paypal.com",
+    )
+    assert settings.PAYMENT_PROVIDER == "paypal"
+
+
+def test_production_allows_no_payment_mode_without_provider_credentials():
+    settings = _production_settings(
+        PAYMENT_PROVIDER="disabled",
+        STRIPE_SECRET_KEY="",
+        STRIPE_WEBHOOK_SECRET="",
+        PAYPAL_CLIENT_ID="",
+        PAYPAL_CLIENT_SECRET="",
+        PAYPAL_WEBHOOK_ID="",
+    )
+    assert settings.PAYMENT_PROVIDER == "disabled"
+
+
+def test_production_rejects_unknown_payment_provider():
+    with pytest.raises(ValidationError, match="PAYMENT_PROVIDER"):
+        _production_settings(PAYMENT_PROVIDER="mock")
+
+
+
+def test_production_accepts_live_stripe_restricted_key():
+    settings = _production_settings(PAYMENT_PROVIDER="stripe", STRIPE_SECRET_KEY="rk_live_restricted_configuration")
+    assert settings.STRIPE_SECRET_KEY.startswith("rk_live_")

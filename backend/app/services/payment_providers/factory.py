@@ -10,6 +10,8 @@ from app.services.payment_providers.stripe_provider import StripeProvider
 def get_payment_provider() -> PaymentProvider:
     provider_name = settings.PAYMENT_PROVIDER.lower().strip()
 
+    if provider_name == "disabled":
+        raise RuntimeError("Online payments are disabled for this deployment")
     if provider_name == "stripe":
         return StripeProvider(
             secret_key=settings.STRIPE_SECRET_KEY, webhook_secret=settings.STRIPE_WEBHOOK_SECRET
@@ -21,4 +23,4 @@ def get_payment_provider() -> PaymentProvider:
             webhook_id=settings.PAYPAL_WEBHOOK_ID,
             api_base=settings.PAYPAL_API_BASE,
         )
-    raise ValueError(f"PAYMENT_PROVIDER='{provider_name}' غير مدعوم — الخيارات: stripe, paypal")
+    raise ValueError(f"PAYMENT_PROVIDER='{provider_name}' غير مدعوم — الخيارات: disabled, stripe, paypal")

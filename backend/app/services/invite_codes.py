@@ -5,14 +5,15 @@
 يكتبه من السبورة أو لقطة شاشة بدون لبس.
 """
 import random
+import secrets
 
 CODE_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
-CODE_LENGTH = 6
+CODE_LENGTH = 8
 
 
 def generate_invite_code(rng: random.Random | None = None) -> str:
-    rng = rng or random.Random()
-    return "".join(rng.choice(CODE_ALPHABET) for _ in range(CODE_LENGTH))
+    chooser = rng.choice if rng is not None else secrets.choice
+    return "".join(chooser(CODE_ALPHABET) for _ in range(CODE_LENGTH))
 
 
 def normalize_invite_code(raw: str) -> str:

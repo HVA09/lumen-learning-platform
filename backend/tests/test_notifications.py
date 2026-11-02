@@ -71,6 +71,8 @@ def test_websocket_rejects_invalid_token(client):
 
 
 def test_websocket_receives_realtime_notification_on_subscription_activated(client, monkeypatch):
+    # This integration test uses a mocked Stripe webhook; production default remains disabled.
+    monkeypatch.setattr(billing_router_module.app_settings, "PAYMENT_PROVIDER", "stripe")
     token = _register_and_login(client, "wsuser@example.com")
     headers = {"Authorization": f"Bearer {token}"}
     me = client.get("/users/me", headers=headers).json()
@@ -109,3 +111,12 @@ def test_websocket_rejects_untrusted_origin_even_with_session_cookie(client):
             headers={"origin": "https://attacker.invalid"},
         ) as websocket:
             websocket.receive_json()
+
+
+
+def test_notification_limit_is_bounded(client):
+    token = _register_and_login(client, "notify-limit@example.com")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    assert client.get("/notifications?limit=0", headers=headers).status_code == 422
+    assert client.get("/notifications?limit=101", headers=headers).status_code == 422

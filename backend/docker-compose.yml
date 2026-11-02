@@ -22,7 +22,7 @@ services:
       db:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
       clamav:
         # The official image exposes a Docker health check for the clamd PING/PONG protocol.
         condition: service_healthy
@@ -41,6 +41,12 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
 
   # Internal malware scanner. Port 3310 is deliberately not published to the host.
   clamav:
@@ -59,7 +65,7 @@ services:
       db:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
 
   # يشغّل المهام المجدولة (ملخص أسبوعي، تذكير بطاقات مستحقة) — راجع beat_schedule بـ app/tasks.py
   celery_beat:
@@ -71,7 +77,7 @@ services:
       db:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
 
   nginx:
     image: nginx:alpine

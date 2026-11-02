@@ -62,7 +62,7 @@ class Settings(BaseSettings):
     CLAMAV_TIMEOUT_SECONDS: int = 30
 
     # الاشتراكات والدفع
-    PAYMENT_PROVIDER: str = "stripe"  # stripe | paypal
+    PAYMENT_PROVIDER: Literal["disabled", "stripe", "paypal"] = "disabled"
     STRIPE_SECRET_KEY: str = ""
     STRIPE_WEBHOOK_SECRET: str = ""
     PAYPAL_CLIENT_ID: str = ""
@@ -140,6 +140,33 @@ class Settings(BaseSettings):
             target = urlparse(self.LTI_TARGET_LINK_URI)
             if target.scheme != "https" or not target.netloc:
                 raise ValueError("LTI_TARGET_LINK_URI must be an absolute HTTPS URL in production")
+
+        payment_provider = self.PAYMENT_PROVIDER.strip().lower()
+        if payment_provider == "disabled":
+            # Free learning mode does not require any payment provider account.
+            pass
+        elif payment_provider == "stripe":
+            if not self.STRIPE_SECRET_KEY.startswith(("sk_live_", "rk_live_")):
+                raise ValueError("STRIPE_SECRET_KEY must be a live Stripe secret or restricted key in production")
+            if not self.STRIPE_WEBHOOK_SECRET.startswith("whsec_"):
+                raise ValueError("STRIPE_WEBHOOK_SECRET is required in production")
+        elif payment_provider == "paypal":
+            if not self.PAYPAL_CLIENT_ID.strip() or not self.PAYPAL_CLIENT_SECRET.strip():
+                raise ValueError("PayPal client credentials are required in production")
+            if not self.PAYPAL_WEBHOOK_ID.strip():
+                raise ValueError("PAYPAL_WEBHOOK_ID is required in production")
+            paypal_api = urlparse(self.PAYPAL_API_BASE)
+            if (
+                paypal_api.scheme != "https"
+                or paypal_api.hostname != "api-m.paypal.com"
+                or paypal_api.port is not None
+                or paypal_api.path not in ("", "/")
+                or paypal_api.query
+                or paypal_api.fragment
+            ):
+                raise ValueError("PAYPAL_API_BASE must use the live https://api-m.paypal.com endpoint")
+        else:
+            raise ValueError("PAYMENT_PROVIDER must be disabled, stripe, or paypal in production")
 
         if not self.MALWARE_SCAN_ENABLED:
             raise ValueError("MALWARE_SCAN_ENABLED must be true in production")

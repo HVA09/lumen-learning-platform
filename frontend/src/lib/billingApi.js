@@ -21,3 +21,8 @@ export async function cancelSubscription() {
   const { data } = await api.post("/billing/cancel");
   return data;
 }
+
+export async function getBillingStatus() {
+  const { data } = await api.get("/billing/status");
+  return data;
+}

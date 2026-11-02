@@ -92,25 +92,32 @@ function ReviewSession({ onClose }) {
   const [flipped, setFlipped] = useState(false);
   const [loading, setLoading] = useState(true);
   const [reviewedCount, setReviewedCount] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     getDueCards()
       .then(setCards)
+      .catch(() => setError("تعذر تحميل البطاقات المستحقة."))
       .finally(() => setLoading(false));
   }, []);
 
   const currentCard = cards[index];
 
   const handleGrade = async (grade) => {
-    if (!currentCard) return;
+    if (!currentCard || saving) return;
+    setSaving(true);
+    setError("");
     try {
       await submitReview(currentCard.id, grade);
+      setReviewedCount((c) => c + 1);
+      setFlipped(false);
+      setIndex((i) => i + 1);
     } catch {
-      // نكمل حتى لو فشل حفظ التقييم — أهم شي الطالب يكمل مراجعته بدون توقف
+      setError("لم يُحفظ تقييم البطاقة. بقيت البطاقة كما هي؛ تحقق من الاتصال وحاول مجددًا.");
+    } finally {
+      setSaving(false);
     }
-    setReviewedCount((c) => c + 1);
-    setFlipped(false);
-    setIndex((i) => i + 1);
   };
 
   return (
@@ -128,6 +135,23 @@ function ReviewSession({ onClose }) {
 
         {loading ? (
           <p className="text-sm text-slate-400">...</p>
+        ) : error && cards.length === 0 ? (
+          <div className="py-8 text-center">
+            <p className="text-sm text-red-600">{error}</p>
+            <button
+              onClick={() => {
+                setLoading(true);
+                setError("");
+                getDueCards()
+                  .then(setCards)
+                  .catch(() => setError("تعذر تحميل البطاقات المستحقة."))
+                  .finally(() => setLoading(false));
+              }}
+              className="mt-3 rounded-xl border border-slate-200 px-4 py-2 text-sm"
+            >
+              إعادة المحاولة
+            </button>
+          </div>
         ) : !currentCard ? (
           <div className="py-8 text-center">
             <p className="text-slate-700">
@@ -145,8 +169,9 @@ function ReviewSession({ onClose }) {
             <p className="mb-3 text-center text-xs text-slate-400">
               بطاقة {index + 1} من {cards.length}
             </p>
+            {error && <p role="alert" className="mb-3 text-sm text-red-600">{error}</p>}
             <div
-              onClick={() => setFlipped((f) => !f)}
+              onClick={() => !saving && setFlipped((f) => !f)}
               className="flex min-h-40 cursor-pointer items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center"
             >
               <MathText className="whitespace-pre-line text-lg text-slate-900">
@@ -164,18 +189,21 @@ function ReviewSession({ onClose }) {
               <div className="mt-4 grid grid-cols-3 gap-2">
                 <button
                   onClick={() => handleGrade("again")}
+                  disabled={saving}
                   className="rounded-xl border border-red-200 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
                 >
                   ما عرفت
                 </button>
                 <button
                   onClick={() => handleGrade("good")}
+                  disabled={saving}
                   className="rounded-xl border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50"
                 >
                   عرفت
                 </button>
                 <button
                   onClick={() => handleGrade("easy")}
+                  disabled={saving}
                   className="rounded-xl border border-emerald-200 px-3 py-2 text-sm text-emerald-700 hover:bg-emerald-50"
                 >
                   سهلة

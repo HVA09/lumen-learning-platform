@@ -1,7 +1,9 @@
 """
 اختبارات الفصول الدراسية: إنشاء، انضمام برمز دعوة، إدارة القائمة، وتحديد نطاق الواجبات ولوحة المتصدرين
 """
-from app.models.user import UserRole
+from app.models.user import User, UserRole
+from app.routers import classes as classes_router
+from app.services.invite_join_limiter import InviteJoinRateLimitUnavailable
 from tests.quiz_helpers import (
     auth,
     make_student,
@@ -47,7 +49,7 @@ def test_teacher_creates_class_with_invite_code(client, db_session):
     teacher = make_teacher(client, db_session)
     created = _create_class(client, teacher)
     assert created["name"] == "الرياضيات — الصف العاشر"
-    assert len(created["invite_code"]) == 6
+    assert len(created["invite_code"]) == 8
     assert created["student_count"] == 0
     assert created["is_archived"] is False
 
@@ -325,3 +327,76 @@ def test_empty_class_leaderboard_is_empty(client, db_session):
     response = client.get(f"/gamification/leaderboard?class_id={created['id']}", headers=auth(teacher))
     assert response.status_code == 200
     assert response.json() == []
+
+
+
+def test_class_invite_code_is_hidden_from_student_responses(client, db_session):
+    teacher = make_teacher(client, db_session, "invite-owner@example.com")
+    student = make_student(client, "invite-student@example.com")
+    created = _create_class(client, teacher)
+
+    joined = _join(client, student, created["invite_code"])
+    assert joined.status_code == 200
+    assert "invite_code" not in joined.json()
+
+    student_classes = client.get("/classes", headers=auth(student))
+    assert student_classes.status_code == 200
+    assert len(student_classes.json()) == 1
+    assert "invite_code" not in student_classes.json()[0]
+
+    teacher_classes = client.get("/classes", headers=auth(teacher))
+    assert teacher_classes.status_code == 200
+    assert teacher_classes.json()[0]["invite_code"] == created["invite_code"]
+
+
+def test_join_with_wrong_code_keeps_failed_attempt_reservation(client, monkeypatch):
+    student = make_student(client, "wrongcode-reservation@example.com")
+    released = []
+    monkeypatch.setattr(classes_router, "reserve_invite_join_attempt", lambda _user_id: 0)
+    monkeypatch.setattr(classes_router, "release_invite_join_attempt", released.append)
+
+    response = _join(client, student, "ZZZZZZZZ")
+
+    assert response.status_code == 404
+    assert released == []
+
+
+def test_join_with_valid_code_releases_reservation(client, db_session, monkeypatch):
+    teacher = make_teacher(client, db_session, "reservation-owner@example.com")
+    student = make_student(client, "reservation-student@example.com")
+    student_id = db_session.query(User.id).filter(User.email == "reservation-student@example.com").scalar()
+    created = _create_class(client, teacher)
+    reserved = []
+    released = []
+    monkeypatch.setattr(classes_router, "reserve_invite_join_attempt", lambda user_id: reserved.append(user_id) or 0)
+    monkeypatch.setattr(classes_router, "release_invite_join_attempt", released.append)
+
+    response = _join(client, student, created["invite_code"])
+
+    assert response.status_code == 200
+    assert reserved == [student_id]
+    assert released == [student_id]
+
+
+def test_join_returns_429_and_retry_after_when_rate_limited(client, monkeypatch):
+    student = make_student(client, "rate-limited@example.com")
+    monkeypatch.setattr(classes_router, "reserve_invite_join_attempt", lambda _user_id: 73)
+
+    response = _join(client, student, "ZZZZZZZZ")
+
+    assert response.status_code == 429
+    assert response.headers["Retry-After"] == "73"
+
+
+def test_join_fails_closed_when_shared_rate_limiter_is_unavailable(client, monkeypatch):
+    student = make_student(client, "limiter-down@example.com")
+
+    def unavailable(_user_id):
+        raise InviteJoinRateLimitUnavailable()
+
+    monkeypatch.setattr(classes_router, "reserve_invite_join_attempt", unavailable)
+
+    response = _join(client, student, "ZZZZZZZZ")
+
+    assert response.status_code == 503
+    assert response.headers["Retry-After"] == "30"

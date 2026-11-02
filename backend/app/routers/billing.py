@@ -24,6 +24,23 @@ from app.services.payment_providers.paypal_provider import PayPalProvider
 router = APIRouter(prefix="/billing", tags=["Billing"])
 logger = get_logger("billing")
 
+def _payments_enabled() -> bool:
+    return app_settings.PAYMENT_PROVIDER.strip().lower() in ("stripe", "paypal")
+
+
+def _require_payments_enabled() -> None:
+    if not _payments_enabled():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="الدفع الإلكتروني غير مفعّل حالياً؛ الخطة المجانية متاحة للاستخدام",
+        )
+
+
+@router.get("/status")
+def billing_status():
+    """Expose whether paid checkout is configured for this deployment."""
+    return {"online_payments_enabled": _payments_enabled()}
+
 
 @router.get("/plans", response_model=list[PlanOut])
 def list_plans(db: Session = Depends(get_db)):
@@ -51,6 +68,7 @@ async def create_checkout(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    _require_payments_enabled()
     plan = db.get(Plan, payload.plan_id)
     if not plan or not plan.is_active:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="الخطة غير موجودة")
@@ -86,6 +104,7 @@ async def create_checkout(
 async def cancel_subscription(
     current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ):
+    _require_payments_enabled()
     subscription = db.query(Subscription).filter(Subscription.user_id == current_user.id).first()
     if not subscription:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="لا يوجد اشتراك")
@@ -313,6 +332,8 @@ async def _process_verified_webhook_event(event, provider_name: str, db: Session
 
 @router.post("/webhook/stripe", include_in_schema=False)
 async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
+    if app_settings.PAYMENT_PROVIDER.strip().lower() != "stripe":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Webhook غير مفعّل")
     payload = await request.body()
     provider = get_payment_provider()
     try:
@@ -326,6 +347,8 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
 
 @router.post("/webhook/paypal", include_in_schema=False)
 async def paypal_webhook(request: Request, db: Session = Depends(get_db)):
+    if app_settings.PAYMENT_PROVIDER.strip().lower() != "paypal":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Webhook غير مفعّل")
     payload = await request.body()
     provider = get_payment_provider()
     if not isinstance(provider, PayPalProvider):
