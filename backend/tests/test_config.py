@@ -171,3 +171,9 @@ def test_production_accepts_explicit_live_paypal_configuration():
 def test_production_rejects_unknown_payment_provider():
     with pytest.raises(ValidationError, match="PAYMENT_PROVIDER"):
         _production_settings(PAYMENT_PROVIDER="mock")
+
+
+
+def test_production_accepts_live_stripe_restricted_key():
+    settings = _production_settings(STRIPE_SECRET_KEY="rk_live_restricted_configuration")
+    assert settings.STRIPE_SECRET_KEY.startswith("rk_live_")
