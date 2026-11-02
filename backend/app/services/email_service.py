@@ -19,7 +19,14 @@ logger = get_logger("email")
 
 def send_email(to: str, subject: str, body: str) -> None:
     """الإرسال الفعلي (sync) — تستخدمها queue_email مباشرة أو عبر مهمة Celery"""
-    if not settings.SMTP_HOST:
+    if not settings.SMTP_HOST.strip():
+        if settings.ENVIRONMENT.strip().lower() == "production":
+            # Fail closed: verification/reset links contain sensitive one-time tokens.
+            # Production settings validation should catch this before startup; keep a
+            # runtime guard as defense in depth for tests and dynamically changed config.
+            logger.error("SMTP is not configured; email delivery unavailable for %s", to)
+            raise RuntimeError("SMTP_HOST is required for email delivery in production")
+
         logger.info(
             "=== [DEV MODE] لم يُرسل إيميل حقيقي — اضبط SMTP_HOST لتفعيل الإرسال ===\n"
             "إلى: %s | الموضوع: %s\n%s\n=========================================",
