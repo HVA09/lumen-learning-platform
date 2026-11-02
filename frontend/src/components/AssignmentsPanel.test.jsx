@@ -82,7 +82,8 @@ describe("AssignmentsPanel", () => {
     render(<AssignmentsPanel isTeacher onClose={vi.fn()} />);
 
     await user.click(await screen.findByText("واجب المشتقات"));
-    expect(await screen.findByPlaceholderText("اكتب إجابتك وشرحك هنا...")).toBeInTheDocument();
+    expect(await screen.findByText(/هذا واجب عام أنشأه معلّم آخر/)).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("اكتب إجابتك وشرحك هنا...")).not.toBeInTheDocument();
     expect(screen.queryByText("قيّم الآن")).not.toBeInTheDocument();
     expect(screen.queryByText("حذف الواجب")).not.toBeInTheDocument();
   });
