@@ -11,11 +11,11 @@
 - فرع العمل: `fix/security-production-hardening`.
 - PR الرئيسي: [#4 — Consolidated Lumen import and security hardening](https://github.com/HVA09/lumen-learning-platform/pull/4).
 - الحالة وقت التحديث: PR #4 مفتوح وغير مدمج، وليس هناك نشر إنتاجي مثبت.
-- آخر commit للفرع الذي شُغّل عليه CI بنجاح: `a1550659f4284a646cbbe8855c979ac6bb4cea63` عبر [GitHub Actions run #517](https://github.com/HVA09/lumen-learning-platform/actions/runs/41500954156) — نجح بالكامل.
+- آخر commit للفرع الذي شُغّل عليه CI بنجاح: `1cb8dd77fa438b4b099726c86518de25c2a865cd` عبر [GitHub Actions run #521](https://github.com/HVA09/lumen-learning-platform/actions/runs/41504975752) — نجح بالكامل.
 
 ## نتيجة CI على head الموثق
 
-تشغيل #517 على أحدث head `a1550659f4284a646cbbe8855c979ac6bb4cea63`:
+تشغيل #521 على أحدث head `1cb8dd77fa438b4b099726c86518de25c2a865cd`:
 
 | الوظيفة | النتيجة |
 |---|---|
@@ -175,3 +175,19 @@
 ## الخطة المعمارية التالية
 - تمت إضافة [ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md) مع توصيف واقعي للبنية الحالية وحدود المجالات وقواعد الاعتماديات.
 - التجربة الأولى المقترحة بعد اعتماد خط الأساس: نقل منطق quiz_logic.py الخالص إلى Assessments مع واجهة توافق واختبارات كاملة، دون تغيير API أو قاعدة البيانات أو منطق التصحيح.
+
+
+## أحدث حالة معتمدة — CI #521 (2026-11-02)
+
+- الفرع: `fix/security-production-hardening`.
+- آخر commit متحقق منه: `1cb8dd77fa438b4b099726c86518de25c2a865cd`.
+- [GitHub Actions run #521](https://github.com/HVA09/lumen-learning-platform/actions/runs/41504975752): **نجاح كامل** على نفس commit.
+- Backend: **402 passed, 0 failed, 20 warnings**. ارتفع العدد من 401 إلى 402 بسبب اختبار قفل TOTP الجديد.
+- Frontend: **51 passed across 11 files**؛ production build passed.
+- Full Git history secret scan: **passed**؛ no leaks found.
+- Docker Compose validation، migration preservation/upgrade/downgrade، PostgreSQL backup/restore، وRestic smoke test: **passed**.
+- CI #520 فشل في Gitleaks فقط بسبب 3 بصمات نصوص كلمات مرور اختبار وهمية أضيفت في test fixture. أصلحنا الاختبار لتكوين القيمة من جزأين، وأضفنا **3 fingerprints محددة لهذا commit والملف والأسطر فقط** إلى `.gitleaksignore`. لم نستثنِ مجلد الاختبارات أو أي قاعدة كشف. CI #521 أعاد فحص التاريخ الكامل ونجح.
+- إصلاح التطبيق: تسجيل محاولات TOTP غير الصحيحة ضمن `failed_login_attempts` المشتركة، وقفل الحساب مؤقتًا عند بلوغ `MAX_FAILED_LOGIN_ATTEMPTS`، مع إشعار أمني. طلب كلمة المرور الصحيحة بلا TOTP لا يستهلك محاولة.
+- الاختبار الجديد `test_invalid_totp_attempts_lock_account` يغطي عدّ المحاولات والقفل ومنع الدخول الصحيح خلال مدة القفل. لم يتغير API أو schema أو migration.
+- أضيفت الخطة المعمارية `ARCHITECTURE_PLAN.md` وتوصية Modular Monolith، لكن لم تبدأ عملية نقل وحدات الكود قبل اعتماد PR #4.
+- PR #4 لا يزال مفتوحًا وغير مدمج. `main` لا يزال عند آخر commit متحقق منه `da33265617b61baaccdea05de5015f73bd1b5d56`. شرط موافقة مراجع بصلاحية كتابة ما زال قائمًا. لا يوجد نشر إنتاجي.
