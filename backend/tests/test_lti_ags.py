@@ -191,6 +191,78 @@ def test_unmapped_resource_link_is_discovered_admin_only_and_prefills_mapping(
     assert db_mapping.lineitem_url.endswith("?tenant=discovery")
 
 
+def test_resource_link_discovery_upsert_is_idempotent_and_refreshes_mapping(db_session):
+    platform = _platform(db_session)
+    owner = User(email="ags-upsert-owner@example.com", hashed_password="not-used")
+    db_session.add(owner)
+    db_session.flush()
+    assignment = Assignment(
+        created_by_user_id=owner.id,
+        title="Upsert mapping",
+        description="Concurrent first launches",
+    )
+    db_session.add(assignment)
+    db_session.flush()
+    mapping = LTIAssignmentLink(
+        platform_id=platform.id,
+        assignment_id=assignment.id,
+        deployment_id=platform.deployment_id,
+        resource_link_id="resource-upsert-1",
+    )
+    db_session.add(mapping)
+    db_session.flush()
+
+    first_claims = {
+        AGS_RESOURCE_LINK_CLAIM: {"id": "resource-upsert-1"},
+        AGS_ENDPOINT_CLAIM: {
+            "lineitem": "https://moodle.example.test/mod/lti/lineitems/11",
+            "scope": [AGS_SCORE_SCOPE],
+        },
+    }
+    assert record_lti_ags_launch_context(db_session, platform, first_claims) is True
+    db_session.flush()
+
+    discovery = (
+        db_session.query(LTIResourceLinkDiscovery)
+        .filter(
+            LTIResourceLinkDiscovery.platform_id == platform.id,
+            LTIResourceLinkDiscovery.resource_link_id == "resource-upsert-1",
+        )
+        .one()
+    )
+    original_first_seen = discovery.first_seen_at
+    discovery.first_seen_at = original_first_seen.replace(year=original_first_seen.year - 1)
+    expected_first_seen = discovery.first_seen_at
+    db_session.flush()
+
+    refreshed_claims = {
+        AGS_RESOURCE_LINK_CLAIM: {"id": "resource-upsert-1"},
+        AGS_ENDPOINT_CLAIM: {
+            "lineitem": "https://moodle.example.test/mod/lti/lineitems/12?tenant=updated",
+            "scope": [AGS_SCORE_SCOPE],
+        },
+    }
+    assert record_lti_ags_launch_context(db_session, platform, refreshed_claims) is True
+    db_session.flush()
+    db_session.refresh(discovery)
+    db_session.refresh(mapping)
+
+    discoveries = (
+        db_session.query(LTIResourceLinkDiscovery)
+        .filter(
+            LTIResourceLinkDiscovery.platform_id == platform.id,
+            LTIResourceLinkDiscovery.resource_link_id == "resource-upsert-1",
+        )
+        .all()
+    )
+    assert len(discoveries) == 1
+    assert discovery.first_seen_at == expected_first_seen
+    assert discovery.lineitem_url.endswith("/lineitems/12?tenant=updated")
+    assert discovery.score_scope_allowed is True
+    assert mapping.lineitem_url == discovery.lineitem_url
+    assert mapping.score_scope_allowed is True
+
+
 def test_launch_context_requires_score_scope_and_same_platform_origin(db_session):
     platform = _platform(db_session)
     # Use a real user row for the assignment foreign key.

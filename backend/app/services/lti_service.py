@@ -18,6 +18,7 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import urlsplit, urlunsplit
 
 import httpx
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from jose import jwk, jwt
@@ -415,28 +416,34 @@ def record_lti_ags_launch_context(db, platform, claims: dict) -> bool:
             score_scope_allowed = True
 
     now = datetime.now(timezone.utc)
-    discovery = (
-        db.query(LTIResourceLinkDiscovery)
-        .filter(
-            LTIResourceLinkDiscovery.platform_id == platform.id,
-            LTIResourceLinkDiscovery.deployment_id == platform.deployment_id,
-            LTIResourceLinkDiscovery.resource_link_id == resource_link_id,
-        )
-        .with_for_update()
-        .first()
+    # A row lock cannot protect a row that does not exist yet. Use PostgreSQL's
+    # atomic upsert so simultaneous first launches cannot race into the unique
+    # constraint and fail an otherwise valid LTI launch. Keep first_seen_at
+    # immutable while refreshing only the latest AGS context.
+    discovery_table = LTIResourceLinkDiscovery.__table__
+    discovery_upsert = pg_insert(discovery_table).values(
+        platform_id=platform.id,
+        deployment_id=platform.deployment_id,
+        resource_link_id=resource_link_id,
+        lineitem_url=safe_lineitem,
+        score_scope_allowed=score_scope_allowed,
+        first_seen_at=now,
+        last_seen_at=now,
     )
-    if discovery is None:
-        discovery = LTIResourceLinkDiscovery(
-            platform_id=platform.id,
-            deployment_id=platform.deployment_id,
-            resource_link_id=resource_link_id,
-            first_seen_at=now,
-            last_seen_at=now,
+    db.execute(
+        discovery_upsert.on_conflict_do_update(
+            index_elements=[
+                discovery_table.c.platform_id,
+                discovery_table.c.deployment_id,
+                discovery_table.c.resource_link_id,
+            ],
+            set_={
+                "lineitem_url": safe_lineitem,
+                "score_scope_allowed": score_scope_allowed,
+                "last_seen_at": now,
+            },
         )
-        db.add(discovery)
-    discovery.lineitem_url = safe_lineitem
-    discovery.score_scope_allowed = score_scope_allowed
-    discovery.last_seen_at = now
+    )
 
     mapping = (
         db.query(LTIAssignmentLink)
