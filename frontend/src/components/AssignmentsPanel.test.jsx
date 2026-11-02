@@ -76,6 +76,8 @@ describe("AssignmentsPanel", () => {
 
   it("المعلّم لا يرى أدوات التقييم أو الحذف للواجب العام الذي لا يملكه", async () => {
     getAssignments.mockResolvedValue([{ ...classAssignment, class_section_id: null, can_manage: false }]);
+    const { getMySubmission } = await import("../lib/assignmentsApi");
+    getMySubmission.mockResolvedValue(null);
     const user = userEvent.setup();
     render(<AssignmentsPanel isTeacher onClose={vi.fn()} />);
 
