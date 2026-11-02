@@ -123,10 +123,11 @@ describe("LTIManagementTab", () => {
     });
     render(<LTIManagementTab />);
 
-    await screen.findByText("حدث #4");
-    fireEvent.click(screen.getByRole("button", { name: "إعادة المحاولة" }));
+    fireEvent.click(await screen.findByRole("button", { name: "إعادة المحاولة" }));
 
-    await waitFor(() => expect(retryLtiGradeEvent).toHaveBeenCalledWith(4));
-    expect(listLtiGradeEvents).toHaveBeenCalledTimes(2);
+    await waitFor(() => {
+      expect(retryLtiGradeEvent).toHaveBeenCalledWith(4);
+      expect(listLtiGradeEvents).toHaveBeenCalledTimes(2);
+    });
   });
 });
