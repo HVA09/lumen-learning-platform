@@ -1,5 +1,6 @@
 """Protocol-level tests for LTI AGS mappings, grade outbox, OAuth and score delivery."""
 import asyncio
+from datetime import datetime, timedelta, timezone
 import subprocess
 import sys
 from pathlib import Path
@@ -520,6 +521,27 @@ def test_ags_outbox_dispatch_posts_signed_token_and_score(client, db_session, mo
     assert score["activityProgress"] == "Completed"
     assert score["gradingProgress"] == "FullyGraded"
     assert score["comment"] == "Good work"
+
+
+def test_ags_dispatch_skips_event_with_active_delivery_lease(client, db_session, monkeypatch):
+    _platform_obj, _mapping, event = _make_pending_event(client, db_session)
+    now = datetime.now(timezone.utc)
+    event.locked_until = now + timedelta(minutes=2)
+    db_session.commit()
+
+    async def unexpected_delivery(*_args, **_kwargs):
+        raise AssertionError("An actively leased grade event must not be delivered twice")
+
+    monkeypatch.setattr(lti_service, "post_lti_ags_score", unexpected_delivery)
+
+    delivered = asyncio.run(dispatch_lti_grade_event(db_session, event.id))
+    assert delivered is False
+
+    db_session.refresh(event)
+    assert event.status == "pending"
+    assert event.attempts == 0
+    assert event.locked_until is not None
+    assert event.locked_until > now
 
 
 def test_ags_delivery_failure_is_retried_without_persisting_remote_details(client, db_session, monkeypatch):
