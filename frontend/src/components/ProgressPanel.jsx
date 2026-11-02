@@ -6,18 +6,32 @@ export default function ProgressPanel({ onClose }) {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
+  const [error, setError] = useState("");
+
+  const loadReport = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      setReport(await getMyProgress());
+    } catch {
+      setError("تعذر تحميل تقرير التقدم. تحقق من الاتصال وحاول مرة أخرى.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    getMyProgress()
-      .then(setReport)
-      .finally(() => setLoading(false));
+    loadReport();
   }, []);
 
   const handleSend = async () => {
     setSending(true);
+    setError("");
     try {
       await sendMyReport();
       setSent(true);
+    } catch {
+      setError("تعذر إرسال التقرير. حاول مرة أخرى.");
     } finally {
       setSending(false);
     }
@@ -52,8 +66,16 @@ export default function ProgressPanel({ onClose }) {
 
         {loading ? (
           <p className="text-sm text-slate-400">...</p>
-        ) : (
+        ) : error && !report ? (
+          <div className="space-y-3">
+            <p className="text-sm text-red-600">{error}</p>
+            <button onClick={loadReport} className="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm">
+              إعادة المحاولة
+            </button>
+          </div>
+        ) : report ? (
           <>
+            {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
             <div className="grid grid-cols-2 gap-3">
               {stats.map(([label, value]) => (
                 <div key={label} className="rounded-2xl border border-slate-200 p-3 text-center">
@@ -79,7 +101,7 @@ export default function ProgressPanel({ onClose }) {
               {sent ? "تم الإرسال ✓" : sending ? "جاري الإرسال..." : "أرسل التقرير لبريدي"}
             </button>
           </>
-        )}
+        ) : null}
       </div>
     </div>
   );
