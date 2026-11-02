@@ -133,3 +133,12 @@
 - Docker Compose، migration preservation/upgrade/downgrade، PostgreSQL backup/restore، وRestic smoke tests: **passed**.
 - PR #4 ما زال مفتوحًا وغير مدمج، ومراجعات GitHub الحالية فارغة. الدمج ما زال يتطلب موافقة واحدة من مراجع بصلاحية كتابة وفق ADR-010. `main` لم يتغير، ولم يحدث نشر إنتاجي.
 - تقييم الاستضافة المحدث محفوظ في [HOSTING_FEASIBILITY.md](HOSTING_FEASIBILITY.md). الاستنتاج: لا يوجد خيار مؤكد بلا بطاقة يستضيف المكدس الكامل بأمان؛ لا نعطّل فحص ClamAV لتجاوز حدود الذاكرة.
+
+
+## متابعة مسارات Pull Requests
+
+- أحدث CI مكتمل: [#516](https://github.com/HVA09/lumen-learning-platform/actions/runs/41499900489)، نجاح على head `31079e169d20a5128e31a9390ebded85ca979930`: Backend **401 passed, 20 warnings**؛ Frontend **51 passed / 11 files**؛ production build passed؛ full-history Gitleaks passed؛ migrations وCompose وPostgreSQL backup/restore وRestic smoke tests passed.
+- PR #4 مفتوح وغير مدمج؛ يتطلب موافقة واحدة من مراجع بصلاحية كتابة. لا توجد مراجعة مسجلة ولا نشر إنتاجي.
+- سلسلة LTI AGS #16–#23 ما زالت مسودات متسلسلة مستقلة، ونتائج CI #424/#426/#427/#429/#432/#433/#436/#440 تاريخية فقط. راجع [PR_STACK_TRIAGE.md](PR_STACK_TRIAGE.md) قبل أي دمج.
+- PR #1 أرشيفات ZIP أولية، و#2/#3 معلنان مستبدلين بـ #4، و#5 مبني على فرع استيراد قديم، و#6 وثائق معمارية أقدم تحتاج تحديثًا. لا تدمج أو تغلق هذه الطلبات تلقائيًا.
+- تم توثيق قرار عدم إدخال سلسلة LTI المتباعدة مباشرة ضمن ADR-012.

@@ -26,3 +26,5 @@
 ابدأ بقراءة `docs/PROJECT_STATUS.md` ثم `docs/DECISIONS.md` قبل استكمال أي مرحلة تطوير.
 
 - [تقييم الاستضافة المجانية والقيود](docs/HOSTING_FEASIBILITY.md)
+
+- [خريطة طلبات الدمج ومسارات LTI المتبقية](docs/PR_STACK_TRIAGE.md)
