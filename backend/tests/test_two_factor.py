@@ -1,6 +1,8 @@
 """
 اختبارات Two Factor Authentication (TOTP)
 """
+import time
+
 import pyotp
 
 from app.auth.totp_secrets import TOTP_SECRET_PREFIX, decrypt_totp_secret
@@ -86,6 +88,73 @@ def test_login_with_2fa_enabled_requires_code(client):
         },
     )
     assert bad_response.status_code == 401
+
+
+def test_invalid_totp_attempts_lock_account(client, db_session):
+    from app.config import settings
+
+    token = _register_and_login(client, "totp-lockout@example.com")
+    headers = {"Authorization": f"Bearer {token}"}
+    setup = client.post("/auth/2fa/setup", headers=headers)
+    secret = setup.json()["secret"]
+    totp = pyotp.TOTP(secret)
+
+    enabled = client.post(
+        "/auth/2fa/enable",
+        json={"totp_code": totp.now()},
+        headers=headers,
+    )
+    assert enabled.status_code == 200
+
+    user = db_session.query(User).filter(User.email == "totp-lockout@example.com").one()
+
+    # Asking for the required second factor is not itself a wrong-code attempt.
+    missing_code = client.post(
+        "/auth/login",
+        json={"email": "totp-lockout@example.com", "password": "StrongPass123"},
+    )
+    assert missing_code.status_code == 428
+    db_session.refresh(user)
+    assert user.failed_login_attempts == 0
+
+    # Pick a code outside the current and adjacent TOTP windows, including
+    # enough time around a 30-second boundary for the requests below.
+    now = int(time.time())
+    accepted_codes = {
+        totp.at(now + offset)
+        for offset in (-90, -60, -30, 0, 30, 60, 90)
+    }
+    wrong_code = next(
+        f"{candidate:06d}"
+        for candidate in range(1_000_000)
+        if f"{candidate:06d}" not in accepted_codes
+    )
+
+    for attempt in range(1, settings.MAX_FAILED_LOGIN_ATTEMPTS + 1):
+        response = client.post(
+            "/auth/login",
+            json={
+                "email": "totp-lockout@example.com",
+                "password": "StrongPass123",
+                "totp_code": wrong_code,
+            },
+        )
+        assert response.status_code == 401
+        db_session.refresh(user)
+        assert user.failed_login_attempts == attempt
+
+    assert user.locked_until is not None
+
+    # Even a correct second factor cannot bypass the temporary account lock.
+    locked_login = client.post(
+        "/auth/login",
+        json={
+            "email": "totp-lockout@example.com",
+            "password": "StrongPass123",
+            "totp_code": totp.now(),
+        },
+    )
+    assert locked_login.status_code == 403
 
 
 def test_disable_two_factor(client):

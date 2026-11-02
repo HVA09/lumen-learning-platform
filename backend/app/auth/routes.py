@@ -159,6 +159,33 @@ def login(
             ) from exc
 
         if not pyotp.TOTP(totp_secret).verify(payload.totp_code, valid_window=1):
+            # A correct password must not make the second factor unlimited to guess.
+            # Count invalid TOTP codes against the same account lockout threshold.
+            user.failed_login_attempts += 1
+            account_locked = (
+                user.failed_login_attempts >= settings.MAX_FAILED_LOGIN_ATTEMPTS
+            )
+            if account_locked:
+                user.locked_until = now + timedelta(
+                    minutes=settings.ACCOUNT_LOCKOUT_MINUTES
+                )
+            db.commit()
+
+            if account_locked:
+                log_event(
+                    db,
+                    "account_locked",
+                    f"تم قفل الحساب مؤقتًا بعد محاولات 2FA فاشلة: {user.email}",
+                    user.id,
+                )
+                notify(
+                    db,
+                    user.id,
+                    "قفل الحساب مؤقتًا",
+                    "محاولات تحقق ثنائي فاشلة متكررة على حسابك — تم قفله مؤقتًا لحمايتك.",
+                    "security",
+                )
+
             log_event(db, "2fa_failed", f"رمز 2FA غير صحيح: {user.email}", user.id)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="رمز التحقق الثنائي غير صحيح"
