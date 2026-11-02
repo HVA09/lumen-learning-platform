@@ -1,7 +1,7 @@
 """
 اختبارات الفصول الدراسية: إنشاء، انضمام برمز دعوة، إدارة القائمة، وتحديد نطاق الواجبات ولوحة المتصدرين
 """
-from app.models.user import UserRole
+from app.models.user import User, UserRole
 from app.routers import classes as classes_router
 from app.services.invite_join_limiter import InviteJoinRateLimitUnavailable
 from tests.quiz_helpers import (
@@ -364,6 +364,7 @@ def test_join_with_wrong_code_keeps_failed_attempt_reservation(client, monkeypat
 def test_join_with_valid_code_releases_reservation(client, db_session, monkeypatch):
     teacher = make_teacher(client, db_session, "reservation-owner@example.com")
     student = make_student(client, "reservation-student@example.com")
+    student_id = db_session.query(User.id).filter(User.email == "reservation-student@example.com").scalar()
     created = _create_class(client, teacher)
     reserved = []
     released = []
@@ -373,8 +374,8 @@ def test_join_with_valid_code_releases_reservation(client, db_session, monkeypat
     response = _join(client, student, created["invite_code"])
 
     assert response.status_code == 200
-    assert reserved == [student["id"]]
-    assert released == [student["id"]]
+    assert reserved == [student_id]
+    assert released == [student_id]
 
 
 def test_join_returns_429_and_retry_after_when_rate_limited(client, monkeypatch):
