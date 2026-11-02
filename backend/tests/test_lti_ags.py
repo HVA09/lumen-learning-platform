@@ -346,6 +346,55 @@ def test_teacher_grading_creates_one_outbox_event_per_grade_version(client, db_s
     assert [event.score_given for event in events] == [84.0, 91.0]
 
 
+def test_grade_event_manual_retry_is_admin_only_and_resets_dead_event(client, db_session):
+    from datetime import datetime, timedelta, timezone
+
+    _platform_obj, _mapping, event = _make_pending_event(client, db_session)
+
+    teacher_token = make_teacher(client, db_session, "ags-retry-teacher@example.com")
+    denied = client.post(
+        f"/lti/grade-events/{event.id}/retry",
+        headers=auth(teacher_token),
+    )
+    assert denied.status_code == 403
+
+    admin_email = "ags-retry-admin@example.com"
+    admin_token = register_and_login(client, admin_email)
+    set_role(db_session, admin_email, UserRole.admin)
+
+    # A pending event cannot be manually retried; this endpoint is for dead letters.
+    pending_retry = client.post(
+        f"/lti/grade-events/{event.id}/retry",
+        headers=auth(admin_token),
+    )
+    assert pending_retry.status_code == 409
+
+    event.status = "dead"
+    event.attempts = 8
+    event.last_error = "RuntimeError: AGS delivery failed"
+    event.locked_until = datetime.now(timezone.utc) + timedelta(minutes=2)
+    event.next_attempt_at = datetime.now(timezone.utc) + timedelta(hours=1)
+    db_session.commit()
+
+    retried = client.post(
+        f"/lti/grade-events/{event.id}/retry",
+        headers=auth(admin_token),
+    )
+    assert retried.status_code == 200, retried.text
+    body = retried.json()
+    assert body["id"] == event.id
+    assert body["status"] == "pending"
+    assert body["attempts"] == 0
+    assert body["last_error"] is None
+
+    db_session.refresh(event)
+    assert event.status == "pending"
+    assert event.attempts == 0
+    assert event.last_error is None
+    assert event.locked_until is None
+    assert event.next_attempt_at <= datetime.now(timezone.utc)
+
+
 def test_ags_client_assertion_has_short_lived_platform_client_claims(monkeypatch):
     private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     private_pem = private_key.private_bytes(
