@@ -11,12 +11,11 @@
 - فرع العمل: `fix/security-production-hardening`.
 - PR الرئيسي: [#4 — Consolidated Lumen import and security hardening](https://github.com/HVA09/lumen-learning-platform/pull/4).
 - الحالة وقت التحديث: PR #4 مفتوح وغير مدمج، وليس هناك نشر إنتاجي مثبت.
-- أحدث commit للفرع: `21f195556f12e41a834a7f406221c6e85ca847ab` (تحديث توثيقي فقط).
-- آخر commit للكود تم التحقق منه آليًا: `75a85923ffe66d658ac78e31abdd9003dab18c79` عبر [GitHub Actions run #511](https://github.com/HVA09/lumen-learning-platform/actions/runs/41492944574) — نجح بالكامل.
+- آخر commit للفرع الذي شُغّل عليه CI بنجاح: `6444a61850447c9b2d5f3b57e7aee0b7f8aacfb9` عبر [GitHub Actions run #514](https://github.com/HVA09/lumen-learning-platform/actions/runs/41494489575) — نجح بالكامل.
 
 ## نتيجة CI على head الموثق
 
-تشغيل #511 على commit الكود `75a85923ffe66d658ac78e31abdd9003dab18c79` (وهو أصل التغييرات المصدرية للـ head التوثيقي الحالي):
+تشغيل #514 على أحدث head `6444a61850447c9b2d5f3b57e7aee0b7f8aacfb9`:
 
 | الوظيفة | النتيجة |
 |---|---|
@@ -66,7 +65,7 @@
 
 | التاريخ | التغيير |
 |---|---|
-| 2026-11-02 | إنشاء سجل الحالة الدائم. CI #508 و#509 ثم CI #511 نجحت على commits المتعاقبة؛ أحدثها #511 على `75a85923` ويشمل 401 اختبار خلفية و51 اختبار واجهة وبناء الإنتاج وفحص التاريخ الكامل. PR #4 مفتوح وغير مدمج بسبب شرط الموافقة. |
+| 2026-11-02 | إنشاء سجل الحالة الدائم. CI #508 و#509 و#511 و#514 نجحت على commits متعاقبة؛ أحدثها #514 على `6444a618` ويشمل 401 اختبار خلفية و51 اختبار واجهة وبناء الإنتاج وفحص التاريخ الكامل. PR #4 مفتوح وغير مدمج بسبب شرط الموافقة. |
 
 
 ## تحديث مهم — 2026-11-02: حالة الدمج بعد CI #509
@@ -112,3 +111,14 @@
 - commits `21f19555` و`58d70523` غيّرت ملفات توثيق فقط ولم تغيّر كود التطبيق.
 - مع ذلك، فلتر `pull_request.paths` في GitHub Actions يُقيّم الملفات المتغيرة في فرق PR كاملًا مقابل الفرع الأساسي، وليس آخر commit منفردًا. وبما أن PR #4 يتضمن تغييرات `backend/**` و`frontend/**`، فإن تحديثات التوثيق اللاحقة قد تطلق تشغيل CI جديدًا أيضًا.
 - لذلك يجب اعتماد حالة التشغيل المرتبطة بأحدث head الفعلي، وعدم افتراض أن commit توثيقي لا يشغّل CI.
+
+
+## آخر نقطة تحقق موثقة — CI #514
+
+- [GitHub Actions run #514](https://github.com/HVA09/lumen-learning-platform/actions/runs/41494489575) اكتمل بنجاح على `6444a61850447c9b2d5f3b57e7aee0b7f8aacfb9`.
+- Backend: **401 passed, 0 failed, 20 warnings**.
+- Frontend: **51 passed across 11 test files**؛ production build passed.
+- Full Git history secret scan: **passed**، `no leaks found`.
+- Docker Compose، migrations، PostgreSQL backup/restore، وRestic smoke tests: **passed**.
+- لا يوجد تغيير في كود التطبيق بين commit الكود الذي فُحص في #511 وhead #514؛ التغييرات بينهما تخص سجل القرارات والحالة والتوثيق. #514 مع ذلك أعاد تشغيل وفحص المسار الكامل للـ PR ونجح.
+- PR #4 لا يزال مفتوحًا وغير مدمج؛ GitHub يطلب موافقة واحدة من مراجع بصلاحية كتابة. لا يوجد نشر إنتاجي.
