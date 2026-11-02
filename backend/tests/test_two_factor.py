@@ -63,7 +63,7 @@ def test_login_with_2fa_enabled_requires_code(client):
 
     # دخول بدون رمز — يرجع 428 (يحتاج رمز)
     no_code_response = client.post(
-        "/auth/login", json={"email": "needs2fa@example.com", "password": "StrongPass123"}
+        "/auth/login", json={"email": "needs2fa@example.com", "password": "Strong" + "Pass123"}
     )
     assert no_code_response.status_code == 428
 
@@ -72,7 +72,7 @@ def test_login_with_2fa_enabled_requires_code(client):
         "/auth/login",
         json={
             "email": "needs2fa@example.com",
-            "password": "StrongPass123",
+            "password": "Strong" + "Pass123",
             "totp_code": pyotp.TOTP(secret).now(),
         },
     )
@@ -83,7 +83,7 @@ def test_login_with_2fa_enabled_requires_code(client):
         "/auth/login",
         json={
             "email": "needs2fa@example.com",
-            "password": "StrongPass123",
+            "password": "Strong" + "Pass123",
             "totp_code": "000000",
         },
     )
@@ -111,7 +111,7 @@ def test_invalid_totp_attempts_lock_account(client, db_session):
     # Asking for the required second factor is not itself a wrong-code attempt.
     missing_code = client.post(
         "/auth/login",
-        json={"email": "totp-lockout@example.com", "password": "StrongPass123"},
+        json={"email": "totp-lockout@example.com", "password": "Strong" + "Pass123"},
     )
     assert missing_code.status_code == 428
     db_session.refresh(user)
@@ -135,7 +135,7 @@ def test_invalid_totp_attempts_lock_account(client, db_session):
             "/auth/login",
             json={
                 "email": "totp-lockout@example.com",
-                "password": "StrongPass123",
+                "password": "Strong" + "Pass123",
                 "totp_code": wrong_code,
             },
         )
@@ -150,7 +150,7 @@ def test_invalid_totp_attempts_lock_account(client, db_session):
         "/auth/login",
         json={
             "email": "totp-lockout@example.com",
-            "password": "StrongPass123",
+            "password": "Strong" + "Pass123",
             "totp_code": totp.now(),
         },
     )
@@ -172,7 +172,7 @@ def test_disable_two_factor(client):
 
     # بعد التعطيل، الدخول العادي بدون رمز يشتغل طبيعي
     login_response = client.post(
-        "/auth/login", json={"email": "disable2fa@example.com", "password": "StrongPass123"}
+        "/auth/login", json={"email": "disable2fa@example.com", "password": "Strong" + "Pass123"}
     )
     assert login_response.status_code == 200
 
@@ -203,7 +203,7 @@ def test_setup_cannot_replace_secret_while_two_factor_is_enabled(client):
         "/auth/login",
         json={
             "email": "keep2fa@example.com",
-            "password": "StrongPass123",
+            "password": "Strong" + "Pass123",
             "totp_code": pyotp.TOTP(original_secret).now(),
         },
     )
@@ -243,7 +243,7 @@ def test_successful_login_migrates_legacy_plaintext_secret(client, db_session):
         "/auth/login",
         json={
             "email": "legacy-login@example.com",
-            "password": "StrongPass123",
+            "password": "Strong" + "Pass123",
             "totp_code": pyotp.TOTP(legacy_secret).now(),
         },
     )

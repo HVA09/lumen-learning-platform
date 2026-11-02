@@ -120,3 +120,7 @@ fa19210523a8eca9b0a61c63f35c124adbef879e:backend/tests/test_lti.py:generic-api-k
 4a927dee909799f87ac689df52c2fe69c2ab0bb7:imports/ai-backend.zip!ai-backend/tests/test_lti.py:generic-api-key:28
 4a927dee909799f87ac689df52c2fe69c2ab0bb7:imports/ai-backend.zip!ai-backend/tests/test_reports.py:generic-api-key:8
 4a927dee909799f87ac689df52c2fe69c2ab0bb7:imports/ai-backend.zip!ai-backend/tests/test_notifications.py:generic-api-key:10
+
+4d541f64e298d478b3a55eae80c2ede1835faaea:backend/tests/test_two_factor.py:generic-api-key:114
+4d541f64e298d478b3a55eae80c2ede1835faaea:backend/tests/test_two_factor.py:generic-api-key:138
+4d541f64e298d478b3a55eae80c2ede1835faaea:backend/tests/test_two_factor.py:generic-api-key:153
