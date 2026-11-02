@@ -12,6 +12,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from jose import jwk, jwt
 
 from app.models.user import UserRole
+from app.routers import lti as lti_router_module
 from tests.quiz_helpers import set_role
 from app.services import lti_service as lti_service_module
 from app.services.lti_service import long_to_base64url
@@ -153,6 +154,17 @@ def test_full_launch_flow_creates_user_and_issues_tokens(client, db_session, mon
         return platform_jwk
 
     monkeypatch.setattr(lti_service_module, "fetch_platform_public_key", fake_fetch_key)
+
+    original_verify = lti_router_module.verify_platform_id_token
+
+    async def verify_without_open_db_transaction(*args, **kwargs):
+        # Remote JWKS verification must not hold the request's DB transaction.
+        assert not db_session.in_transaction()
+        return await original_verify(*args, **kwargs)
+
+    monkeypatch.setattr(
+        lti_router_module, "verify_platform_id_token", verify_without_open_db_transaction
+    )
 
     # 3) نستدعي /lti/launch فعليًا — هذا يتحقق من التوقيع الحقيقي
     launch_response = client.post(
