@@ -5,7 +5,7 @@ import csv
 import io
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -117,7 +117,7 @@ def _compute_daily_stats(db: Session, days: int) -> list[DailyStatsPoint]:
 
 @router.get("/analytics/daily", response_model=list[DailyStatsPoint])
 def get_daily_analytics(
-    days: int = 30,
+    days: int = Query(default=30, ge=1, le=365),
     _: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
@@ -126,7 +126,7 @@ def get_daily_analytics(
 
 @router.get("/analytics/export.csv", include_in_schema=False)
 def export_analytics_csv(
-    days: int = 30,
+    days: int = Query(default=30, ge=1, le=365),
     _: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
@@ -150,8 +150,8 @@ def export_analytics_csv(
 
 @router.get("/users", response_model=list[AdminUserOut])
 def list_users(
-    limit: int = 100,
-    offset: int = 0,
+    limit: int = Query(default=100, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
     _: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
@@ -223,8 +223,8 @@ def delete_user(
 
 @router.get("/logs", response_model=list[AuditLogOut])
 def list_audit_logs(
-    limit: int = 100,
-    offset: int = 0,
+    limit: int = Query(default=100, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
     _: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
