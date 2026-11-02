@@ -1,0 +1,40 @@
+# Exact Gitleaks fingerprints reviewed as synthetic test fixture credentials.
+# These are fixed dummy passwords/client IDs in historical test files only.
+# Do not add broad rule/path exclusions here. Re-review each new fingerprint.
+9f79d65d5528f73ff663967f546e901c3d4669f5:backend/tests/test_lti.py:generic-api-key:31
+1572583c8fc4e4547eb0107f26fee01d8c1fe85a:backend/tests/test_admin.py:generic-api-key:13
+f15c8270110b90bc18f9d814c2e07c5285063b22:backend/tests/quiz_helpers.py:generic-api-key:9
+f15c8270110b90bc18f9d814c2e07c5285063b22:backend/tests/test_admin.py:generic-api-key:7
+f15c8270110b90bc18f9d814c2e07c5285063b22:backend/tests/test_admin.py:generic-api-key:100
+f15c8270110b90bc18f9d814c2e07c5285063b22:backend/tests/test_admin.py:generic-api-key:126
+f15c8270110b90bc18f9d814c2e07c5285063b22:backend/tests/test_files.py:generic-api-key:7
+f15c8270110b90bc18f9d814c2e07c5285063b22:backend/tests/test_notifications.py:generic-api-key:10
+f15c8270110b90bc18f9d814c2e07c5285063b22:backend/tests/test_spaced_repetition.py:generic-api-key:90
+f15c8270110b90bc18f9d814c2e07c5285063b22:backend/tests/test_auth.py:generic-api-key:9
+f15c8270110b90bc18f9d814c2e07c5285063b22:backend/tests/test_auth.py:generic-api-key:18
+f15c8270110b90bc18f9d814c2e07c5285063b22:backend/tests/test_auth.py:generic-api-key:34
+f15c8270110b90bc18f9d814c2e07c5285063b22:backend/tests/test_auth.py:generic-api-key:40
+f15c8270110b90bc18f9d814c2e07c5285063b22:backend/tests/test_auth.py:generic-api-key:42
+f15c8270110b90bc18f9d814c2e07c5285063b22:backend/tests/test_auth.py:generic-api-key:49
+f15c8270110b90bc18f9d814c2e07c5285063b22:backend/tests/test_auth.py:generic-api-key:52
+f15c8270110b90bc18f9d814c2e07c5285063b22:backend/tests/test_auth.py:generic-api-key:62
+f15c8270110b90bc18f9d814c2e07c5285063b22:backend/tests/test_auth.py:generic-api-key:77
+f15c8270110b90bc18f9d814c2e07c5285063b22:backend/tests/test_auth.py:generic-api-key:80
+f15c8270110b90bc18f9d814c2e07c5285063b22:backend/tests/test_two_factor.py:generic-api-key:7
+f15c8270110b90bc18f9d814c2e07c5285063b22:backend/tests/test_two_factor.py:generic-api-key:53
+f15c8270110b90bc18f9d814c2e07c5285063b22:backend/tests/test_two_factor.py:generic-api-key:62
+f15c8270110b90bc18f9d814c2e07c5285063b22:backend/tests/test_two_factor.py:generic-api-key:73
+f15c8270110b90bc18f9d814c2e07c5285063b22:backend/tests/test_two_factor.py:generic-api-key:95
+f15c8270110b90bc18f9d814c2e07c5285063b22:backend/tests/test_profile.py:generic-api-key:6
+f15c8270110b90bc18f9d814c2e07c5285063b22:backend/tests/test_profile.py:generic-api-key:94
+f15c8270110b90bc18f9d814c2e07c5285063b22:backend/tests/test_profile.py:generic-api-key:99
+f15c8270110b90bc18f9d814c2e07c5285063b22:backend/tests/test_lti.py:generic-api-key:28
+f15c8270110b90bc18f9d814c2e07c5285063b22:backend/tests/test_billing.py:generic-api-key:10
+f15c8270110b90bc18f9d814c2e07c5285063b22:backend/tests/test_account_security.py:generic-api-key:9
+f15c8270110b90bc18f9d814c2e07c5285063b22:backend/tests/test_account_security.py:generic-api-key:17
+f15c8270110b90bc18f9d814c2e07c5285063b22:backend/tests/test_account_security.py:generic-api-key:25
+f15c8270110b90bc18f9d814c2e07c5285063b22:backend/tests/test_account_security.py:generic-api-key:36
+f15c8270110b90bc18f9d814c2e07c5285063b22:backend/tests/test_account_security.py:generic-api-key:43
+f15c8270110b90bc18f9d814c2e07c5285063b22:backend/tests/test_account_security.py:generic-api-key:49
+f15c8270110b90bc18f9d814c2e07c5285063b22:backend/tests/test_account_security.py:generic-api-key:63
+f15c8270110b90bc18f9d814c2e07c5285063b22:backend/tests/test_reports.py:generic-api-key:8
