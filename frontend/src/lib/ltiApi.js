@@ -31,6 +31,6 @@ export async function listLtiGradeEvents() {
 }
 
 export async function retryLtiGradeEvent(eventId) {
-  const { data } = await api.post(\`/lti/grade-events/\${eventId}/retry\`);
+  const { data } = await api.post(`/lti/grade-events/${eventId}/retry`);
   return data;
 }

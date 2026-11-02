@@ -44,7 +44,7 @@ function StatusPill({ children, tone = "neutral" }) {
     neutral: "bg-slate-100 text-slate-600",
   };
   return (
-    <span className={\`inline-flex rounded-full px-2 py-1 text-xs \${styles[tone] || styles.neutral}\`}>
+    <span className={`inline-flex rounded-full px-2 py-1 text-xs ${styles[tone] || styles.neutral}`}>
       {children}
     </span>
   );
@@ -77,7 +77,7 @@ function PlatformRegistrationForm({ onRegistered }) {
         jwks_url: form.jwks_url.trim(),
       });
       setForm(EMPTY_PLATFORM);
-      setNotice(\`تم تسجيل المنصة بنجاح (المعرّف: \${created.id})\`);
+      setNotice(`تم تسجيل المنصة بنجاح (المعرّف: ${created.id})`);
       await onRegistered();
     } catch (requestError) {
       setError(errorMessage(requestError, "تعذر تسجيل المنصة. تحقق من القيم وعناوين HTTPS."));
@@ -174,7 +174,7 @@ function ResourceLinkCard({ resource, platformName, assignments, onMapped }) {
         <div className="min-w-0">
           <p className="break-all text-sm font-medium text-slate-900">{resource.resource_link_id}</p>
           <p className="mt-1 text-xs text-slate-500">
-            {platformName || \`منصة #\${resource.platform_id}\`} · Deployment: {resource.deployment_id}
+            {platformName || `منصة #${resource.platform_id}`} · Deployment: {resource.deployment_id}
           </p>
         </div>
         <StatusPill tone={resource.lineitem_ready ? "success" : "warning"}>
@@ -195,7 +195,7 @@ function ResourceLinkCard({ resource, platformName, assignments, onMapped }) {
           <label className="min-w-[180px] flex-1 space-y-1 text-xs text-slate-600">
             <span>واجب Lumen</span>
             <select
-              aria-label={\`الواجب للمورد \${resource.resource_link_id}\`}
+              aria-label={`الواجب للمورد ${resource.resource_link_id}`}
               value={assignmentId}
               onChange={(event) => setAssignmentId(event.target.value)}
               disabled={assignments.length === 0 || saving}
@@ -212,7 +212,7 @@ function ResourceLinkCard({ resource, platformName, assignments, onMapped }) {
           <label className="w-32 space-y-1 text-xs text-slate-600">
             <span>الدرجة القصوى</span>
             <input
-              aria-label={\`الدرجة القصوى للمورد \${resource.resource_link_id}\`}
+              aria-label={`الدرجة القصوى للمورد ${resource.resource_link_id}`}
               type="number"
               min="0.01"
               max="1000000"
@@ -399,7 +399,7 @@ export default function LTIManagementTab() {
               <article key={mapping.id} className="rounded-xl border border-slate-200 p-3 text-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="font-medium text-slate-900">
-                    {assignmentNames[mapping.assignment_id] || \`واجب #\${mapping.assignment_id}\`}
+                    {assignmentNames[mapping.assignment_id] || `واجب #${mapping.assignment_id}`}
                   </p>
                   <StatusPill tone={mapping.lineitem_ready ? "success" : "warning"}>
                     {mapping.lineitem_ready ? "جاهز" : "غير جاهز"}
@@ -407,7 +407,7 @@ export default function LTIManagementTab() {
                 </div>
                 <p className="mt-1 break-all text-xs text-slate-500">{mapping.resource_link_id}</p>
                 <p className="mt-1 text-xs text-slate-400">
-                  {platformNames[mapping.platform_id] || \`منصة #\${mapping.platform_id}\`} · الدرجة القصوى: {mapping.score_maximum}
+                  {platformNames[mapping.platform_id] || `منصة #${mapping.platform_id}`} · الدرجة القصوى: {mapping.score_maximum}
                 </p>
               </article>
             ))}
@@ -434,7 +434,7 @@ export default function LTIManagementTab() {
                 </div>
                 <p className="mt-1 text-xs text-slate-500">
                   المحاولات: {item.attempts} · الإنشاء: {formatDate(item.created_at)}
-                  {item.delivered_at ? \` · الإرسال: \${formatDate(item.delivered_at)}\` : ""}
+                  {item.delivered_at ? ` · الإرسال: ${formatDate(item.delivered_at)}` : ""}
                 </p>
                 {item.last_error && <p className="mt-2 text-xs text-red-600">{item.last_error}</p>}
                 {item.status === "dead" && (
