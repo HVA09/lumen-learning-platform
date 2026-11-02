@@ -325,3 +325,23 @@ def test_empty_class_leaderboard_is_empty(client, db_session):
     response = client.get(f"/gamification/leaderboard?class_id={created['id']}", headers=auth(teacher))
     assert response.status_code == 200
     assert response.json() == []
+
+
+
+def test_class_invite_code_is_hidden_from_student_responses(client, db_session):
+    teacher = make_teacher(client, db_session, "invite-owner@example.com")
+    student = make_student(client, "invite-student@example.com")
+    created = _create_class(client, teacher)
+
+    joined = _join(client, student, created["invite_code"])
+    assert joined.status_code == 200
+    assert "invite_code" not in joined.json()
+
+    student_classes = client.get("/classes", headers=auth(student))
+    assert student_classes.status_code == 200
+    assert len(student_classes.json()) == 1
+    assert "invite_code" not in student_classes.json()[0]
+
+    teacher_classes = client.get("/classes", headers=auth(teacher))
+    assert teacher_classes.status_code == 200
+    assert teacher_classes.json()[0]["invite_code"] == created["invite_code"]
