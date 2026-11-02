@@ -212,6 +212,23 @@ function TeacherSubmissions({ assignment, onBack }) {
   );
 }
 
+function TeacherReadOnlyAssignment({ assignment, onBack }) {
+  return (
+    <div>
+      <button onClick={onBack} className="mb-3 text-sm text-slate-500 hover:text-slate-700">
+        ← رجوع
+      </button>
+      <h3 className="mb-2 font-semibold text-slate-900">{assignment.title}</h3>
+      <MathText className="mb-3 whitespace-pre-line text-sm text-slate-600">
+        {assignment.description}
+      </MathText>
+      <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+        هذا واجب عام أنشأه معلّم آخر. يمكنك الاطلاع على تفاصيله، لكن لا تملك صلاحية إدارة تسليماته أو تقييم الطلاب.
+      </p>
+    </div>
+  );
+}
+
 function StudentAssignment({ assignment, onBack }) {
   const [submission, setSubmission] = useState(null);
   const [answer, setAnswer] = useState("");
@@ -333,8 +350,12 @@ export default function AssignmentsPanel({ onClose, isTeacher }) {
         </div>
 
         {selected ? (
-          isTeacher && selected.can_manage ? (
-            <TeacherSubmissions assignment={selected} onBack={() => setSelected(null)} />
+          isTeacher ? (
+            selected.can_manage ? (
+              <TeacherSubmissions assignment={selected} onBack={() => setSelected(null)} />
+            ) : (
+              <TeacherReadOnlyAssignment assignment={selected} onBack={() => setSelected(null)} />
+            )
           ) : (
             <StudentAssignment assignment={selected} onBack={() => setSelected(null)} />
           )
