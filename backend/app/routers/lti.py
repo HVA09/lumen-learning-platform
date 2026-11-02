@@ -1,4 +1,5 @@
 """مسارات تكامل LTI 1.3 مع استخدام state ورمز تبادل أحاديي الاستخدام."""
+import hashlib
 import secrets
 from types import SimpleNamespace
 from datetime import datetime, timedelta, timezone
@@ -7,7 +8,7 @@ from urllib.parse import urlencode, urlsplit
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, Response, status
 from fastapi.responses import RedirectResponse
 from pydantic import EmailStr, TypeAdapter, ValidationError
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from app.auth.cookies import (
@@ -71,6 +72,37 @@ def _build_lti_profile(claims: dict, platform_id: int, lti_subject: str):
             full_name = normalized_name
 
     return email, full_name, email_verified
+
+
+def _lock_lti_identity_creation(
+    db: Session,
+    platform_id: int,
+    lti_subject: str,
+    verified_email: str | None = None,
+) -> None:
+    """Serialize first-link creation for one LMS subject and verified email."""
+    if db.get_bind().dialect.name != "postgresql":
+        return
+
+    lock_names = [f"lti-subject:{platform_id}:{lti_subject}"]
+    if verified_email:
+        # Email uniqueness is global across Lumen accounts and LMS platforms.
+        lock_names.append(f"lti-email:{verified_email.lower()}")
+
+    # Acquire multiple advisory locks in a stable order to avoid deadlocks.
+    lock_keys = sorted(
+        int.from_bytes(
+            hashlib.sha256(name.encode("utf-8")).digest()[:8],
+            byteorder="big",
+            signed=True,
+        )
+        for name in lock_names
+    )
+    for lock_key in lock_keys:
+        db.execute(
+            text("SELECT pg_advisory_xact_lock(:lock_key)"),
+            {"lock_key": lock_key},
+        )
 
 
 def _no_store_redirect(url: str) -> RedirectResponse:
@@ -455,6 +487,19 @@ async def lti_launch(
     lti_subject = claims.get("sub")
     if not isinstance(lti_subject, str) or not lti_subject or len(lti_subject) > 255:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="معرّف مستخدم LTI غير صالح")
+    email, full_name, email_verified = _build_lti_profile(
+        claims, platform.id, lti_subject
+    )
+    # Lock before checking for an existing link. Concurrent launches for the
+    # same subject wait for the first transaction and then reuse its account.
+    # A second lock protects Lumen's globally unique email when two distinct
+    # LMS subjects present the same verified address.
+    _lock_lti_identity_creation(
+        db,
+        platform.id,
+        lti_subject,
+        email if email_verified else None,
+    )
     link = (
         db.query(LTIUserLink)
         .filter(LTIUserLink.platform_id == platform.id, LTIUserLink.lti_subject == lti_subject)
@@ -466,9 +511,6 @@ async def lti_launch(
         if user is None or not user.is_active:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="حساب LTI غير متاح")
     else:
-        email, full_name, email_verified = _build_lti_profile(
-            claims, platform.id, lti_subject
-        )
         if email_verified:
             existing = db.query(User).filter(func.lower(User.email) == email).first()
             if existing:
