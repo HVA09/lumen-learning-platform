@@ -12,6 +12,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from jose import jwk, jwt
 
 from app.models.user import UserRole
+from app.routers.lti import _lock_lti_identity_creation
 from app.routers.lti import _build_lti_profile
 from tests.quiz_helpers import set_role
 from app.services import lti_service as lti_service_module
@@ -133,6 +134,61 @@ def test_lti_profile_ignores_invalid_or_oversized_name_claims():
         assert email == "student@example.com"
         assert full_name is None
         assert verified is True
+
+
+def test_lti_identity_creation_uses_deterministic_postgres_advisory_locks():
+    class FakeDialect:
+        name = "postgresql"
+
+    class FakeBind:
+        dialect = FakeDialect()
+
+    class RecordingSession:
+        def __init__(self):
+            self.calls = []
+
+        def get_bind(self):
+            return FakeBind()
+
+        def execute(self, statement, params):
+            self.calls.append((str(statement), params["lock_key"]))
+
+    first = RecordingSession()
+    second = RecordingSession()
+    _lock_lti_identity_creation(first, 7, "subject-42", "student@example.com")
+    _lock_lti_identity_creation(second, 7, "subject-42", "student@example.com")
+
+    first_keys = [key for _statement, key in first.calls]
+    second_keys = [key for _statement, key in second.calls]
+    assert len(first_keys) == 2
+    assert first_keys == sorted(first_keys)
+    assert first_keys == second_keys
+    assert all(
+        "pg_advisory_xact_lock" in statement
+        for statement, _key in first.calls
+    )
+
+
+def test_lti_identity_creation_skips_postgres_locks_on_other_dialects():
+    class FakeDialect:
+        name = "sqlite"
+
+    class FakeBind:
+        dialect = FakeDialect()
+
+    class RecordingSession:
+        def __init__(self):
+            self.calls = 0
+
+        def get_bind(self):
+            return FakeBind()
+
+        def execute(self, *_args, **_kwargs):
+            self.calls += 1
+
+    session = RecordingSession()
+    _lock_lti_identity_creation(session, 7, "subject-42", "student@example.com")
+    assert session.calls == 0
 
 
 def test_register_and_list_platforms_requires_admin(client, db_session):
