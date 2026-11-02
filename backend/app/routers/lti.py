@@ -348,10 +348,13 @@ async def lti_launch(
     db: Session = Depends(get_db),
 ):
     """يتحقق من حالة OIDC غير المستعملة، ثم يصدر رمز تبادل قصير العمر فقط."""
+    state_hash = hash_opaque_token(state)
+    # Read the pending state without locking it. Token verification can perform
+    # DNS/JWKS network I/O, so holding a PostgreSQL row lock during that wait
+    # would unnecessarily serialize launches and keep a transaction open.
     state_row = (
         db.query(LTIAuthState)
-        .filter(LTIAuthState.state_hash == hash_opaque_token(state))
-        .with_for_update()
+        .filter(LTIAuthState.state_hash == state_hash)
         .first()
     )
     now = datetime.now(timezone.utc)
@@ -376,6 +379,27 @@ async def lti_launch(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="تعذّر التحقق من تسجيل الدخول عبر منصة التعليم",
         )
+
+    # Re-acquire the row lock only after remote verification. A competing launch
+    # may have consumed the state while JWKS was being fetched; refresh the ORM
+    # identity-map object so this check observes the committed value.
+    state_row = (
+        db.query(LTIAuthState)
+        .filter(
+            LTIAuthState.id == state_row.id,
+            LTIAuthState.state_hash == state_hash,
+        )
+        .with_for_update()
+        .populate_existing()
+        .first()
+    )
+    now = datetime.now(timezone.utc)
+    if (
+        state_row is None
+        or state_row.consumed_at is not None
+        or state_row.expires_at <= now
+    ):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="state غير صالح أو منتهي")
 
     record_lti_ags_launch_context(db, platform, claims)
 
