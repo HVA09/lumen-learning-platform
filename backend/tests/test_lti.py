@@ -174,7 +174,10 @@ def test_lti_identity_creation_uses_deterministic_postgres_advisory_locks():
 
 
 def test_lti_identity_creation_lock_serializes_postgres_sessions(db_session):
-    engine = db_session.get_bind()
+    # The fixture session is bound to an already-open Connection inside an
+    # outer rollback transaction. Use its Engine so both sessions acquire
+    # independent pooled connections and exercise real cross-connection locks.
+    engine = db_session.get_bind().engine
     if engine.dialect.name != "postgresql":
         pytest.skip("PostgreSQL advisory locks are only available on PostgreSQL")
 
