@@ -17,11 +17,13 @@ import {
   deleteUser,
   listAuditLogs,
 } from "../lib/adminApi";
+import LTIManagementTab from "./LTIManagementTab";
 
 const TABS = [
   { id: "stats", label: "الإحصائيات" },
   { id: "users", label: "المستخدمون" },
   { id: "logs", label: "السجل" },
+  { id: "lti", label: "تكامل LMS" },
 ];
 
 const ROLE_LABELS = { user: "طالب", teacher: "معلّم", admin: "admin" };
@@ -279,7 +281,7 @@ export default function AdminDashboard({ currentUserId, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-      <div className="flex h-[85vh] w-full max-w-2xl flex-col rounded-3xl border border-slate-200 bg-white shadow-lg">
+      <div className="flex h-[85vh] w-full max-w-5xl flex-col rounded-3xl border border-slate-200 bg-white shadow-lg">
         <div className="flex items-center justify-between border-b border-slate-200 p-4">
           <h2 className="text-lg font-semibold text-slate-900">لوحة الإدارة</h2>
           <button
@@ -290,7 +292,7 @@ export default function AdminDashboard({ currentUserId, onClose }) {
           </button>
         </div>
 
-        <div className="flex gap-1 border-b border-slate-200 px-4 pt-2">
+        <div className="flex gap-1 overflow-x-auto border-b border-slate-200 px-4 pt-2">
           {TABS.map((t) => (
             <button
               key={t.id}
@@ -310,6 +312,7 @@ export default function AdminDashboard({ currentUserId, onClose }) {
           {tab === "stats" && <StatsTab />}
           {tab === "users" && <UsersTab currentUserId={currentUserId} />}
           {tab === "logs" && <LogsTab />}
+          {tab === "lti" && <LTIManagementTab />}
         </div>
       </div>
     </div>
