@@ -6,6 +6,7 @@ from urllib.parse import urlencode, urlsplit
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, Response, status
 from fastapi.responses import RedirectResponse
+from pydantic import EmailStr, TypeAdapter, ValidationError
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -42,6 +43,34 @@ from app.services.lti_service import (
 )
 
 router = APIRouter(prefix="/lti", tags=["LTI"])
+_LTI_EMAIL_ADAPTER = TypeAdapter(EmailStr)
+
+
+def _build_lti_profile(claims: dict, platform_id: int, lti_subject: str):
+    """Return bounded profile fields; only a valid, explicitly verified email is trusted."""
+    email = f"lti_{platform_id}_{hash_opaque_token(lti_subject)[:32]}@lti.local"
+    email_verified = False
+
+    claimed_email = claims.get("email")
+    if claims.get("email_verified") is True and isinstance(claimed_email, str):
+        try:
+            validated_email = _LTI_EMAIL_ADAPTER.validate_python(claimed_email.strip())
+        except ValidationError:
+            validated_email = None
+        if validated_email is not None:
+            normalized_email = str(validated_email).lower()
+            if len(normalized_email) <= 255:
+                email = normalized_email
+                email_verified = True
+
+    claimed_name = claims.get("name")
+    full_name = None
+    if isinstance(claimed_name, str):
+        normalized_name = claimed_name.strip()
+        if normalized_name and len(normalized_name) <= 255:
+            full_name = normalized_name
+
+    return email, full_name, email_verified
 
 
 def _no_store_redirect(url: str) -> RedirectResponse:
@@ -437,10 +466,10 @@ async def lti_launch(
         if user is None or not user.is_active:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="حساب LTI غير متاح")
     else:
-        claimed_email = claims.get("email")
-        email_verified = claims.get("email_verified") is True
-        if claimed_email and email_verified:
-            email = claimed_email.strip().lower()
+        email, full_name, email_verified = _build_lti_profile(
+            claims, platform.id, lti_subject
+        )
+        if email_verified:
             existing = db.query(User).filter(func.lower(User.email) == email).first()
             if existing:
                 # لا نربط حسابًا محليًا موجودًا تلقائيًا اعتمادًا على البريد.
@@ -448,13 +477,11 @@ async def lti_launch(
                     status_code=status.HTTP_409_CONFLICT,
                     detail="يوجد حساب بهذا البريد. سجّل الدخول بالطريقة المعتادة قبل إعداد ربط الحسابات.",
                 )
-        else:
-            email = f"lti_{platform.id}_{hash_opaque_token(lti_subject)[:32]}@lti.local"
 
         user = User(
             email=email,
             hashed_password=hash_password(secrets.token_urlsafe(32)),
-            full_name=claims.get("name"),
+            full_name=full_name,
             is_email_verified=email_verified,
         )
         db.add(user)
