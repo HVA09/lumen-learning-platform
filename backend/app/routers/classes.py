@@ -40,11 +40,16 @@ def _student_counts(db: Session, class_ids: list[int]) -> dict[int, int]:
     )
 
 
-def _class_out(class_section: ClassSection, student_count: int) -> ClassOut:
+def _class_out(
+    class_section: ClassSection,
+    student_count: int,
+    *,
+    include_invite_code: bool = True,
+) -> ClassOut:
     return ClassOut(
         id=class_section.id,
         name=class_section.name,
-        invite_code=class_section.invite_code,
+        invite_code=class_section.invite_code if include_invite_code else None,
         teacher_user_id=class_section.teacher_user_id,
         is_archived=class_section.is_archived,
         created_at=class_section.created_at,
@@ -88,7 +93,7 @@ def create_class(
     )
 
 
-@router.get("", response_model=list[ClassOut])
+@router.get("", response_model=list[ClassOut], response_model_exclude_none=True)
 def list_classes(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if current_user.role == UserRole.admin:
         classes = db.query(ClassSection).order_by(ClassSection.created_at.desc()).all()
@@ -108,7 +113,11 @@ def list_classes(current_user: User = Depends(get_current_user), db: Session = D
             .all()
         )
     counts = _student_counts(db, [c.id for c in classes])
-    return [_class_out(c, counts.get(c.id, 0)) for c in classes]
+    include_invite_code = current_user.role in (UserRole.teacher, UserRole.admin)
+    return [
+        _class_out(c, counts.get(c.id, 0), include_invite_code=include_invite_code)
+        for c in classes
+    ]
 
 
 @router.get("/{class_id}", response_model=ClassDetailOut)
@@ -215,7 +224,7 @@ def remove_student(
     db.commit()
 
 
-@router.post("/join", response_model=ClassOut)
+@router.post("/join", response_model=ClassOut, response_model_exclude_none=True)
 def join_class(
     payload: ClassJoinRequest,
     current_user: User = Depends(get_current_user),
@@ -239,4 +248,4 @@ def join_class(
         db.commit()
 
     counts = _student_counts(db, [class_section.id])
-    return _class_out(class_section, counts.get(class_section.id, 0))
+    return _class_out(class_section, counts.get(class_section.id, 0), include_invite_code=False)
