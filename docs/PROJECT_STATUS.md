@@ -11,11 +11,11 @@
 - فرع العمل: `fix/security-production-hardening`.
 - PR الرئيسي: [#4 — Consolidated Lumen import and security hardening](https://github.com/HVA09/lumen-learning-platform/pull/4).
 - الحالة وقت التحديث: PR #4 مفتوح وغير مدمج، وليس هناك نشر إنتاجي مثبت.
-- آخر commit للفرع الذي شُغّل عليه CI بنجاح: `6444a61850447c9b2d5f3b57e7aee0b7f8aacfb9` عبر [GitHub Actions run #514](https://github.com/HVA09/lumen-learning-platform/actions/runs/41494489575) — نجح بالكامل.
+- آخر commit للفرع الذي شُغّل عليه CI بنجاح: `a1550659f4284a646cbbe8855c979ac6bb4cea63` عبر [GitHub Actions run #517](https://github.com/HVA09/lumen-learning-platform/actions/runs/41500954156) — نجح بالكامل.
 
 ## نتيجة CI على head الموثق
 
-تشغيل #514 على أحدث head `6444a61850447c9b2d5f3b57e7aee0b7f8aacfb9`:
+تشغيل #517 على أحدث head `a1550659f4284a646cbbe8855c979ac6bb4cea63`:
 
 | الوظيفة | النتيجة |
 |---|---|
@@ -142,3 +142,21 @@
 - سلسلة LTI AGS #16–#23 ما زالت مسودات متسلسلة مستقلة، ونتائج CI #424/#426/#427/#429/#432/#433/#436/#440 تاريخية فقط. راجع [PR_STACK_TRIAGE.md](PR_STACK_TRIAGE.md) قبل أي دمج.
 - PR #1 أرشيفات ZIP أولية، و#2/#3 معلنان مستبدلين بـ #4، و#5 مبني على فرع استيراد قديم، و#6 وثائق معمارية أقدم تحتاج تحديثًا. لا تدمج أو تغلق هذه الطلبات تلقائيًا.
 - تم توثيق قرار عدم إدخال سلسلة LTI المتباعدة مباشرة ضمن ADR-012.
+
+
+## أحدث تحقق شامل — CI #517 (2026-11-02)
+
+- [GitHub Actions run #517](https://github.com/HVA09/lumen-learning-platform/actions/runs/41500954156) اكتمل بنجاح على head `a1550659f4284a646cbbe8855c979ac6bb4cea63`.
+- Backend: **401 passed, 0 failed, 20 warnings**.
+- Frontend: **51 passed across 11 test files**؛ production build passed.
+- Full Git history secret scan: **passed**؛ لا تسريبات مكتشفة.
+- Docker Compose validation، migration preservation/upgrade/downgrade، PostgreSQL backup/restore، وRestic smoke test: **passed**.
+- التغييرات في head #517 كانت توثيقية لخريطة PRs وقراراتها؛ لم تتغير شيفرة التشغيل.
+- PR #4 مفتوح وغير مدمج، و`main` لا يزال عند `da33265617b61baaccdea05de5015f73bd1b5d56`. لا توجد مراجعة بشرية مسجلة ولا نشر إنتاجي.
+- لا تزال بوابة الدمج هي موافقة مراجع واحد لديه صلاحية كتابة وفق ADR-010. لا يتم تجاوزها.
+
+## آخر commit بعد التحقق
+
+- آخر commit موثق: `a1550659f4284a646cbbe8855c979ac6bb4cea63`.
+- هذا commit نفسه هو head الذي نجح في CI #517، أي أن سجل الحالة يطابق الرأس المتحقق منه.
+- إذا أُضيف أي commit لاحق، يجب فحص CI عليه وتحديث هذه الفقرة.
