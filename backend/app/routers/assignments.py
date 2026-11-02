@@ -171,6 +171,7 @@ def list_assignments(
         items.append(
             AssignmentListItem(
                 **AssignmentOut.model_validate(assignment).model_dump(),
+                can_manage=manages,
                 my_status=mine.status if mine else None,
                 my_grade_percentage=mine.grade_percentage if mine else None,
                 submissions_count=submissions_count.get(assignment.id, 0) if manages else None,
