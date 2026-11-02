@@ -3,6 +3,9 @@
 id_token فعلي فيه، ونموّه جلب JWKS المنصة يرجّع مفتاحنا التجريبي. هذا يتحقق
 فعليًا إن منطق التحقق من التوقيع يشتغل صح، مو بس شكل الاستجابة.
 """
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event
+from time import sleep
 from unittest.mock import AsyncMock
 import time
 
@@ -10,6 +13,7 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from jose import jwk, jwt
+from sqlalchemy.orm import sessionmaker
 
 from app.models.user import UserRole
 from app.routers.lti import _lock_lti_identity_creation
@@ -167,6 +171,47 @@ def test_lti_identity_creation_uses_deterministic_postgres_advisory_locks():
         "pg_advisory_xact_lock" in statement
         for statement, _key in first.calls
     )
+
+
+def test_lti_identity_creation_lock_serializes_postgres_sessions(db_session):
+    engine = db_session.get_bind()
+    if engine.dialect.name != "postgresql":
+        pytest.skip("PostgreSQL advisory locks are only available on PostgreSQL")
+
+    session_factory = sessionmaker(bind=engine)
+    first_session = session_factory()
+    second_started = Event()
+
+    try:
+        first_session.begin()
+        _lock_lti_identity_creation(
+            first_session, 77, "concurrent-subject", "concurrent@example.com"
+        )
+
+        def acquire_second_lock():
+            with session_factory() as second_session:
+                with second_session.begin():
+                    second_started.set()
+                    _lock_lti_identity_creation(
+                        second_session,
+                        77,
+                        "concurrent-subject",
+                        "concurrent@example.com",
+                    )
+            return True
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            second_future = executor.submit(acquire_second_lock)
+            assert second_started.wait(timeout=5)
+            # The first transaction still owns both advisory locks.
+            sleep(0.15)
+            assert not second_future.done()
+            first_session.commit()
+            assert second_future.result(timeout=5) is True
+    finally:
+        if first_session.in_transaction():
+            first_session.rollback()
+        first_session.close()
 
 
 def test_lti_identity_creation_skips_postgres_locks_on_other_dialects():
