@@ -6,13 +6,24 @@ from app.services.lti_service import validate_lti_platform_endpoint_url
 
 
 class LTIPlatformCreate(BaseModel):
-    name: str
-    issuer: str
-    client_id: str
-    deployment_id: str
-    auth_login_url: str
-    auth_token_url: str
-    jwks_url: str
+    name: str = Field(min_length=1, max_length=255)
+    issuer: str = Field(min_length=1, max_length=500)
+    client_id: str = Field(min_length=1, max_length=255)
+    deployment_id: str = Field(min_length=1, max_length=255)
+    auth_login_url: str = Field(min_length=1, max_length=500)
+    auth_token_url: str = Field(min_length=1, max_length=500)
+    jwks_url: str = Field(min_length=1, max_length=500)
+
+    @field_validator(
+        "name", "issuer", "client_id", "deployment_id",
+        "auth_login_url", "auth_token_url", "jwks_url",
+    )
+    @classmethod
+    def trim_required_values(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("LTI platform fields cannot be blank")
+        return cleaned
 
     @field_validator("issuer", "auth_login_url", "auth_token_url", "jwks_url")
     @classmethod
