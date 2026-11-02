@@ -1,5 +1,6 @@
 """Protocol-level tests for LTI AGS mappings, grade outbox, OAuth and score delivery."""
 import asyncio
+from datetime import datetime, timedelta, timezone
 import subprocess
 import sys
 from pathlib import Path
@@ -346,6 +347,80 @@ def test_teacher_grading_creates_one_outbox_event_per_grade_version(client, db_s
     assert [event.score_given for event in events] == [84.0, 91.0]
 
 
+def test_grade_event_manual_retry_is_admin_only_and_resets_dead_event(client, db_session):
+    from datetime import datetime, timedelta, timezone
+
+    _platform_obj, _mapping, event = _make_pending_event(client, db_session)
+
+    teacher_token = make_teacher(client, db_session, "ags-retry-teacher@example.com")
+    denied = client.post(
+        f"/lti/grade-events/{event.id}/retry",
+        headers=auth(teacher_token),
+    )
+    assert denied.status_code == 403
+
+    admin_email = "ags-retry-admin@example.com"
+    admin_token = register_and_login(client, admin_email)
+    set_role(db_session, admin_email, UserRole.admin)
+
+    # A pending event cannot be manually retried; this endpoint is for dead letters.
+    pending_retry = client.post(
+        f"/lti/grade-events/{event.id}/retry",
+        headers=auth(admin_token),
+    )
+    assert pending_retry.status_code == 409
+
+    event.status = "dead"
+    event.attempts = 8
+    event.last_error = "RuntimeError: AGS delivery failed"
+    event.locked_until = datetime.now(timezone.utc) + timedelta(minutes=2)
+    event.next_attempt_at = datetime.now(timezone.utc) + timedelta(hours=1)
+    db_session.commit()
+
+    retried = client.post(
+        f"/lti/grade-events/{event.id}/retry",
+        headers=auth(admin_token),
+    )
+    assert retried.status_code == 200, retried.text
+    body = retried.json()
+    assert body["id"] == event.id
+    assert body["status"] == "pending"
+    assert body["attempts"] == 0
+    assert body["last_error"] is None
+
+    db_session.refresh(event)
+    assert event.status == "pending"
+    assert event.attempts == 0
+    assert event.last_error is None
+    assert event.locked_until is None
+    assert event.next_attempt_at <= datetime.now(timezone.utc)
+
+
+def test_admin_grade_event_list_omits_learner_and_delivery_secrets(client, db_session):
+    _platform_obj, _mapping, event = _make_pending_event(client, db_session)
+    admin_email = "ags-privacy-admin@example.com"
+    admin_token = register_and_login(client, admin_email)
+    set_role(db_session, admin_email, UserRole.admin)
+
+    response = client.get("/lti/grade-events", headers=auth(admin_token))
+    assert response.status_code == 200, response.text
+    row = next(item for item in response.json() if item["id"] == event.id)
+
+    assert row["status"] == "pending"
+    forbidden_fields = {
+        "lti_subject",
+        "score_given",
+        "score_maximum",
+        "comment",
+        "lineitem_url",
+        "access_token",
+        "client_assertion",
+    }
+    assert forbidden_fields.isdisjoint(row)
+    assert "moodle-subject-42" not in response.text
+    assert "tenant=ags-v1" not in response.text
+
+
 def test_ags_client_assertion_has_short_lived_platform_client_claims(monkeypatch):
     private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     private_pem = private_key.private_bytes(
@@ -471,6 +546,48 @@ def test_ags_outbox_dispatch_posts_signed_token_and_score(client, db_session, mo
     assert score["activityProgress"] == "Completed"
     assert score["gradingProgress"] == "FullyGraded"
     assert score["comment"] == "Good work"
+
+
+def test_ags_dispatch_skips_event_with_active_delivery_lease(client, db_session, monkeypatch):
+    _platform_obj, _mapping, event = _make_pending_event(client, db_session)
+    now = datetime.now(timezone.utc)
+    event.locked_until = now + timedelta(minutes=2)
+    db_session.commit()
+
+    async def unexpected_delivery(*_args, **_kwargs):
+        raise AssertionError("An actively leased grade event must not be delivered twice")
+
+    monkeypatch.setattr(lti_service, "post_lti_ags_score", unexpected_delivery)
+
+    delivered = asyncio.run(dispatch_lti_grade_event(db_session, event.id))
+    assert delivered is False
+
+    db_session.refresh(event)
+    assert event.status == "pending"
+    assert event.attempts == 0
+    assert event.locked_until is not None
+    assert event.locked_until > now
+
+
+def test_ags_delivery_moves_event_to_dead_after_max_attempts(client, db_session, monkeypatch):
+    _platform_obj, _mapping, event = _make_pending_event(client, db_session)
+    event.attempts = lti_service.AGS_MAX_DELIVERY_ATTEMPTS - 1
+    db_session.commit()
+
+    async def fail_delivery(*_args, **_kwargs):
+        raise RuntimeError("upstream private response details")
+
+    monkeypatch.setattr(lti_service, "post_lti_ags_score", fail_delivery)
+
+    delivered = asyncio.run(dispatch_lti_grade_event(db_session, event.id))
+    assert delivered is False
+
+    db_session.refresh(event)
+    assert event.status == "dead"
+    assert event.attempts == lti_service.AGS_MAX_DELIVERY_ATTEMPTS
+    assert event.locked_until is None
+    assert event.last_error == "RuntimeError: AGS delivery failed"
+    assert "upstream private response details" not in event.last_error
 
 
 def test_ags_delivery_failure_is_retried_without_persisting_remote_details(client, db_session, monkeypatch):
