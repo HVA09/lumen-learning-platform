@@ -1,0 +1,67 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* ---------- محتوى الدروس (Markdown) ----------
+   Tailwind يصفّر تنسيق العناوين والقوائم، ولا يوجد plugin للـ prose — فنعرّفه هنا صراحةً
+   بخصائص منطقية (inline-start) لتعمل بالعربية والإنجليزية. */
+.lesson-content { color: #334155; font-size: 0.95rem; line-height: 1.95; }
+.lesson-content > :first-child { margin-top: 0; }
+.lesson-content h2 { margin: 1.5rem 0 0.5rem; color: #0f172a; font-size: 1.15rem; font-weight: 600; }
+.lesson-content h3 { margin: 1.25rem 0 0.4rem; color: #0f172a; font-size: 1.02rem; font-weight: 600; }
+.lesson-content p { margin: 0.6rem 0; }
+.lesson-content strong { color: #0f172a; font-weight: 600; }
+.lesson-content ul, .lesson-content ol { margin: 0.6rem 0; padding-inline-start: 1.5rem; }
+.lesson-content ul { list-style: disc; }
+.lesson-content ol { list-style: decimal; }
+.lesson-content li { margin: 0.25rem 0; }
+.lesson-content code {
+  direction: ltr; unicode-bidi: isolate; padding: 0.1rem 0.35rem; border-radius: 0.375rem;
+  background: #f1f5f9; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.85em;
+}
+.lesson-content pre {
+  direction: ltr; text-align: left; margin: 0.75rem 0; padding: 0.75rem 1rem; overflow-x: auto;
+  border-radius: 0.75rem; background: #0f172a; color: #e2e8f0; line-height: 1.6;
+}
+.lesson-content pre code { padding: 0; background: transparent; color: inherit; font-size: 0.85rem; }
+.lesson-content table { display: block; width: 100%; margin: 0.75rem 0; overflow-x: auto; border-collapse: collapse; font-size: 0.9em; }
+.lesson-content th, .lesson-content td { padding: 0.4rem 0.6rem; border: 1px solid #e2e8f0; text-align: start; }
+.lesson-content th { background: #f8fafc; font-weight: 600; }
+
+/* ---------- الرياضيات (KaTeX) داخل صفحة RTL ----------
+   KaTeX لا يحدّد اتجاه الكتابة، فبصفحة عربية (dir=rtl) تنعكس المعادلات:
+   2x + 3 = 7 تظهر 7 = 3 + 2x، والكسور تتبعثر. اتجاه LTR معزول لكل معادلة يعالج ذلك. */
+.katex {
+  direction: ltr;
+  unicode-bidi: isolate;
+  /* المعادلة داخل السطر تبقى قطعة واحدة لو تتسع لسطر كامل (بدل ما تنقسم عند "=" وتتشتت العين
+     بين سطرين)، وتلتف داخليًا فقط لو أعرض من المساحة المتاحة. KaTeX نفسه يحدد display:block للمعادلات المنفصلة. */
+  display: inline-block;
+  max-width: 100%;
+}
+.katex-display { overflow-x: auto; overflow-y: hidden; padding: 0.25rem 0; }
+
+/* نص عادي فيه رياضيات (أسئلة، بطاقات، دروس): الكود المضمّن وكتل الكود */
+.math-text code {
+  direction: ltr; unicode-bidi: isolate; padding: 0.05rem 0.3rem; border-radius: 0.3rem;
+  background: #f1f5f9; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.85em;
+}
+.math-text pre {
+  direction: ltr; text-align: left; margin: 0.5rem 0; padding: 0.6rem 0.8rem; overflow-x: auto;
+  border-radius: 0.6rem; background: #0f172a; color: #e2e8f0; font-size: 0.85rem;
+}
+.math-text pre code { padding: 0; background: transparent; color: inherit; }

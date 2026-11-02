@@ -1,0 +1,208 @@
+name: Lumen CI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - ".github/workflows/ci.yml"
+  pull_request:
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - ".github/workflows/ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lumen-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend tests and production build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22.23.4"
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Run frontend tests
+        run: npm test
+      - name: Build frontend
+        run: npm run build
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+      - name: Report all dependency advisories
+        run: |
+          npm audit --json > /tmp/npm-audit.json || true
+          node - <<'NODE'
+          const fs = require("node:fs");
+          const audit = JSON.parse(fs.readFileSync("/tmp/npm-audit.json", "utf8"));
+          console.log("Full dependency audit totals:", JSON.stringify(audit.metadata?.vulnerabilities ?? {}));
+          for (const [name, item] of Object.entries(audit.vulnerabilities ?? {})) {
+            console.log(
+              `${item.severity.toUpperCase()} ${name} (${item.isDirect ? "direct" : "transitive"}); range=${item.range}; fix=${JSON.stringify(item.fixAvailable)}`
+            );
+          }
+          NODE
+
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: ai_backend_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ai_backend_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ai_backend_test
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ai_backend_test
+      JWT_SECRET_KEY: ci-only-secret-for-automated-tests-not-for-deployment
+      ENVIRONMENT: development
+      DEBUG: "false"
+      CORS_ORIGINS: '["http://localhost:5173"]'
+      REDIS_URL: redis://localhost:6379/0
+      CELERY_BROKER_URL: redis://localhost:6379/1
+      CELERY_RESULT_BACKEND: redis://localhost:6379/1
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install backend and test dependencies
+        run: python -m pip install --upgrade pip && pip install -r requirements-dev.txt
+      - name: Install PostgreSQL 16 client tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client-16
+      - name: Exercise encrypted offsite backups with Restic
+        run: |
+          set -eu
+          test_dir="$(mktemp -d)"
+          trap 'rm -rf "$test_dir"' EXIT
+          mkdir -p "$test_dir/backups" "$test_dir/repository" "$test_dir/secrets" "$test_dir/restore"
+          printf '%s\n' 'ci-only-restic-passphrase-not-for-deployment' > "$test_dir/secrets/restic-password"
+          chmod 600 "$test_dir/secrets/restic-password"
+          printf '%s\n' 'ci offsite restore sentinel' | gzip -c > "$test_dir/backups/backup_20261031_010000.sql.gz"
+          docker run --rm --user "$(id -u):$(id -g)" --entrypoint /bin/sh \
+            -e HOME=/tmp/restic-home \
+            -e RESTIC_CACHE_DIR=/tmp/restic-cache \
+            -e RESTIC_REPOSITORY=/repo \
+            -e RESTIC_PASSWORD_FILE=/run/secrets/restic-password \
+            -e RESTIC_HOST=lumen-ci-backup \
+            -e RESTIC_BACKUP_TAG=lumen-ci \
+            -e RESTIC_KEEP_DAILY=7 \
+            -e RESTIC_KEEP_WEEKLY=4 \
+            -e RESTIC_KEEP_MONTHLY=12 \
+            -e RESTIC_KEEP_YEARLY=3 \
+            -e BACKUP_DIR=/backups \
+            -v "$test_dir/backups:/backups:ro" \
+            -v "$test_dir/repository:/repo" \
+            -v "$test_dir/secrets:/run/secrets:ro" \
+            -v "$test_dir/restore:/restore" \
+            -v "$GITHUB_WORKSPACE/backend/scripts/offsite-backup.sh:/scripts/offsite-backup.sh:ro" \
+            restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510 \
+            -ec '
+              mkdir -p "$HOME" "$RESTIC_CACHE_DIR"
+              restic init
+              /bin/sh /scripts/offsite-backup.sh
+              /bin/sh /scripts/offsite-backup.sh
+              test "$(restic snapshots --json --tag lumen-ci | jq length)" -eq 1
+              restic restore latest --target /restore
+              restored="$(find /restore -type f -name "backup_*.sql.gz" -print -quit)"
+              test -n "$restored"
+              gzip -dc "$restored" | grep -q "ci offsite restore sentinel"
+            '
+      - name: Validate Docker Compose configuration
+        run: |
+          cp .env.example .env
+          trap 'rm -f .env' EXIT
+          docker compose config --quiet
+      - name: Verify migration data preservation and downgrade
+        env:
+          MIGRATION_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/lumen_migration_preservation_test
+        run: python scripts/test_migration_data_preservation.py
+      - name: Exercise backup and restore against disposable PostgreSQL
+        env:
+          BACKUP_RESTORE_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/lumen_backup_restore_test
+        run: python scripts/test_backup_restore_integration.py
+      - name: Validate database migrations
+        run: alembic upgrade head
+      - name: Install PostgreSQL client tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+      - name: Run PostgreSQL backup/restore integration smoke test
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: "5432"
+          PGUSER: postgres
+          PGPASSWORD: postgres
+        run: sh scripts/test_backup_restore_integration.sh
+      - name: Run backend tests
+        run: pytest -v
+
+  secret-scan:
+    name: Full Git history secret scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the complete Git history
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Scan repository history with Gitleaks
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: "false"
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
+      - name: Scan all refs and full Git history, including archives
+        run: |
+          set -eu
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            --volume "$GITHUB_WORKSPACE:/repo:ro" \
+            --workdir /repo \
+            ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
+            git --redact --verbose --exit-code 2 \
+              --log-opts="--all --full-history" \
+              --max-archive-depth=3 \
+              .

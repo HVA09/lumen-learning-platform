@@ -1,0 +1,187 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      clamav:
+        # The official image exposes a Docker health check for the clamd PING/PONG protocol.
+        condition: service_healthy
+    environment:
+      MALWARE_SCAN_ENABLED: ${MALWARE_SCAN_ENABLED:-true}
+      CLAMAV_HOST: ${CLAMAV_HOST:-clamav}
+      CLAMAV_PORT: ${CLAMAV_PORT:-3310}
+      CLAMAV_TIMEOUT_SECONDS: ${CLAMAV_TIMEOUT_SECONDS:-30}
+      MAX_USER_STORAGE_MB: ${MAX_USER_STORAGE_MB:-100}
+      MAX_USER_FILES: ${MAX_USER_FILES:-100}
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - uploads:/app/uploads
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  # Internal malware scanner. Port 3310 is deliberately not published to the host.
+  clamav:
+    # The _base image is intended for a persistent signature volume.
+    image: clamav/clamav:1.4.6_base-debian13-slim
+    restart: unless-stopped
+    volumes:
+      - clamav_db:/var/lib/clamav
+
+  celery_worker:
+    build: .
+    restart: unless-stopped
+    command: celery -A app.tasks.celery_app worker --loglevel=info
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # يشغّل المهام المجدولة (ملخص أسبوعي، تذكير بطاقات مستحقة) — راجع beat_schedule بـ app/tasks.py
+  celery_beat:
+    build: .
+    restart: unless-stopped
+    command: celery -A app.tasks.celery_app beat --loglevel=info
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - certbot_conf:/etc/letsencrypt:ro
+      - certbot_www:/var/www/certbot:ro
+    depends_on:
+      - app
+
+  # يجدّد شهادة SSL تلقائيًا كل 12 ساعة (يتأكد إذا قربت تنتهي فقط).
+  # الحصول على الشهادة الأولى يصير يدويًا مرة وحدة — خطوات كاملة بـ README
+  certbot:
+    image: certbot/certbot
+    restart: unless-stopped
+    volumes:
+      - certbot_conf:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+    entrypoint: >
+      /bin/sh -c "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot; sleep 12h & wait $${!}; done;"
+
+  # نسخة احتياطية يومية لقاعدة البيانات — تُحفظ محليًا بمجلد ./backups
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./backups:/backups
+      - ./scripts:/scripts:ro
+    entrypoint: ["sh", "-c", "while true; do sh /scripts/backup.sh; sleep 86400; done"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Optional encrypted offsite copy. Activate only after configuring the repository
+  # and creating ./secrets/restic-password (see README).
+  offsite_backup:
+    image: restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
+    profiles: ["offsite-backup"]
+    hostname: lumen-offsite-backup
+    restart: unless-stopped
+    environment:
+      RESTIC_REPOSITORY: ${RESTIC_REPOSITORY:-}
+      RESTIC_HOST: ${RESTIC_HOST:-lumen-postgres-backup}
+      RESTIC_PASSWORD_FILE: /run/secrets/restic-password
+      # Only pass backend-specific credentials; never expose the full Lumen .env.
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-}
+      AWS_PROFILE: ${AWS_PROFILE:-}
+      AWS_SHARED_CREDENTIALS_FILE: ${AWS_SHARED_CREDENTIALS_FILE:-}
+      AZURE_ACCOUNT_NAME: ${AZURE_ACCOUNT_NAME:-}
+      AZURE_ACCOUNT_KEY: ${AZURE_ACCOUNT_KEY:-}
+      AZURE_ACCOUNT_SAS: ${AZURE_ACCOUNT_SAS:-}
+      AZURE_ENDPOINT_SUFFIX: ${AZURE_ENDPOINT_SUFFIX:-}
+      B2_ACCOUNT_ID: ${B2_ACCOUNT_ID:-}
+      B2_ACCOUNT_KEY: ${B2_ACCOUNT_KEY:-}
+      GOOGLE_PROJECT_ID: ${GOOGLE_PROJECT_ID:-}
+      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-}
+      GOOGLE_ACCESS_TOKEN: ${GOOGLE_ACCESS_TOKEN:-}
+      RESTIC_REST_USERNAME: ${RESTIC_REST_USERNAME:-}
+      RESTIC_REST_PASSWORD: ${RESTIC_REST_PASSWORD:-}
+      BACKUP_DIR: /backups
+      RESTIC_BACKUP_TAG: ${RESTIC_BACKUP_TAG:-lumen-postgres}
+      RESTIC_KEEP_DAILY: ${RESTIC_KEEP_DAILY:-7}
+      RESTIC_KEEP_WEEKLY: ${RESTIC_KEEP_WEEKLY:-4}
+      RESTIC_KEEP_MONTHLY: ${RESTIC_KEEP_MONTHLY:-12}
+      RESTIC_KEEP_YEARLY: ${RESTIC_KEEP_YEARLY:-3}
+      OFFSITE_BACKUP_INTERVAL_SECONDS: ${OFFSITE_BACKUP_INTERVAL_SECONDS:-3600}
+    volumes:
+      - ./backups:/backups:ro
+      - ./scripts/offsite-backup.sh:/scripts/offsite-backup.sh:ro
+      - ./secrets:/run/secrets:ro
+      - ./secrets/ssh:/root/.ssh:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        interval="${OFFSITE_BACKUP_INTERVAL_SECONDS:-3600}"
+        case "$interval" in
+          ""|*[!0-9]*)
+            echo "OFFSITE_BACKUP_INTERVAL_SECONDS must be a positive integer." >&2
+            exit 1
+            ;;
+        esac
+        if [ "$interval" -eq 0 ]; then
+          echo "OFFSITE_BACKUP_INTERVAL_SECONDS must be greater than zero." >&2
+          exit 1
+        fi
+        while true; do
+          /bin/sh /scripts/offsite-backup.sh || echo "Offsite backup attempt failed; will retry."
+          sleep "$interval"
+        done
+    depends_on:
+      backup:
+        condition: service_started
+
+volumes:
+  pgdata:
+  uploads:
+  certbot_conf:
+  certbot_www:
+  clamav_db:
