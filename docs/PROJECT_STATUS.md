@@ -11,20 +11,24 @@
 - فرع العمل: `fix/security-production-hardening`.
 - PR الرئيسي: [#4 — Consolidated Lumen import and security hardening](https://github.com/HVA09/lumen-learning-platform/pull/4).
 - الحالة وقت التحديث: PR #4 مفتوح وغير مدمج، وليس هناك نشر إنتاجي مثبت.
-- آخر head تم التحقق من CI عليه قبل هذا التحديث: `89891d1d520555beed5a3e6013c05d6ae14ae7a9`.
-- أحدث تشغيل موثق: [GitHub Actions run #505](https://github.com/HVA09/lumen-learning-platform/actions/runs/41480724962) — اكتمل بنجاح على الـ head أعلاه.
+- آخر head تم التحقق من CI عليه: `fd8817b640f1f11723a50e8e92b79690f55f6319`.
+- أحدث تشغيل مكتمل: [GitHub Actions run #508](https://github.com/HVA09/lumen-learning-platform/actions/runs/41482119998) — اكتمل بنجاح على الـ head أعلاه.
 
 ## نتيجة CI على head الموثق
 
-تشغيل #505:
+تشغيل #508 على commit `fd8817b640f1f11723a50e8e92b79690f55f6319`:
 
 | الوظيفة | النتيجة |
 |---|---|
-| Backend tests | نجاح |
-| Frontend tests and production build | نجاح |
-| Full Git history secret scan | نجاح |
+| Backend tests | نجاح — 401 اختبار ناجح، 0 فشل، 20 تحذيرًا |
+| Frontend tests and production build | نجاح — 51 اختبارًا عبر 11 ملف اختبار، وبناء الإنتاج نجح |
+| Full Git history secret scan | نجاح — لا تسريبات مكتشفة في فحص النطاق والتاريخ الكامل |
+| Docker Compose validation | نجاح |
+| Migration preservation and upgrade/downgrade regression | نجاح |
+| PostgreSQL backup/restore integration | نجاح |
+| Restic encrypted backup/restore smoke test | نجاح |
 
-النجاح يثبت أن هذه الوظائف نجحت على commit المحدد. لا يعني ذلك مراجعة بشرية أو اختبارًا حيًا على خدمة استضافة أو اكتمال النشر.
+ملاحظة: سجّل بناء الواجهة تحذيرًا غير مانع لحجم بعض الحزم، كما ظهرت تحذيرات اعتماديات منخفضة/متوسطة. النجاح يثبت نتائج CI على commit المحدد؛ لا يعني مراجعة بشرية أو اختبارًا حيًا على خدمة استضافة أو اكتمال النشر.
 
 ## ما تم إنجازه في مسار العمل
 
@@ -62,4 +66,4 @@
 
 | التاريخ | التغيير |
 |---|---|
-| 2026-11-02 | إنشاء أول سجل حالة دائم. توثيق نجاح CI #505 على head `89891d1d` وبقاء PR #4 مفتوحًا. |
+| 2026-11-02 | إنشاء أول سجل حالة دائم وتحديثه بعد نجاح CI #508 على head `fd8817b6`: 401 اختبار خلفية و51 اختبار واجهة، بناء الإنتاج وفحص التاريخ الكامل نجحت؛ PR #4 ما زال مفتوحًا وغير مدمج. |
