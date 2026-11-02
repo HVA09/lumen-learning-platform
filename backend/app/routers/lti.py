@@ -1,5 +1,6 @@
 """مسارات تكامل LTI 1.3 مع استخدام state ورمز تبادل أحاديي الاستخدام."""
 import secrets
+from types import SimpleNamespace
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode, urlsplit
 
@@ -348,10 +349,12 @@ async def lti_launch(
     db: Session = Depends(get_db),
 ):
     """يتحقق من حالة OIDC غير المستعملة، ثم يصدر رمز تبادل قصير العمر فقط."""
+    state_hash = hash_opaque_token(state)
+    # Read the pending state without locking it. Snapshot the minimal values
+    # needed for verification, then end the read transaction before DNS/JWKS I/O.
     state_row = (
         db.query(LTIAuthState)
-        .filter(LTIAuthState.state_hash == hash_opaque_token(state))
-        .with_for_update()
+        .filter(LTIAuthState.state_hash == state_hash)
         .first()
     )
     now = datetime.now(timezone.utc)
@@ -366,9 +369,24 @@ async def lti_launch(
     if not platform:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="المنصة غير موجودة")
 
+    state_id = state_row.id
+    expected_nonce = state_row.nonce
+    expected_target_link_uri = state_row.target_link_uri
+    platform_id = platform.id
+    # verify_platform_id_token only needs these immutable registration fields.
+    # A detached snapshot lets us release the DB connection during network I/O.
+    platform_context = SimpleNamespace(
+        id=platform.id,
+        issuer=platform.issuer,
+        client_id=platform.client_id,
+        deployment_id=platform.deployment_id,
+        jwks_url=platform.jwks_url,
+    )
+    db.commit()
+
     try:
         claims = await verify_platform_id_token(
-            id_token, platform, state_row.nonce, state_row.target_link_uri
+            id_token, platform_context, expected_nonce, expected_target_link_uri
         )
     except Exception:
         # لا نعيد تفاصيل التحقق أو معلومات المفاتيح إلى العميل.
@@ -376,6 +394,32 @@ async def lti_launch(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="تعذّر التحقق من تسجيل الدخول عبر منصة التعليم",
         )
+
+    # Re-lock and re-read after remote verification. Another launch may have
+    # consumed the same state while this request was waiting for JWKS.
+    state_row = (
+        db.query(LTIAuthState)
+        .filter(
+            LTIAuthState.id == state_id,
+            LTIAuthState.state_hash == state_hash,
+        )
+        .with_for_update()
+        .populate_existing()
+        .first()
+    )
+    now = datetime.now(timezone.utc)
+    if (
+        state_row is None
+        or state_row.consumed_at is not None
+        or state_row.expires_at <= now
+    ):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="state غير صالح أو منتهي")
+
+    # Reload the registered platform in the new transaction before applying
+    # the verified launch context to persistent discovery/mapping rows.
+    platform = db.get(LTIPlatform, platform_id)
+    if not platform:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="المنصة غير موجودة")
 
     record_lti_ags_launch_context(db, platform, claims)
 
