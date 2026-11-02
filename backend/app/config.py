@@ -143,8 +143,8 @@ class Settings(BaseSettings):
 
         payment_provider = self.PAYMENT_PROVIDER.strip().lower()
         if payment_provider == "stripe":
-            if not self.STRIPE_SECRET_KEY.startswith("sk_live_"):
-                raise ValueError("STRIPE_SECRET_KEY must be a live Stripe secret in production")
+            if not self.STRIPE_SECRET_KEY.startswith(("sk_live_", "rk_live_")):
+                raise ValueError("STRIPE_SECRET_KEY must be a live Stripe secret or restricted key in production")
             if not self.STRIPE_WEBHOOK_SECRET.startswith("whsec_"):
                 raise ValueError("STRIPE_WEBHOOK_SECRET is required in production")
         elif payment_provider == "paypal":
