@@ -21,6 +21,8 @@ class LTIPlatformCreate(BaseModel):
     )
     @classmethod
     def trim_required_values(cls, value: str) -> str:
+        if not isinstance(value, str):
+            return value
         cleaned = value.strip()
         if not cleaned:
             raise ValueError("LTI platform fields cannot be blank")
