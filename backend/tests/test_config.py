@@ -15,6 +15,7 @@ def _production_settings(**overrides):
         "FRONTEND_URL": "https://learn.example.com",
         "CORS_ORIGINS": ["https://learn.example.com"],
         "TOTP_ENCRYPTION_KEY": Fernet.generate_key().decode("ascii"),
+        "MALWARE_SCAN_ENABLED": True,
         "SMTP_HOST": "smtp.lumen.test",
         "SMTP_FROM_EMAIL": "noreply@lumen.test",
     }
@@ -101,3 +102,22 @@ def test_nginx_upload_limit_allows_multipart_overhead():
     match = re.search(r"client_max_body_size\s+(\d+)m\s*;", content)
     assert match is not None
     assert int(match.group(1)) >= 12
+
+
+def test_production_requires_malware_scanning():
+    with pytest.raises(ValidationError, match="MALWARE_SCAN_ENABLED must be true"):
+        _production_settings(MALWARE_SCAN_ENABLED=False)
+
+
+def test_production_requires_valid_clamav_endpoint():
+    with pytest.raises(ValidationError, match="CLAMAV_HOST and CLAMAV_PORT"):
+        _production_settings(CLAMAV_HOST="")
+
+
+@pytest.mark.parametrize(
+    ("setting", "value"),
+    [("MAX_USER_STORAGE_MB", 0), ("MAX_USER_FILES", 0)],
+)
+def test_production_requires_positive_user_upload_quotas(setting, value):
+    with pytest.raises(ValidationError, match="Per-user upload quotas"):
+        _production_settings(**{setting: value})
