@@ -89,3 +89,8 @@
 
 - CI #517 نجح على head `a1550659f4284a646cbbe8855c979ac6bb4cea63`: 401 backend tests، و51 frontend tests، وبناء الإنتاج، وفحص Git history، والترحيلات والنسخ الاحتياطي.
 - هذا يتحقق من وثيقة triage نفسها على الفرع الحالي، لكنه لا يعيد اختبار سلسلة LTI القديمة على خط الأساس الحالي. تتطلب سلسلة #16–#23 إعادة تأسيس وتشغيل CI جديد بعد موافقة دمج PR #4.
+
+
+## تحديث التحقق — CI #518
+- [CI #518](https://github.com/HVA09/lumen-learning-platform/actions/runs/41502174758) نجح على head 9993ad70926b0384f4a10e21d09970e5e52bb25e: 401 Backend، 51 Frontend، production build، full-history Gitleaks، migrations وbackups كلها ناجحة.
+- يؤكد ذلك سلامة وثيقة تقييم الاستضافة؛ لا يعيد اعتماد سلسلة LTI القديمة #16–#23 على الخط الأساسي الحالي.

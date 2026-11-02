@@ -17,7 +17,7 @@
 | Render Free | Web Service: 512 MB RAM؛ ينام بعد 15 دقيقة من عدم النشاط؛ filesystem مؤقت؛ 750 ساعة مجانية في الشهر. PostgreSQL: 1 GB وينتهي بعد 30 يومًا. مستند البدء يذكر أن النشر الأولي للموارد المجانية لا يحتاج دفعًا. | خيار مقبول لتجربة مؤقتة، لكنه ليس لاستضافة بيانات إنتاجية أو ملفات دائمة. لا يوفر التخزين الدائم على الخطة المجانية. |
 | Supabase Free | مشروعان نشطان كحد أقصى؛ قاعدة PostgreSQL 500 MB؛ RAM مشتركة 500 MB؛ 5 GB egress؛ 1 GB file storage. قد يتوقف المشروع عند انخفاض النشاط خلال 7 أيام؛ لا تتوفر تنزيلات النسخ الاحتياطية لمشاريع Free. | جيد لقاعدة تجريبية صغيرة، لكن ليس قاعدة إنتاجية موثوقة بلا خطة نسخ احتياطي مستقلة. لم نثبت شرط البطاقة عند التسجيل؛ لا نفترضه. |
 | Neon Free | 100 CU-hour لكل مشروع شهريًا؛ تخزين Postgres 1 GB لكل مشروع؛ 5 GB نقل عام لكل مشروع؛ Autoscaling حتى 2 CU تقريبًا؛ Scale-to-zero بعد 5 دقائق. | مرشح لقاعدة تجريبية، لكن النوم بعد الخمول والحصص الشهرية يجعلانها غير مناسبة لقاعدة إنتاجية تضمن توافرًا مستمرًا. شرط البطاقة غير مؤكد. |
-| Upstash Redis Free | 256 MB بيانات؛ 500,000 أمر شهريًا؛ 10 GB bandwidth. مستند Upstash ينص صراحةً على أن قواعد Free لا تتطلب بطاقة. | مرشح مناسب لـRedis محدود في التجارب. انتبه: إدخال بطاقة يحوّل الموارد المجانية إلى خطط مدفوعة بحسب توثيقهم. |
+| Upstash Redis Free | 250 MB بيانات؛ 500,000 أمر شهريًا؛ 10 GB bandwidth. مستند Upstash ينص صراحةً على أن قواعد Free لا تتطلب بطاقة. | مرشح مناسب لـRedis محدود في التجارب. انتبه: إدخال بطاقة يحوّل الموارد المجانية إلى خطط مدفوعة بحسب توثيقهم. |
 | Koyeb Free | خدمة واحدة مجانية لكل منظمة: 512 MB RAM و0.1 vCPU و2 GB SSD. قاعدة Postgres المجانية 1 GB ومحدودة بخمس ساعات تشغيل فعّال يوميًا. وتصف الوثائق Free Instance بأنها للمعاينة/الهواية لا للإنتاج. | غير كافية للـ API وClamAV والعمال وقاعدة بيانات دائمة. لا نفترض أنها بلا بطاقة دون تحقق أثناء التسجيل. |
 | Oracle Cloud Always Free | يتطلب التسجيل بطاقة ائتمان/خصم صالحة للتحقق من الهوية. | مستبعد بسبب عدم توفر بطاقة. |
 
@@ -54,11 +54,18 @@
 - Supabase pricing: https://supabase.com/pricing
 - Supabase Free project pausing: https://supabase.com/docs/guides/platform/free-project-pausing
 - Supabase production checklist (backup availability): https://supabase.com/docs/guides/deployment/going-into-prod
-- Neon Free limits: https://neon.com/docs/introduction/pro-plan
-- Neon Free plan quota details: https://neon.com/docs/introduction/free-plan
+- Neon Free limits: https://neon.com/blog/neon-free-plan-1-gb-per-project
+- Neon Free plan quotas (official docs source): https://github.com/neondatabase/website/blob/main/content/faqs/free-plan-limits-and-quotas.md
 - Upstash Redis pricing: https://upstash.com/pricing/redis
 - Upstash payment-method rules: https://upstash.com/docs/common/account/add-payment-method
 - Koyeb instance sizes: https://www.koyeb.com/docs/reference/instances
 - Koyeb pricing FAQ: https://www.koyeb.com/docs/faqs/pricing
 - Oracle Cloud Free Tier FAQ: https://www.oracle.com/cloud/free/faq/
 - ClamAV recommended system requirements: https://docs.clamav.net/
+
+
+## تصحيح التوثيق الحالي — 2026-11-02
+
+- حد Upstash Redis Free في صفحة التسعير الحالية هو **250 MB** و500K أمر شهريًا و10 GB bandwidth؛ كانت النسخة السابقة تذكر 256 MB. استخدمنا حد الباقة المعروض 250 MB.
+- مصدر Neon المحدث: Free plan يحتوي **1 GB Postgres لكل مشروع و100 CU-hours لكل مشروع شهريًا**، حتى 100 مشروع، و5 GB public network transfer لكل مشروع شهريًا؛ scale-to-zero بعد 5 دقائق. رابط FAQ الرسمي مرفق أعلاه.
+- لا نعتبر هذه الخطط بدائل إنتاجية للمكدس الكامل؛ إنها مكونات تجريبية ضمن الحصص.

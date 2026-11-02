@@ -28,3 +28,5 @@
 - [تقييم الاستضافة المجانية والقيود](docs/HOSTING_FEASIBILITY.md)
 
 - [خريطة طلبات الدمج ومسارات LTI المتبقية](docs/PR_STACK_TRIAGE.md)
+
+- [الخطة المعمارية الحالية ومراحل التنظيم](docs/ARCHITECTURE_PLAN.md)

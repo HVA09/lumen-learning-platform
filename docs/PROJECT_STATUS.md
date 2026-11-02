@@ -160,3 +160,18 @@
 - آخر commit موثق: `a1550659f4284a646cbbe8855c979ac6bb4cea63`.
 - هذا commit نفسه هو head الذي نجح في CI #517، أي أن سجل الحالة يطابق الرأس المتحقق منه.
 - إذا أُضيف أي commit لاحق، يجب فحص CI عليه وتحديث هذه الفقرة.
+
+
+## أحدث تحقق — CI #518 (2026-11-02)
+
+- [GitHub Actions run #518](https://github.com/HVA09/lumen-learning-platform/actions/runs/41502174758) اكتمل بنجاح على head 9993ad70926b0384f4a10e21d09970e5e52bb25e.
+- Backend: **401 passed, 0 failed, 20 warnings**.
+- Frontend: **51 passed across 11 files**؛ production build passed.
+- Full Git history secret scan: **passed**, no leaks found.
+- Docker Compose validation، migration preservation/upgrade/downgrade، PostgreSQL backup/restore، وRestic smoke test: **passed**.
+- أحدث تحديثات التوثيق تم اختبارها في #518. لا تغيير في التطبيق runtime ضمن هذه الجولة.
+- PR #4 ما زال مفتوحًا وغير مدمج؛ مراجعة GitHub المطلوبة لم تُقدّم، وmain لم يتغير. لا يوجد نشر إنتاجي.
+
+## الخطة المعمارية التالية
+- تمت إضافة [ARCHITECTURE_PLAN.md](ARCHITECTURE_PLAN.md) مع توصيف واقعي للبنية الحالية وحدود المجالات وقواعد الاعتماديات.
+- التجربة الأولى المقترحة بعد اعتماد خط الأساس: نقل منطق quiz_logic.py الخالص إلى Assessments مع واجهة توافق واختبارات كاملة، دون تغيير API أو قاعدة البيانات أو منطق التصحيح.
