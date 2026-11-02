@@ -3,10 +3,19 @@
 """
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
 from app.routers import billing as billing_router_module
 from app.models.processed_webhook_event import ProcessedWebhookEvent
 from app.routers.billing import _claim_webhook_event
 from app.services.payment_providers.base import CheckoutResult, WebhookEvent
+
+@pytest.fixture(autouse=True)
+def enable_mocked_payment_provider(monkeypatch):
+    """Existing provider tests use mocks; no external payment account is contacted."""
+    monkeypatch.setattr(billing_router_module.app_settings, "PAYMENT_PROVIDER", "stripe")
+
+
 
 
 def _register_and_login(client, email="billing@example.com", password="StrongPass123"):
@@ -21,6 +30,42 @@ def test_list_plans_is_public_and_seeded(client):
     names = [p["name"] for p in response.json()]
     assert "Free" in names
     assert "Pro" in names
+
+
+def test_billing_status_reports_payments_disabled(client, monkeypatch):
+    monkeypatch.setattr(billing_router_module.app_settings, "PAYMENT_PROVIDER", "disabled")
+    response = client.get("/billing/status")
+    assert response.status_code == 200
+    assert response.json() == {"online_payments_enabled": False}
+
+
+def test_checkout_is_unavailable_when_payments_are_disabled(client, monkeypatch):
+    monkeypatch.setattr(billing_router_module.app_settings, "PAYMENT_PROVIDER", "disabled")
+    monkeypatch.setattr(
+        billing_router_module,
+        "get_payment_provider",
+        lambda: (_ for _ in ()).throw(AssertionError("provider must not be called")),
+    )
+    token = _register_and_login(client, "no-payment@example.com")
+    plan = next(p for p in client.get("/billing/plans").json() if p["name"] == "Pro")
+    response = client.post(
+        "/billing/checkout",
+        json={"plan_id": plan["id"]},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 503
+    assert "الدفع الإلكتروني غير مفعّل" in response.json()["detail"]
+
+
+def test_payment_webhooks_are_hidden_when_payments_are_disabled(client, monkeypatch):
+    monkeypatch.setattr(billing_router_module.app_settings, "PAYMENT_PROVIDER", "disabled")
+    monkeypatch.setattr(
+        billing_router_module,
+        "get_payment_provider",
+        lambda: (_ for _ in ()).throw(AssertionError("provider must not be called")),
+    )
+    assert client.post("/billing/webhook/stripe", json={}).status_code == 404
+    assert client.post("/billing/webhook/paypal", json={}).status_code == 404
 
 
 def test_get_subscription_returns_null_when_none(client):
