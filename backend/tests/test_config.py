@@ -128,9 +128,9 @@ def test_production_requires_positive_user_upload_quotas(setting, value):
 
 def test_production_requires_live_stripe_credentials():
     with pytest.raises(ValidationError, match="live Stripe secret"):
-        _production_settings(STRIPE_SECRET_KEY="sk_test_not_live")
+        _production_settings(PAYMENT_PROVIDER="stripe", STRIPE_SECRET_KEY="sk_test_not_live")
     with pytest.raises(ValidationError, match="STRIPE_WEBHOOK_SECRET"):
-        _production_settings(STRIPE_WEBHOOK_SECRET="")
+        _production_settings(PAYMENT_PROVIDER="stripe", STRIPE_WEBHOOK_SECRET="")
 
 
 def test_production_requires_live_paypal_endpoint_and_credentials():
@@ -187,5 +187,5 @@ def test_production_rejects_unknown_payment_provider():
 
 
 def test_production_accepts_live_stripe_restricted_key():
-    settings = _production_settings(STRIPE_SECRET_KEY="rk_live_restricted_configuration")
+    settings = _production_settings(PAYMENT_PROVIDER="stripe", STRIPE_SECRET_KEY="rk_live_restricted_configuration")
     assert settings.STRIPE_SECRET_KEY.startswith("rk_live_")
