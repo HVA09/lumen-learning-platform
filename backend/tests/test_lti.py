@@ -12,6 +12,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from jose import jwk, jwt
 
 from app.models.user import UserRole
+from app.routers.lti import _build_lti_profile
 from tests.quiz_helpers import set_role
 from app.services import lti_service as lti_service_module
 from app.services.lti_service import long_to_base64url
@@ -83,6 +84,55 @@ def test_register_platform_rejects_blank_or_oversized_fields(client, db_session)
         headers=headers,
     )
     assert oversized_endpoint.status_code == 422
+
+
+def test_lti_profile_only_trusts_valid_verified_email_and_bounded_name():
+    email, full_name, verified = _build_lti_profile(
+        {
+            "email": "  Student42@Example.com  ",
+            "email_verified": True,
+            "name": "  طالب تجريبي  ",
+        },
+        platform_id=7,
+        lti_subject="student-42",
+    )
+    assert email == "student42@example.com"
+    assert full_name == "طالب تجريبي"
+    assert verified is True
+
+
+def test_lti_profile_uses_unverified_fallback_for_malformed_email_claims():
+    invalid_claims = [
+        {"email": None, "email_verified": True, "name": "Student"},
+        {"email": ["student@example.com"], "email_verified": True, "name": "Student"},
+        {"email": "not-an-email", "email_verified": True, "name": "Student"},
+        {"email": "student@example.com", "email_verified": False, "name": "Student"},
+    ]
+
+    for claims in invalid_claims:
+        email, full_name, verified = _build_lti_profile(
+            claims, platform_id=7, lti_subject="student-42"
+        )
+        assert email.startswith("lti_7_")
+        assert email.endswith("@lti.local")
+        assert full_name == "Student"
+        assert verified is False
+
+
+def test_lti_profile_ignores_invalid_or_oversized_name_claims():
+    for name in (["Student"], "x" * 256, "   "):
+        email, full_name, verified = _build_lti_profile(
+            {
+                "email": "student@example.com",
+                "email_verified": True,
+                "name": name,
+            },
+            platform_id=7,
+            lti_subject="student-42",
+        )
+        assert email == "student@example.com"
+        assert full_name is None
+        assert verified is True
 
 
 def test_register_and_list_platforms_requires_admin(client, db_session):
