@@ -17,6 +17,7 @@ class LTIPlatformCreate(BaseModel):
     @field_validator(
         "name", "issuer", "client_id", "deployment_id",
         "auth_login_url", "auth_token_url", "jwks_url",
+        mode="before",
     )
     @classmethod
     def trim_required_values(cls, value: str) -> str:
