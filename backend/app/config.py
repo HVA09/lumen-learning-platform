@@ -62,7 +62,7 @@ class Settings(BaseSettings):
     CLAMAV_TIMEOUT_SECONDS: int = 30
 
     # الاشتراكات والدفع
-    PAYMENT_PROVIDER: str = "stripe"  # stripe | paypal
+    PAYMENT_PROVIDER: Literal["disabled", "stripe", "paypal"] = "disabled"
     STRIPE_SECRET_KEY: str = ""
     STRIPE_WEBHOOK_SECRET: str = ""
     PAYPAL_CLIENT_ID: str = ""
@@ -142,7 +142,10 @@ class Settings(BaseSettings):
                 raise ValueError("LTI_TARGET_LINK_URI must be an absolute HTTPS URL in production")
 
         payment_provider = self.PAYMENT_PROVIDER.strip().lower()
-        if payment_provider == "stripe":
+        if payment_provider == "disabled":
+            # Free learning mode does not require any payment provider account.
+            pass
+        elif payment_provider == "stripe":
             if not self.STRIPE_SECRET_KEY.startswith(("sk_live_", "rk_live_")):
                 raise ValueError("STRIPE_SECRET_KEY must be a live Stripe secret or restricted key in production")
             if not self.STRIPE_WEBHOOK_SECRET.startswith("whsec_"):
@@ -163,7 +166,7 @@ class Settings(BaseSettings):
             ):
                 raise ValueError("PAYPAL_API_BASE must use the live https://api-m.paypal.com endpoint")
         else:
-            raise ValueError("PAYMENT_PROVIDER must be either stripe or paypal in production")
+            raise ValueError("PAYMENT_PROVIDER must be disabled, stripe, or paypal in production")
 
         if not self.MALWARE_SCAN_ENABLED:
             raise ValueError("MALWARE_SCAN_ENABLED must be true in production")
