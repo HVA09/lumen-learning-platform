@@ -54,6 +54,12 @@ class Settings(BaseSettings):
     # رفع الملفات
     UPLOAD_DIR: str = "/app/uploads"
     MAX_UPLOAD_SIZE_MB: int = 10
+    MAX_USER_STORAGE_MB: int = 100
+    MAX_USER_FILES: int = 100
+    MALWARE_SCAN_ENABLED: bool = False
+    CLAMAV_HOST: str = "clamav"
+    CLAMAV_PORT: int = 3310
+    CLAMAV_TIMEOUT_SECONDS: int = 30
 
     # الاشتراكات والدفع
     PAYMENT_PROVIDER: str = "stripe"  # stripe | paypal
@@ -134,6 +140,15 @@ class Settings(BaseSettings):
             target = urlparse(self.LTI_TARGET_LINK_URI)
             if target.scheme != "https" or not target.netloc:
                 raise ValueError("LTI_TARGET_LINK_URI must be an absolute HTTPS URL in production")
+
+        if not self.MALWARE_SCAN_ENABLED:
+            raise ValueError("MALWARE_SCAN_ENABLED must be true in production")
+        if not self.CLAMAV_HOST.strip() or not 1 <= self.CLAMAV_PORT <= 65535:
+            raise ValueError("CLAMAV_HOST and CLAMAV_PORT must identify the internal scanner")
+        if self.CLAMAV_TIMEOUT_SECONDS <= 0:
+            raise ValueError("CLAMAV_TIMEOUT_SECONDS must be positive")
+        if self.MAX_USER_STORAGE_MB <= 0 or self.MAX_USER_FILES <= 0:
+            raise ValueError("Per-user upload quotas must be positive in production")
 
         return self
 
