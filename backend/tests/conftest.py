@@ -26,6 +26,15 @@ engine = create_engine(normalize_database_url(TEST_DATABASE_URL))
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
+@pytest.fixture(autouse=True)
+def isolate_class_invite_join_limiter(monkeypatch):
+    """Keep API tests independent of a local Redis service; limiter has separate unit tests."""
+    from app.routers import classes as classes_router
+
+    monkeypatch.setattr(classes_router, "reserve_invite_join_attempt", lambda _user_id: 0)
+    monkeypatch.setattr(classes_router, "release_invite_join_attempt", lambda _user_id: None)
+
+
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_db():
     Base.metadata.create_all(bind=engine)
