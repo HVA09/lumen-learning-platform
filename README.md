@@ -24,3 +24,5 @@
 - [استمرارية العمل عبر الأجهزة والمحادثات](docs/CONTINUITY.md)
 
 ابدأ بقراءة `docs/PROJECT_STATUS.md` ثم `docs/DECISIONS.md` قبل استكمال أي مرحلة تطوير.
+
+- [تقييم الاستضافة المجانية والقيود](docs/HOSTING_FEASIBILITY.md)

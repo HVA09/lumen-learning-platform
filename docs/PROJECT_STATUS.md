@@ -122,3 +122,14 @@
 - Docker Compose، migrations، PostgreSQL backup/restore، وRestic smoke tests: **passed**.
 - لا يوجد تغيير في كود التطبيق بين commit الكود الذي فُحص في #511 وhead #514؛ التغييرات بينهما تخص سجل القرارات والحالة والتوثيق. #514 مع ذلك أعاد تشغيل وفحص المسار الكامل للـ PR ونجح.
 - PR #4 لا يزال مفتوحًا وغير مدمج؛ GitHub يطلب موافقة واحدة من مراجع بصلاحية كتابة. لا يوجد نشر إنتاجي.
+
+
+## تحقق أحدث من CI والـ PR — 2026-11-02
+
+- [GitHub Actions run #515](https://github.com/HVA09/lumen-learning-platform/actions/runs/41495156408) نجح على head `abcd3e383a6720dc5b7c5dcfc4c56d7af0e1f6df`.
+- Backend: **401 passed, 0 failed, 20 warnings**.
+- Frontend: **51 passed across 11 test files**؛ production build passed مع تحذير حجم حزمة غير مانع.
+- Full Git history secret scan: **passed**، لا تسريبات مكتشفة.
+- Docker Compose، migration preservation/upgrade/downgrade، PostgreSQL backup/restore، وRestic smoke tests: **passed**.
+- PR #4 ما زال مفتوحًا وغير مدمج، ومراجعات GitHub الحالية فارغة. الدمج ما زال يتطلب موافقة واحدة من مراجع بصلاحية كتابة وفق ADR-010. `main` لم يتغير، ولم يحدث نشر إنتاجي.
+- تقييم الاستضافة المحدث محفوظ في [HOSTING_FEASIBILITY.md](HOSTING_FEASIBILITY.md). الاستنتاج: لا يوجد خيار مؤكد بلا بطاقة يستضيف المكدس الكامل بأمان؛ لا نعطّل فحص ClamAV لتجاوز حدود الذاكرة.
