@@ -11,12 +11,12 @@
 - فرع العمل: `fix/security-production-hardening`.
 - PR الرئيسي: [#4 — Consolidated Lumen import and security hardening](https://github.com/HVA09/lumen-learning-platform/pull/4).
 - الحالة وقت التحديث: PR #4 مفتوح وغير مدمج، وليس هناك نشر إنتاجي مثبت.
-- آخر head تم التحقق من CI عليه: `fd8817b640f1f11723a50e8e92b79690f55f6319`.
-- أحدث تشغيل مكتمل: [GitHub Actions run #508](https://github.com/HVA09/lumen-learning-platform/actions/runs/41482119998) — اكتمل بنجاح على الـ head أعلاه.
+- آخر head تم التحقق من CI عليه: `75a85923ffe66d658ac78e31abdd9003dab18c79`.
+- أحدث تشغيل مكتمل: [GitHub Actions run #511](https://github.com/HVA09/lumen-learning-platform/actions/runs/41492944574) — اكتمل بنجاح على الـ head أعلاه.
 
 ## نتيجة CI على head الموثق
 
-تشغيل #508 على commit `fd8817b640f1f11723a50e8e92b79690f55f6319`:
+تشغيل #511 على commit `75a85923ffe66d658ac78e31abdd9003dab18c79`:
 
 | الوظيفة | النتيجة |
 |---|---|
@@ -66,7 +66,7 @@
 
 | التاريخ | التغيير |
 |---|---|
-| 2026-11-02 | إنشاء أول سجل حالة دائم وتحديثه بعد نجاح CI #508 على head `fd8817b6`: 401 اختبار خلفية و51 اختبار واجهة، بناء الإنتاج وفحص التاريخ الكامل نجحت؛ PR #4 ما زال مفتوحًا وغير مدمج. |
+| 2026-11-02 | إنشاء سجل الحالة الدائم. CI #508 و#509 ثم CI #511 نجحت على commits المتعاقبة؛ أحدثها #511 على `75a85923` ويشمل 401 اختبار خلفية و51 اختبار واجهة وبناء الإنتاج وفحص التاريخ الكامل. PR #4 مفتوح وغير مدمج بسبب شرط الموافقة. |
 
 
 ## تحديث مهم — 2026-11-02: حالة الدمج بعد CI #509
@@ -93,3 +93,14 @@
 لا تُستخدم أي طريقة التفافية، ولا يُدّعى أن PR مدمج حتى يظهر merge commit على `main`.
 
 | 2026-11-02 | CI #509 اجتاز على `b4bd9c0b`. محاولة الدمج رُفضت بسبب اشتراط موافقة واحدة من مراجع بصلاحية كتابة؛ PR #4 بقي مفتوحًا وmain دون تغيير. |
+
+
+## أحدث تحقق بعد توثيق عائق الدمج
+
+- [CI #511](https://github.com/HVA09/lumen-learning-platform/actions/runs/41492944574) نجح بالكامل على commit `75a85923ffe66d658ac78e31abdd9003dab18c79`.
+- Backend: 401 passed، 0 failed، 20 warnings.
+- Frontend: 51 passed عبر 11 ملف اختبار؛ production build ناجح.
+- Full-history Gitleaks: نجح، `no leaks found`.
+- اختبارات Compose، migrations، PostgreSQL backup/restore، وRestic نجحت.
+- يتضمن هذا الـ head توثيق ADR-010 لشرط الموافقة المطلوبة. لم يتغير الكود بين نتيجة #509 وهذه التحديثات التوثيقية.
+- أحدث بوابة متوقفة هي الموافقة المطلوبة من GitHub، وليست فشلًا في الاختبارات.
