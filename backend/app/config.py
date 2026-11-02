@@ -88,6 +88,20 @@ class Settings(BaseSettings):
         if self.ENVIRONMENT.strip().lower() != "production":
             return self
 
+        # Production must send verification and password-reset links through SMTP.
+        # Never fall back to logging message bodies, which contain single-use tokens.
+        if not self.SMTP_HOST.strip():
+            raise ValueError("SMTP_HOST is required in production")
+        if not 1 <= self.SMTP_PORT <= 65535:
+            raise ValueError("SMTP_PORT must be between 1 and 65535")
+        if not self.SMTP_USE_TLS:
+            raise ValueError("SMTP_USE_TLS must be enabled in production")
+        sender = self.SMTP_FROM_EMAIL.strip()
+        if "@" not in sender or sender.lower().endswith("@example.com"):
+            raise ValueError("SMTP_FROM_EMAIL must be a real sender address, not a placeholder")
+        if bool(self.SMTP_USER.strip()) != bool(self.SMTP_PASSWORD):
+            raise ValueError("SMTP_USER and SMTP_PASSWORD must be configured together")
+
         if self.DEBUG:
             raise ValueError("DEBUG must be false when ENVIRONMENT=production")
 
