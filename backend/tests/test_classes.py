@@ -47,7 +47,7 @@ def test_teacher_creates_class_with_invite_code(client, db_session):
     teacher = make_teacher(client, db_session)
     created = _create_class(client, teacher)
     assert created["name"] == "الرياضيات — الصف العاشر"
-    assert len(created["invite_code"]) == 6
+    assert len(created["invite_code"]) == 8
     assert created["student_count"] == 0
     assert created["is_archived"] is False
 
