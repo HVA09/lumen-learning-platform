@@ -332,7 +332,7 @@ async def _process_verified_webhook_event(event, provider_name: str, db: Session
 
 @router.post("/webhook/stripe", include_in_schema=False)
 async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
-    if not _payments_enabled():
+    if app_settings.PAYMENT_PROVIDER.strip().lower() != "stripe":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Webhook غير مفعّل")
     payload = await request.body()
     provider = get_payment_provider()
@@ -347,7 +347,7 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
 
 @router.post("/webhook/paypal", include_in_schema=False)
 async def paypal_webhook(request: Request, db: Session = Depends(get_db)):
-    if not _payments_enabled():
+    if app_settings.PAYMENT_PROVIDER.strip().lower() != "paypal":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Webhook غير مفعّل")
     payload = await request.body()
     provider = get_payment_provider()
