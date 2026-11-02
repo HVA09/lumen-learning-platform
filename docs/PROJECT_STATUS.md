@@ -11,12 +11,12 @@
 - فرع العمل: `fix/security-production-hardening`.
 - PR الرئيسي: [#4 — Consolidated Lumen import and security hardening](https://github.com/HVA09/lumen-learning-platform/pull/4).
 - الحالة وقت التحديث: PR #4 مفتوح وغير مدمج، وليس هناك نشر إنتاجي مثبت.
-- آخر head تم التحقق من CI عليه: `75a85923ffe66d658ac78e31abdd9003dab18c79`.
-- أحدث تشغيل مكتمل: [GitHub Actions run #511](https://github.com/HVA09/lumen-learning-platform/actions/runs/41492944574) — اكتمل بنجاح على الـ head أعلاه.
+- أحدث commit للفرع: `21f195556f12e41a834a7f406221c6e85ca847ab` (تحديث توثيقي فقط).
+- آخر commit للكود تم التحقق منه آليًا: `75a85923ffe66d658ac78e31abdd9003dab18c79` عبر [GitHub Actions run #511](https://github.com/HVA09/lumen-learning-platform/actions/runs/41492944574) — نجح بالكامل.
 
 ## نتيجة CI على head الموثق
 
-تشغيل #511 على commit `75a85923ffe66d658ac78e31abdd9003dab18c79`:
+تشغيل #511 على commit الكود `75a85923ffe66d658ac78e31abdd9003dab18c79` (وهو أصل التغييرات المصدرية للـ head التوثيقي الحالي):
 
 | الوظيفة | النتيجة |
 |---|---|
@@ -104,3 +104,10 @@
 - اختبارات Compose، migrations، PostgreSQL backup/restore، وRestic نجحت.
 - يتضمن هذا الـ head توثيق ADR-010 لشرط الموافقة المطلوبة. لم يتغير الكود بين نتيجة #509 وهذه التحديثات التوثيقية.
 - أحدث بوابة متوقفة هي الموافقة المطلوبة من GitHub، وليست فشلًا في الاختبارات.
+
+
+### تمييز آخر commit توثيقي عن commit الكود
+
+- أحدث branch head بعد تحديث ملف الحالة هذا: يتضمن فقط ملفات `docs/` منذ commit الكود `75a85923`.
+- CI #511 نجح على commit الكود `75a85923`: 401 اختبار خلفية، 51 اختبار واجهة، build، full-history secret scan، وعمليات الترحيل والنسخ الاحتياطي.
+- workflow الحالي يشغّل `pull_request` على تغييرات `backend/**` و`frontend/**` و`.github/workflows/ci.yml` فقط. لذلك لا يبدأ CI جديد لتغييرات التوثيق وحدها. لم يتغير كود التطبيق بعد commit الذي تحقّق منه #511.
