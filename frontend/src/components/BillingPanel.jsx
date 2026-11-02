@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { cancelSubscription, createCheckout, getMySubscription, getPlans } from "../lib/billingApi";
+import { cancelSubscription, createCheckout, getBillingStatus, getMySubscription, getPlans } from "../lib/billingApi";
 
 function formatPrice(cents, currency, interval) {
   if (cents === 0) return "مجاني";
@@ -13,14 +13,21 @@ export default function BillingPanel({ onClose }) {
   const [loading, setLoading] = useState(true);
   const [busyPlanId, setBusyPlanId] = useState(null);
   const [error, setError] = useState("");
+  const [paymentsEnabled, setPaymentsEnabled] = useState(false);
 
   const refresh = async () => {
     setLoading(true);
     try {
-      const [plansData, subData] = await Promise.all([getPlans(), getMySubscription()]);
+      const [plansData, subData, billingStatus] = await Promise.all([
+        getPlans(),
+        getMySubscription(),
+        getBillingStatus(),
+      ]);
       setPlans(plansData);
       setSubscription(subData);
+      setPaymentsEnabled(Boolean(billingStatus?.online_payments_enabled));
     } catch {
+      setPaymentsEnabled(false);
       setError("تعذر تحميل بيانات الاشتراك");
     } finally {
       setLoading(false);
@@ -81,18 +88,26 @@ export default function BillingPanel({ onClose }) {
                     التجديد: {new Date(subscription.current_period_end).toLocaleDateString()}
                   </p>
                 )}
-                <button
-                  onClick={handleCancel}
-                  className="mt-3 rounded-lg border border-red-200 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50"
-                >
-                  إلغاء الاشتراك
-                </button>
+                {paymentsEnabled && (
+                  <button
+                    onClick={handleCancel}
+                    className="mt-3 rounded-lg border border-red-200 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50"
+                  >
+                    إلغاء الاشتراك
+                  </button>
+                )}
               </div>
             )}
 
             {error && (
               <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                 {error}
+              </div>
+            )}
+
+            {!paymentsEnabled && (
+              <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700" role="status">
+                الدفع الإلكتروني غير مفعّل حالياً. يمكنك استخدام الخطة المجانية دون بطاقة أو حساب دفع.
               </div>
             )}
 
@@ -119,13 +134,17 @@ export default function BillingPanel({ onClose }) {
                           خطتك الحالية
                         </span>
                       ) : plan.price_cents > 0 ? (
-                        <button
-                          onClick={() => handleSubscribe(plan.id)}
-                          disabled={busyPlanId === plan.id}
-                          className="rounded-xl bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-50"
-                        >
-                          {busyPlanId === plan.id ? "..." : "اشترك"}
-                        </button>
+                        paymentsEnabled ? (
+                          <button
+                            onClick={() => handleSubscribe(plan.id)}
+                            disabled={busyPlanId === plan.id}
+                            className="rounded-xl bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-50"
+                          >
+                            {busyPlanId === plan.id ? "..." : "اشترك"}
+                          </button>
+                        ) : (
+                          <span className="text-xs text-slate-500">غير متاح حالياً</span>
+                        )
                       ) : null}
                     </div>
                   </div>
