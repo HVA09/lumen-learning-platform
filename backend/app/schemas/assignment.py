@@ -29,6 +29,7 @@ class AssignmentOut(BaseModel):
 
 class AssignmentListItem(AssignmentOut):
     """عنصر قائمة الواجبات: حالة تسليم الطالب الحالي + (للمعلّم منشئ الواجب) أعداد التسليمات"""
+    can_manage: bool = False
     my_status: SubmissionStatus | None = None
     my_grade_percentage: float | None = None
     submissions_count: int | None = None
