@@ -21,7 +21,7 @@ const classes = [{ id: 7, name: "فصل التجربة", invite_code: "AAAAAA", 
 const classAssignment = {
   id: 1, created_by_user_id: 5, topic_id: null, class_section_id: 7, title: "واجب المشتقات",
   description: "احسب $f'(x)$", rubric_criteria: [], due_at: null, created_at: "2026-09-29T00:00:00Z",
-  my_status: null, my_grade_percentage: null, submissions_count: 2, pending_grading_count: 1,
+  can_manage: true, my_status: null, my_grade_percentage: null, submissions_count: 2, pending_grading_count: 1,
 };
 
 beforeEach(() => {
@@ -72,3 +72,15 @@ describe("AssignmentsPanel", () => {
     expect(screen.queryByText("+ واجب جديد")).not.toBeInTheDocument();
   });
 });
+
+
+  it("المعلّم لا يرى أدوات التقييم أو الحذف للواجب العام الذي لا يملكه", async () => {
+    getAssignments.mockResolvedValue([{ ...classAssignment, class_section_id: null, can_manage: false }]);
+    const user = userEvent.setup();
+    render(<AssignmentsPanel isTeacher onClose={vi.fn()} />);
+
+    await user.click(await screen.findByText("واجب المشتقات"));
+    expect(await screen.findByPlaceholderText("اكتب إجابتك وشرحك هنا...")).toBeInTheDocument();
+    expect(screen.queryByText("قيّم الآن")).not.toBeInTheDocument();
+    expect(screen.queryByText("حذف الواجب")).not.toBeInTheDocument();
+  });
