@@ -11,6 +11,7 @@ from app.services.invite_codes import (
 
 def test_code_has_expected_length_and_alphabet():
     code = generate_invite_code(random.Random(1))
+    assert CODE_LENGTH >= 8
     assert len(code) == CODE_LENGTH
     assert set(code) <= set(CODE_ALPHABET)
 
@@ -23,7 +24,7 @@ def test_alphabet_excludes_visually_ambiguous_characters():
 def test_codes_are_random_enough():
     rng = random.Random(42)
     codes = {generate_invite_code(rng) for _ in range(500)}
-    assert len(codes) == 500  # 31^6 احتمال — تصادم بـ 500 توليد شبه مستحيل
+    assert len(codes) == 500  # 31^8 احتمال — تصادم بـ 500 توليد شبه مستحيل
 
 
 def test_same_seed_gives_same_code():
@@ -34,3 +35,19 @@ def test_normalize_uppercases_and_strips_separators():
     assert normalize_invite_code("  abc-234 ") == "ABC234"
     assert normalize_invite_code("k7m 2pq") == "K7M2PQ"
     assert normalize_invite_code("ABC234") == "ABC234"
+
+
+
+def test_default_invite_generation_uses_cryptographic_choice(monkeypatch):
+    from app.services import invite_codes
+
+    calls = []
+    def deterministic_secure_choice(alphabet):
+        calls.append(alphabet)
+        return alphabet[0]
+
+    monkeypatch.setattr(invite_codes.secrets, "choice", deterministic_secure_choice)
+    code = invite_codes.generate_invite_code()
+
+    assert code == CODE_ALPHABET[0] * CODE_LENGTH
+    assert len(calls) == CODE_LENGTH
