@@ -396,6 +396,31 @@ def test_grade_event_manual_retry_is_admin_only_and_resets_dead_event(client, db
     assert event.next_attempt_at <= datetime.now(timezone.utc)
 
 
+def test_admin_grade_event_list_omits_learner_and_delivery_secrets(client, db_session):
+    _platform_obj, _mapping, event = _make_pending_event(client, db_session)
+    admin_email = "ags-privacy-admin@example.com"
+    admin_token = register_and_login(client, admin_email)
+    set_role(db_session, admin_email, UserRole.admin)
+
+    response = client.get("/lti/grade-events", headers=auth(admin_token))
+    assert response.status_code == 200, response.text
+    row = next(item for item in response.json() if item["id"] == event.id)
+
+    assert row["status"] == "pending"
+    forbidden_fields = {
+        "lti_subject",
+        "score_given",
+        "score_maximum",
+        "comment",
+        "lineitem_url",
+        "access_token",
+        "client_assertion",
+    }
+    assert forbidden_fields.isdisjoint(row)
+    assert "moodle-subject-42" not in response.text
+    assert "tenant=ags-v1" not in response.text
+
+
 def test_ags_client_assertion_has_short_lived_platform_client_claims(monkeypatch):
     private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     private_pem = private_key.private_bytes(
