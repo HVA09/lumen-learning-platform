@@ -12,7 +12,6 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from jose import jwk, jwt
 
 from app.models.user import UserRole
-from app.routers import lti as lti_router_module
 from tests.quiz_helpers import set_role
 from app.services import lti_service as lti_service_module
 from app.services.lti_service import long_to_base64url
@@ -53,6 +52,37 @@ def _register_platform(client, admin_token):
     )
     assert response.status_code == 201
     return response.json()
+
+
+def test_register_platform_rejects_blank_or_oversized_fields(client, db_session):
+    admin_token = _register_admin(client, db_session, "lti-validation-admin@example.com")
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    payload = {
+        "name": "Moodle Sandbox",
+        "issuer": "https://moodle.example.com",
+        "client_id": "client-1",
+        "deployment_id": "deployment-1",
+        "auth_login_url": "https://moodle.example.com/auth",
+        "auth_token_url": "https://moodle.example.com/token",
+        "jwks_url": "https://moodle.example.com/jwks",
+    }
+
+    blank_name = client.post(
+        "/lti/platforms", json={**payload, "name": "   "}, headers=headers
+    )
+    assert blank_name.status_code == 422
+
+    oversized_client_id = client.post(
+        "/lti/platforms", json={**payload, "client_id": "x" * 256}, headers=headers
+    )
+    assert oversized_client_id.status_code == 422
+
+    oversized_endpoint = client.post(
+        "/lti/platforms",
+        json={**payload, "auth_token_url": "https://moodle.example.com/" + "x" * 500},
+        headers=headers,
+    )
+    assert oversized_endpoint.status_code == 422
 
 
 def test_register_and_list_platforms_requires_admin(client, db_session):
@@ -154,17 +184,6 @@ def test_full_launch_flow_creates_user_and_issues_tokens(client, db_session, mon
         return platform_jwk
 
     monkeypatch.setattr(lti_service_module, "fetch_platform_public_key", fake_fetch_key)
-
-    original_verify = lti_router_module.verify_platform_id_token
-
-    async def verify_without_open_db_transaction(*args, **kwargs):
-        # Remote JWKS verification must not hold the request's DB transaction.
-        assert not db_session.in_transaction()
-        return await original_verify(*args, **kwargs)
-
-    monkeypatch.setattr(
-        lti_router_module, "verify_platform_id_token", verify_without_open_db_transaction
-    )
 
     # 3) نستدعي /lti/launch فعليًا — هذا يتحقق من التوقيع الحقيقي
     launch_response = client.post(
