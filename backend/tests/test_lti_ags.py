@@ -544,6 +544,27 @@ def test_ags_dispatch_skips_event_with_active_delivery_lease(client, db_session,
     assert event.locked_until > now
 
 
+def test_ags_delivery_moves_event_to_dead_after_max_attempts(client, db_session, monkeypatch):
+    _platform_obj, _mapping, event = _make_pending_event(client, db_session)
+    event.attempts = lti_service.AGS_MAX_DELIVERY_ATTEMPTS - 1
+    db_session.commit()
+
+    async def fail_delivery(*_args, **_kwargs):
+        raise RuntimeError("upstream private response details")
+
+    monkeypatch.setattr(lti_service, "post_lti_ags_score", fail_delivery)
+
+    delivered = asyncio.run(dispatch_lti_grade_event(db_session, event.id))
+    assert delivered is False
+
+    db_session.refresh(event)
+    assert event.status == "dead"
+    assert event.attempts == lti_service.AGS_MAX_DELIVERY_ATTEMPTS
+    assert event.locked_until is None
+    assert event.last_error == "RuntimeError: AGS delivery failed"
+    assert "upstream private response details" not in event.last_error
+
+
 def test_ags_delivery_failure_is_retried_without_persisting_remote_details(client, db_session, monkeypatch):
     _platform_obj, _mapping, event = _make_pending_event(client, db_session)
     private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
