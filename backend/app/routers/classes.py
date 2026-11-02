@@ -23,6 +23,11 @@ from app.schemas.class_section import (
     StudentInClassOut,
 )
 from app.services.invite_codes import generate_invite_code, normalize_invite_code
+from app.services.invite_join_limiter import (
+    InviteJoinRateLimitUnavailable,
+    release_invite_join_attempt,
+    reserve_invite_join_attempt,
+)
 
 router = APIRouter(prefix="/classes", tags=["Classes"])
 
@@ -230,6 +235,23 @@ def join_class(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    # Reserve atomically before looking up a code. Invalid/archived codes keep
+    # the reservation; a valid code releases it after enrollment is confirmed.
+    try:
+        retry_after = reserve_invite_join_attempt(current_user.id)
+    except InviteJoinRateLimitUnavailable:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="خدمة حماية رموز الدعوة غير متاحة حالياً، حاول لاحقاً",
+            headers={"Retry-After": "30"},
+        )
+    if retry_after:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="محاولات الانضمام كثيرة. حاول بعد انتهاء مهلة الحماية",
+            headers={"Retry-After": str(retry_after)},
+        )
+
     code = normalize_invite_code(payload.invite_code)
     class_section = db.query(ClassSection).filter(ClassSection.invite_code == code).first()
     if not class_section or class_section.is_archived:
@@ -247,5 +269,6 @@ def join_class(
         db.add(ClassEnrollment(class_section_id=class_section.id, student_user_id=current_user.id))
         db.commit()
 
+    release_invite_join_attempt(current_user.id)
     counts = _student_counts(db, [class_section.id])
     return _class_out(class_section, counts.get(class_section.id, 0), include_invite_code=False)
