@@ -1,8 +1,8 @@
 # الخطة المعمارية الحالية والمراحل التنفيذية لمنصة Lumen
 
 آخر تحديث: **2026-11-03**  
-مرجع `main` بعد PR #38: `ced8b0c0bd067649e171074d601a839a9f9a379e`  
-PR #30 و#32 و#33 و#34 و#35 و#36 و#37 و#38 مدمجة؛ CI #547 نجح على main. Backend: 417 passed؛ Frontend: 51 passed؛ build وGitleaks وCompose وmigrations وbackup/restore وRestic نجحت.
+مرجع `main` بعد PR #37: `de79d3e441b943f33ca263f313dd48b86bba3251`  
+PR #30 و#32 و#33 و#34 و#35 و#36 و#37 مدمجة؛ CI #545 نجح على main. Backend: 417 passed؛ Frontend: 51 passed؛ build وGitleaks وCompose وmigrations وbackup/restore وRestic نجحت.
 
 > الغرض هو تنظيم النظام تدريجيًا دون إعادة كتابة، أو تغيير سلوك الميزات، أو تعريض بيانات المستخدمين والترحيلات للخطر.
 
@@ -72,7 +72,7 @@ PR #30 و#32 و#33 و#34 و#35 و#36 و#37 و#38 مدمجة؛ CI #547 نجح ع�
 | Classes | الفصول والتسجيل وعضوية الطلاب والدعوات | ClassSection, ClassEnrollment, invite services |
 | Assignments | إنشاء الواجبات والتسليم والتقييم | Assignment, AssignmentSubmission |
 | Files | المرفقات والتحقق والفحص والتخزين | FileAttachment, files router, malware_scanner |
-| Gamification | الإنجازات والنقاط ولوحة المتصدرين | UserAchievement, achievements, gamification/domain/scoring (تستهلك مؤشرات النشاط من Learning Progress) |
+| Gamification | الإنجازات والنقاط ولوحة المتصدرين | UserAchievement, achievements, scoring rules (تستهلك مؤشرات النشاط من Learning Progress) |
 | Notifications | الإشعارات وقنوات التسليم | Notification, notifications |
 | Billing | الخطط والاشتراكات وأحداث الدفع | Plan, Subscription, ProcessedWebhookEvent |
 | LTI Integration | تسجيل LMS وOIDC وربط الهوية وAGS | LTIPlatform, LTI routers/services |
@@ -105,11 +105,6 @@ PR #30 و#32 و#33 و#34 و#35 و#36 و#37 و#38 مدمجة؛ CI #547 نجح ع�
 ### Review / SRS
 
 - `app/modules/review/domain/sm2.py`: PR #37 ينقل CardState وReviewState وانتقال SM-2+ النقي إلى مجال Review بلا SQLAlchemy.
-
-### Gamification
-
-- `app/modules/gamification/domain/scoring.py`: PR #39 يعزل المعادلة الحسابية للنقاط داخل Value Object ودالة نقية بلا SQL أو ORM.
-- `app/services/achievements.py`: تبقى مسؤولة عن استعلامات المصدر المجمعة، وتجميع مكونات كل مستخدم، واستدعاء دالة الحساب النقية؛ كما تبقى شروط فتح الإنجازات العابرة للمجالات في الخدمة.
 - `app/services/spaced_repetition.py`: يبقى محولًا بين القيمة المجالّية ونموذج ORM؛ ويحافظ على `review_card(card, grade, now) -> card` كواجهة متوافقة تعيد نفس الكائن.
 - Enum `CardState` في المجال يحتفظ باسم الصنف وأسماء الأعضاء والقيم والترتيب نفسها؛ SQLAlchemy ما زال ينشئ enum `cardstate` مطابقًا للمخطط الحالي.
 - `app/models/review_card.py` يعيد تصدير CardState من المجال؛ schema وmodel registry يظلان على مساراتهما الحالية.
@@ -140,7 +135,7 @@ PR #30 و#32 و#33 و#34 و#35 و#36 و#37 و#38 مدمجة؛ CI #547 نجح ع�
 | P1 | استخراج منطق Assessments الخالص quiz_logic | مكتمل — PR #30 مدمج وCI #526 و#527 ناجحان |
 | P2 | خريطة ملكية المجالات والاعتماديات | مكتمل توثيقيًا — التبعيات والمخاطر والمرشح التالي موثقة |
 | P3 | استخراج وحدة نقية ثانية صغيرة | مكتمل — PR #32 مدمج؛ CI #534 على PR وCI #535 على main ناجحان |
-| P4 | فصل حدود خدمات Learning/Progress/SRS/Gamification | قيد التنفيذ — PR #34 و#35 فصلا Progress، وPR #37 فصل SM-2، وPR #39 يفصل pure Gamification scoring مع إبقاء استعلامات SQL في service |
+| P4 | فصل حدود خدمات Learning/Progress/SRS/Gamification | قيد التنفيذ جزئيًا — PR #34 و#35 فصلا Progress وPR #37 فصل SM-2 عن ORM؛ التالي فصل معادلة النقاط النقية في Gamification عن الاستعلامات المجمعة |
 | P5 | تنظيم Frontend تدريجيًا | بعد خريطة features/shared وعقود API واختبارات RTL/LTR |
 | P6 | lint/typecheck واختبارات متصفح وتحسين الأداء والمراقبة | تحديد الأدوات وخط الأساس قبل فرضها |
 | P7 | الإطلاق | بعد إغلاق متطلبات الاستضافة والأمن والتشغيل |
@@ -166,8 +161,8 @@ PR #30 و#32 و#33 و#34 و#35 و#36 و#37 و#38 مدمجة؛ CI #547 نجح ع�
 
 ## 8. نقطة الاستئناف
 
-- آخر main بعد PR #38: `ced8b0c0bd067649e171074d601a839a9f9a379e`.
-- CI #547 نجح بالكامل: 417 Backend tests، و51 Frontend tests عبر 11 ملفًا، production build، Gitleaks full-history، Compose، migrations، PostgreSQL backup/restore، وRestic smoke test.
-- P0–P3 مكتملة. P4 فصلت قواعد Progress وSRS؛ PR #39 يفصل pure Gamification scoring مع إبقاء aggregation واستعلامات SQL في طبقة التطبيق.
+- آخر main بعد PR #37: `de79d3e441b943f33ca263f313dd48b86bba3251`.
+- CI #545 نجح بالكامل: 417 Backend tests، و51 Frontend tests عبر 11 ملفًا، production build، Gitleaks full-history، Compose، migrations، PostgreSQL backup/restore، وRestic smoke test.
+- P0–P3 مكتملة. P4 فصلت قواعد Progress وSRS؛ المرحلة التالية تستهدف pure Gamification scoring مع إبقاء تجميع البيانات في طبقة التطبيق.
 - لا يوجد نشر إنتاجي مثبت.
 - لا يوجد نشر إنتاجي مثبت.
