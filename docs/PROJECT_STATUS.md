@@ -70,7 +70,6 @@
 - `question_analytics.py`: دوال نقية لتحليل الأسئلة نُقلت إلى `modules/assessments/domain` عبر PR #32؛ بقيت استعلامات SQL وتجميع استجابة API داخل `routers/content.py`.
 - `learning_path.py`: `build_learning_path` منسق يجمع بيانات Catalog وProgress ويشكّل مسار الطالب؛ قواعد حالة الموضوع والتوصية منفصلة في Learning Progress domain عبر PR #35.
 - `study_activity.py`: خدمة مرتبطة بقاعدة البيانات لقراءة وكتابة `StudyDay`؛ تستورد قاعدة حساب السلسلة من `modules/learning_progress/domain/streak_logic.py` عبر PR #34.
-- `learning_path.py`: يبقى منسقًا/جامعًا لبيانات الموضوعات والمواد والدروس والأسئلة؛ قواعد حالة الموضوع واختيار التوصية انتقلت إلى domain عبر PR #35.
 - `spaced_repetition.py`: الخوارزمية مرتبطة حاليًا مباشرة بنموذج ORM `ReviewCard` وتعدله in-place؛ لا تُعامل كمنطق نقي قبل فصل حساب الحالة عن التخزين.
 - `achievements.py`: خدمة استعلامات عابرة لمجالات الاختبارات والواجبات والدروس والبطاقات والتقدم؛ لا تنقلها ككتلة واحدة إلى مجال منفرد.
 - `routers/content.py` يجمع إدارة الدروس والأسئلة وتحليلها؛ و`routers/assignments.py` يعتمد على عضوية الفصول؛ يجب احترام هذه العلاقات عند رسم الحدود.
