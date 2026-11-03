@@ -19,9 +19,10 @@ app/
   auth/            تشفير كلمات المرور + JWT + مسارات /auth
   routers/         /curriculum /quiz /content /srs /assignments /gamification
                    /reports /admin /users ...
-  services/        منطق بحت قابل للاختبار: تصحيح الاختبارات (quiz_logic)، مسار
-                   التعلّم (learning_path)، التكرار المتباعد SM-2+
-                   (spaced_repetition)، الإنجازات ولوحة المتصدرين (achievements)
+  modules/assessments/domain/
+                   منطق Assessments النقي: quiz_logic وquestion_analytics
+  services/        خدمات وتنسيق الأعمال: learning_path، spaced_repetition،
+                   الدراسة اليومية، الإنجازات ولوحة المتصدرين
   content/         المحتوى التعليمي الجاهز (دروس/أسئلة/بطاقات) ودالة زرعه
                    (seeder.py) — idempotent، آمن يشتغل أكثر من مرة
 tests/             pytest (auth + curriculum + quiz + content + assignments +
