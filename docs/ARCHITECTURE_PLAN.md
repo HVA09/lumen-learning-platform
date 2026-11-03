@@ -91,7 +91,7 @@ PR #30 و#32 و#33 و#34 و#35 مدمجة؛ CI #541 نجح على main. Backend:
 ### Learning Catalog وLearning Progress
 
 - `learning_path.py` يحتوي `build_learning_path`، وهو منسق نقي يستقبل بيانات مجمعة مسبقًا عن Catalog وProgress ويشكّل المخرجات؛ يبقى في service لأنه يجمع مسؤوليات عرض متعددة ولا يملك قاعدة مجال واحدة.
-- `compute_topic_status` و`pick_recommended_topic` قاعدتان نقيتان لملكية Progress، ويجري نقلهما إلى `modules/learning_progress/domain/topic_progress.py` عبر PR #35.
+- `compute_topic_status` و`pick_recommended_topic` قاعدتان نقيتان لملكية Progress، موجودتان الآن في `modules/learning_progress/domain/topic_progress.py` بعد دمج PR #35 واختبارات التوافق وثبات ترتيب المنهج.
 - `routers/curriculum.py` يجمع بيانات ORM من Subject وTopic وLesson وTopicMastery، ثم يستدعي منسق المسار ويسجل نشاط الدراسة ويفحص الإنجازات.
 
 ### Study Activity وGamification
