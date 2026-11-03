@@ -8,6 +8,7 @@ import { logoutUser, refreshSession } from "./lib/authApi";
 import { setAuthSessionActive } from "./lib/api";
 import Toast from "./components/Toast";
 import useDirection from "./hooks/useDirection";
+import useNotificationsSocket from "./hooks/useNotificationsSocket";
 
 // مُحمَّلة عند الحاجة فقط (lazy) — كل وحدة تصير ملف منفصل (code splitting)،
 // يقلّل حجم الحزمة الأولى اللي يحمّلها أي زائر
@@ -31,7 +32,6 @@ import {
   listNotifications,
   markNotificationRead,
   markAllNotificationsRead,
-  buildNotificationsWebSocketUrl,
 } from "./lib/notificationsApi";
 import "./i18n";
 
@@ -157,19 +157,15 @@ export default function App() {
     }
   }, [authed]);
 
-  // اتصال WebSocket للإشعارات الفورية — يُفتح عند الدخول، ويُغلق عند الخروج
-  useEffect(() => {
-    if (!authed) return;
+  const handleIncomingNotification = useCallback((notification) => {
+    setNotifications((prev) => [notification, ...prev]);
+    setToast({ message: notification.title, type: "success" });
+  }, []);
 
-    const ws = new WebSocket(buildNotificationsWebSocketUrl());
-    ws.onmessage = (event) => {
-      const notification = JSON.parse(event.data);
-      setNotifications((prev) => [notification, ...prev]);
-      setToast({ message: notification.title, type: "success" });
-    };
-
-    return () => ws.close();
-  }, [authed]);
+  useNotificationsSocket({
+    enabled: authed,
+    onNotification: handleIncomingNotification,
+  });
 
   const switchLang = (nextLang) => {
     setLang(nextLang);
