@@ -12,7 +12,7 @@
 - PR #4 مستورد خط الأساس ومُدمج، وPR #29 أصلح بصمات Gitleaks بعد squash merge، وPR #30 نقل منطق الاختبارات إلى مجال Assessments؛ الثلاثة مدمجة.
 - PR #30 دُمج في 2026-11-03. بقي المسار القديم `app.services.quiz_logic` كواجهة توافق.
 - CI #526 نجح على رأس PR #30 قبل الدمج، بجميع وظائف Backend وFrontend/build وFull Git history secret scan.
-- CI #527 على commit الدمج في `main` كان **قيد التنفيذ عند آخر تحقق**. لا يُعلن نجاح خط الأساس بعد PR #30 قبل اكتماله.
+- CI #527 على commit الدمج في `main` **نجح بالكامل**؛ Backend: 403 passed, 0 failed, 20 warnings؛ Frontend: 51 passed عبر 11 ملف اختبار؛ production build وGitleaks full-history وCompose وmigrations وPostgreSQL backup/restore وRestic smoke test كلها ناجحة.
 - لا يوجد نشر إنتاجي مثبت.
 
 ## حالة المراحل
@@ -88,7 +88,7 @@
 
 ## الخطوة التالية
 
-1. التأكد من اكتمال CI #527 بنجاح على commit `597c8b26`.
+1. تم التحقق من CI #527 بنجاح على commit `597c8b26`؛ انتقل إلى إكمال P2.
 2. إكمال خريطة P2 لملكية المجالات واعتمادياتها قبل نقل أي خدمة إضافية.
 3. بعد اعتماد الخريطة، تقييم نقل `question_analytics.py` إلى Assessments كتغيير تنظيمي صغير بواجهة توافق واختبارات ثابتة.
 4. عدم بدء نقل `learning_path.py` أو `spaced_repetition.py` أو `achievements.py` قبل حسم تبعياتها.
