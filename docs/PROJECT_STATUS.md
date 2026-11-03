@@ -65,7 +65,7 @@
 ## نتيجة مراجعة الاعتماديات الأولية لـ P2
 
 - `question_analytics.py`: دوال نقية لتحليل الأسئلة نُقلت إلى `modules/assessments/domain` عبر PR #32؛ بقيت استعلامات SQL وتجميع استجابة API داخل `routers/content.py`.
-- `learning_path.py`: دوال نقية تبني مسار الطالب انطلاقًا من بيانات مجمعة؛ ملكيتها بين Learning Catalog وLearning Progress تحتاج حسمًا.
+- `learning_path.py`: `build_learning_path` منسق يجمع بيانات Catalog وProgress ويشكّل مسار الطالب؛ قواعد حالة الموضوع والتوصية منفصلة في Learning Progress domain عبر PR #35.
 - `study_activity.py`: خدمة مرتبطة بقاعدة البيانات لقراءة وكتابة `StudyDay`؛ تستورد قاعدة حساب السلسلة من `modules/learning_progress/domain/streak_logic.py` عبر PR #34.
 - `learning_path.py`: يبقى منسقًا/جامعًا لبيانات الموضوعات والمواد والدروس والأسئلة، بينما تُنقل قواعد حالة الموضوع واختيار التوصية إلى domain عبر PR #35.
 - `spaced_repetition.py`: الخوارزمية مرتبطة حاليًا مباشرة بنموذج ORM `ReviewCard` وتعدله in-place؛ لا تُعامل كمنطق نقي قبل فصل حساب الحالة عن التخزين.
