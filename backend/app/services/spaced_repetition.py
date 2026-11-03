@@ -17,7 +17,6 @@ from app.modules.review.domain.sm2 import (
     Grade,
     ReviewState,
     ReviewTransition,
-    _next_review_interval,
     transition_review,
 )
 
