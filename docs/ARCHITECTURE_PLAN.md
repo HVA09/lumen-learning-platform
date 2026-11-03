@@ -68,7 +68,7 @@ PR #30 و#32 و#33 و#34 و#35 مدمجة؛ CI #541 نجح على main. Backend:
 | Learning Catalog | المواد والمواضيع والدروس والمحتوى التعليمي | Subject, Topic, Lesson, TopicCard |
 | Assessments | بنك الأسئلة والمحاولات والتصحيح وتحليل عناصر الاختبار | Question, QuizAttempt, QuestionResult, quiz_logic, question_analytics |
 | Learning Progress | الإتقان وتقدم الدروس والنشاط الدراسي وقواعد streak وحالة الموضوع والتوصية | TopicMastery, LessonProgress, StudyDay, study_activity, streak_logic, topic_progress |
-| Review / SRS | بطاقات المستخدم وجدولة المراجعة | ReviewCard, spaced_repetition |
+| Review / SRS | بطاقات المستخدم وجدولة المراجعة | ReviewCard, review/domain/sm2, spaced_repetition adapter |
 | Classes | الفصول والتسجيل وعضوية الطلاب والدعوات | ClassSection, ClassEnrollment, invite services |
 | Assignments | إنشاء الواجبات والتسليم والتقييم | Assignment, AssignmentSubmission |
 | Files | المرفقات والتحقق والفحص والتخزين | FileAttachment, files router, malware_scanner |
@@ -104,8 +104,10 @@ PR #30 و#32 و#33 و#34 و#35 مدمجة؛ CI #541 نجح على main. Backend:
 
 ### Review / SRS
 
-- `spaced_repetition.py` يحتوي قواعد SM-2+ لكنه يستقبل نموذج ORM `ReviewCard` ويعدّله مباشرةً in-place.
-- قبل فصله، ينبغي تعريف حالة مجال مستقلة أو دالة نقية تستقبل القيم وتعيد الحالة الجديدة، ثم تترك Application Service يحفظ التغييرات.
+- `app/modules/review/domain/sm2.py`: PR #37 ينقل CardState وReviewState وانتقال SM-2+ النقي إلى مجال Review بلا SQLAlchemy.
+- `app/services/spaced_repetition.py`: يبقى محولًا بين القيمة المجالّية ونموذج ORM؛ ويحافظ على `review_card(card, grade, now) -> card` كواجهة متوافقة تعيد نفس الكائن.
+- `app/models/review_card.py` يعيد تصدير CardState من المجال؛ schema وmodel registry يظلان على مساراتهما الحالية.
+- migration `0010_review_cards.py` لا تتغير؛ يحافظ Enum على الاسم `cardstate` والقيم والترتيب `new, learning, review, relearning`.
 - `routers/srs.py` ينسق ملكية البطاقة، الاستيراد/التصدير، نشاط الدراسة، وفحص الإنجازات؛ لا ينقل ككتلة واحدة.
 
 ### Classes وAssignments
@@ -131,7 +133,7 @@ PR #30 و#32 و#33 و#34 و#35 مدمجة؛ CI #541 نجح على main. Backend:
 | P1 | استخراج منطق Assessments الخالص quiz_logic | مكتمل — PR #30 مدمج وCI #526 و#527 ناجحان |
 | P2 | خريطة ملكية المجالات والاعتماديات | مكتمل توثيقيًا — التبعيات والمخاطر والمرشح التالي موثقة |
 | P3 | استخراج وحدة نقية ثانية صغيرة | مكتمل — PR #32 مدمج؛ CI #534 على PR وCI #535 على main ناجحان |
-| P4 | فصل حدود خدمات Learning/Progress/SRS/Gamification | قيد التنفيذ جزئيًا — PR #34 و#35 فصلا قواعد Learning Progress النقية؛ التالي تصميم فصل SM-2 عن ORM وعقود القراءة العابرة للمجالات |
+| P4 | فصل حدود خدمات Learning/Progress/SRS/Gamification | قيد التنفيذ — PR #34 و#35 فصلا قواعد Progress؛ PR #37 يفصل SM-2 عن ORM مع حفظ enum والمخطط. يلي ذلك تحليل عقود Gamification العابرة للمجالات |
 | P5 | تنظيم Frontend تدريجيًا | بعد خريطة features/shared وعقود API واختبارات RTL/LTR |
 | P6 | lint/typecheck واختبارات متصفح وتحسين الأداء والمراقبة | تحديد الأدوات وخط الأساس قبل فرضها |
 | P7 | الإطلاق | بعد إغلاق متطلبات الاستضافة والأمن والتشغيل |
@@ -159,6 +161,6 @@ PR #30 و#32 و#33 و#34 و#35 مدمجة؛ CI #541 نجح على main. Backend:
 
 - آخر main بعد PR #35: `0c725181a8cd1bfd4062cc828f4cc3ee58a5aec3`.
 - CI #541 نجح بالكامل: 407 Backend tests، و51 Frontend tests عبر 11 ملفًا، production build، Gitleaks full-history، Compose، migrations، PostgreSQL backup/restore، وRestic smoke test.
-- P0–P3 مكتملة. P4 قيد التنفيذ جزئيًا؛ نُقلت قاعدتا streak وtopic progress، مع إبقاء التخزين وتجميع المنهج في طبقة الخدمة.
+- P0–P3 مكتملة. P4 قيد التنفيذ؛ نُقلت قاعدتا streak وtopic progress، وPR #37 يفصل SM-2+ عن ORM دون تغيير enum أو migration 0010.
 - لا يوجد نشر إنتاجي مثبت.
 - لا يوجد نشر إنتاجي مثبت.
