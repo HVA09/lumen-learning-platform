@@ -1,5 +1,5 @@
 """
-اختبارات مسار التعلّم والـ streak (دوال بحتة)
+اختبارات مسار التعلّم (دوال بحتة)
 """
 from app.services.learning_path import (
     STATUS_AVAILABLE,
@@ -10,6 +10,7 @@ from app.services.learning_path import (
     compute_topic_status,
     pick_recommended_topic,
 )
+
 
 def _subjects():
     return [
