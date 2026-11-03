@@ -1,8 +1,8 @@
 # الخطة المعمارية الحالية والمراحل التنفيذية لمنصة Lumen
 
 آخر تحديث: **2026-11-03**  
-مرجع `main`: `57d85d7c776afb3b65f8579b6c12361fd8c03ea6`  
-PR #30 دُمج؛ CI #526 نجح على رأسه قبل الدمج، وCI #527 نجح على commit الدمج. Backend: 403 passed؛ Frontend: 51 passed؛ build وGitleaks وmigrations وbackups نجحت.
+مرجع `main`: `5ddad0395d504caec3c134061c8f95f23b28f8f4`  
+PR #30 و#32 مدمجان؛ CI #535 نجح على commit main. Backend: 404 passed؛ Frontend: 51 passed؛ build وGitleaks وCompose وmigrations وbackup/restore وRestic نجحت.
 
 > الغرض هو تنظيم النظام تدريجيًا دون إعادة كتابة، أو تغيير سلوك الميزات، أو تعريض بيانات المستخدمين والترحيلات للخطر.
 
@@ -38,9 +38,9 @@ PR #30 دُمج؛ CI #526 نجح على رأسه قبل الدمج، وCI #527 �
 
 - `app/modules/assessments/domain/quiz_logic.py`: قواعد تصحيح وتطبيع الإجابات والتحقق واختيار الأسئلة وحساب الإتقان.
 - `app/services/quiz_logic.py`: واجهة توافق تعيد تصدير الواجهة العامة نفسها للمستهلكين الذين لم ينتقلوا بعد.
-- `app/modules/assessments/domain/question_analytics.py`: دوال نقية لتحليل أداء السؤال وتصنيفه وترتيب الأسئلة التي تحتاج مراجعة؛ قيد النقل عبر PR #32.
-- `app/services/question_analytics.py`: واجهة توافق أثناء الانتقال؛ استيراد Router والاختبارات الجديدة يستهدف المجال مباشرةً.
-- تم تحويل Routers وSchemas واختبارات المجال إلى المسار الجديد، مع اختبار تطابق الواجهة القديمة.
+- `app/modules/assessments/domain/question_analytics.py`: دوال نقية لتحليل أداء السؤال وتصنيفه وترتيب الأسئلة التي تحتاج مراجعة؛ مدمجة عبر PR #32.
+- `app/services/question_analytics.py`: واجهة توافق تعيد تصدير الرموز العامة نفسها؛ يستورد Router والاختبار الأساسي المجال مباشرةً.
+- أُضيف اختبار توافق يتحقق من تطابق هوية كل رمز عام بين المسارين القديم والجديد.
 
 ### Frontend
 
@@ -81,9 +81,8 @@ PR #30 دُمج؛ CI #526 نجح على رأسه قبل الدمج، وCI #527 �
 ### Assessments
 
 - `quiz_logic.py` أصبح في المجال الجديد.
-- `question_analytics.py` دوال نقية بلا ORM أو FastAPI؛ يستوردها `routers/content.py` وتختبر في `test_question_analytics.py`.
-- `routers/content.py` يحتوي أيضًا إدارة الدروس؛ لذلك يخلط حاليًا بين مسؤولية Learning Catalog ومسؤولية Assessments.
-- التوصية التالية: تقييم نقل `question_analytics.py` إلى `modules/assessments/domain` مع واجهة توافق، بعد إكمال خريطة P2.
+- `question_analytics.py` دوال نقية بلا ORM أو FastAPI؛ نُقلت إلى `modules/assessments/domain` عبر PR #32 مع واجهة توافق واختبارات.
+- `routers/content.py` ما زال يحتوي إدارة الدروس واستعلامات SQL لتجميع نتائج الأسئلة وبناء استجابة API؛ لذلك يخلط بين مسؤولية Learning Catalog ومسؤولية Assessments على مستوى الـ Router. فصل المسارات/التنسيق يتم لاحقًا بعقود مستقلة، وليس ضمن هذا النقل.
 
 ### Learning Catalog وLearning Progress
 
@@ -126,10 +125,10 @@ PR #30 دُمج؛ CI #526 نجح على رأسه قبل الدمج، وCI #527 �
 | P0 | تثبيت خط الأساس الأمني والاختباري | مكتمل — PR #4 و#29 مدمجان؛ CI #525 ناجح |
 | P1 | استخراج منطق Assessments الخالص quiz_logic | مكتمل — PR #30 مدمج وCI #526 و#527 ناجحان |
 | P2 | خريطة ملكية المجالات والاعتماديات | مكتمل توثيقيًا — التبعيات والمخاطر والمرشح التالي موثقة |
-| P3 | استخراج وحدة نقية ثانية صغيرة | قيد التنفيذ عبر PR #32: question_analytics مع واجهة توافق |
-| P4 | فصل خدمات Learning/Progress/SRS/Gamification | بعد عقود ملكية واختبارات تكامل لكل مجال |
-| P5 | تنظيم Frontend تدريجيًا | بعد خريطة features/shared وعقود API |
-| P6 | lint/typecheck واختبارات متصفح وتحسين الأداء والمراقبة | تحديد الأدوات وbaseline قبل فرضها |
+| P3 | استخراج وحدة نقية ثانية صغيرة | مكتمل — PR #32 مدمج؛ CI #534 على PR وCI #535 على main ناجحان |
+| P4 | فصل حدود خدمات Learning/Progress/SRS/Gamification | يبدأ بتحليل الملكية والعقود؛ لا نقل واسع قبل اختبارات تكامل لكل مجال |
+| P5 | تنظيم Frontend تدريجيًا | بعد خريطة features/shared وعقود API واختبارات RTL/LTR |
+| P6 | lint/typecheck واختبارات متصفح وتحسين الأداء والمراقبة | تحديد الأدوات وخط الأساس قبل فرضها |
 | P7 | الإطلاق | بعد إغلاق متطلبات الاستضافة والأمن والتشغيل |
 
 ## 6. بوابات القبول لكل تغيير
@@ -153,8 +152,8 @@ PR #30 دُمج؛ CI #526 نجح على رأسه قبل الدمج، وCI #527 �
 
 ## 8. نقطة الاستئناف
 
-- آخر main بعد PR #31: `57d85d7c776afb3b65f8579b6c12361fd8c03ea6`.
-- CI #526 ناجح على رأس PR #30.
-- CI #527 على main بعد الدمج نجح بالكامل: 403 Backend tests، و51 Frontend tests عبر 11 ملفًا، production build، Gitleaks full-history، Compose، migrations، PostgreSQL backup/restore، وRestic smoke test.
-- P1 منجز بالدمج والتحقق. P2 مكتمل توثيقيًا. P3 قيد التنفيذ عبر PR #32 لاستخراج `question_analytics.py`.
+- آخر main بعد PR #32: `5ddad0395d504caec3c134061c8f95f23b28f8f4`.
+- CI #534 نجح على PR #32، وCI #535 على main بعد الدمج نجح بالكامل: 404 Backend tests، و51 Frontend tests عبر 11 ملفًا، production build، Gitleaks full-history، Compose، migrations، PostgreSQL backup/restore، وRestic smoke test.
+- P0–P3 مكتملة. P4 التالية تبدأ بتحليل حدود الخدمات وعقودها قبل فصل Learning/Progress/SRS/Gamification.
+- لا يوجد نشر إنتاجي مثبت.
 - لا يوجد نشر إنتاجي مثبت.
