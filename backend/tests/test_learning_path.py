@@ -1,15 +1,15 @@
 """
 اختبارات مسار التعلّم (دوال بحتة)
 """
-from app.services.learning_path import (
+from app.modules.learning_progress.domain.topic_progress import (
     STATUS_AVAILABLE,
     STATUS_IN_PROGRESS,
     STATUS_LOCKED,
     STATUS_MASTERED,
-    build_learning_path,
     compute_topic_status,
     pick_recommended_topic,
 )
+from app.services.learning_path import build_learning_path
 
 
 def _subjects():
@@ -97,3 +97,11 @@ def test_dangling_prerequisite_does_not_lock_forever():
 
 def test_pick_recommended_topic_empty_list():
     assert pick_recommended_topic([]) is None
+
+
+def test_pick_recommended_topic_preserves_order_when_mastery_is_equal():
+    ordered_topics = [
+        {"id": 9, "status": STATUS_IN_PROGRESS, "mastery_percentage": 50.0},
+        {"id": 4, "status": STATUS_IN_PROGRESS, "mastery_percentage": 50.0},
+    ]
+    assert pick_recommended_topic(ordered_topics) == 9

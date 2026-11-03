@@ -217,11 +217,24 @@
 ## ADR-019 — فصل قاعدة streak ضمن Learning Progress
 
 - التاريخ: 2026-11-03
-- الحالة: **قيد التنفيذ في PR #34 — لا يُعد مدمجًا بعد**
+- الحالة: **مُدمج في main عبر PR #34 بتاريخ 2026-11-03؛ CI #538 و#539 ناجحان**
 - الجهة: توصية هندسية ضمن المرحلة P4 بعد مراجعة الاعتماديات.
 - القرار: نقل الدالة النقية `compute_streak` من `app/services/streak_logic.py` إلى `app/modules/learning_progress/domain/streak_logic.py`. تبقى الخدمة القديمة واجهة توافق تعيد تصدير الدالة نفسها، بينما تستورد خدمة `study_activity.py` القاعدة مباشرة من المجال.
 - النطاق: إنشاء حزمة Learning Progress، نقل الاختبارات المركزة إلى `test_streak_logic.py`، إضافة اختبار توافق، وإزالة اختبار الدالة من `test_learning_path.py` حتى تعكس ملفات الاختبار حدود كل مجال.
 - الضمانات: لا تغيير في منطق حساب الأيام المتتالية، أو توقيت UTC، أو عدد الأيام المسترجعة، أو استعلامات/معاملات SQLAlchemy، أو API أو قاعدة البيانات أو migrations.
 - السبب: فصل قاعدة المجال النقية عن خدمة التخزين؛ كما أن Gamification تستهلك نتيجة النشاط ولا تملك قاعدة حساب streak.
-- التحقق المطلوب: اختبارات streak المركزة والتوافق، ثم Backend suite وFrontend tests/build وfull-history Gitleaks وفحوص Compose/migrations/backup على PR #34.
+- التحقق: CI #538 على PR #34 نجح: 405 اختبار Backend و51 Frontend؛ وCI #539 على main بعد الدمج نجح، بما في ذلك full-history Gitleaks وCompose وmigrations وPostgreSQL backup/restore وRestic smoke test.
 - التراجع: إعادة استيراد `study_activity.py` والاختبارات من `app.services.streak_logic`؛ يبقى المسار القديم قائمًا خلال فترة التوافق.
+
+
+## ADR-020 — فصل قواعد تقدم الموضوع عن تجميع مسار التعلم
+
+- التاريخ: 2026-11-03
+- الحالة: **قيد التنفيذ في PR #35 — لا يُعد مدمجًا بعد**
+- الجهة: توصية هندسية بعد فحص استعمالات `learning_path.py` وبيانات Router واختباراته.
+- القرار: نقل الثوابت `STATUS_*` والدالتين النقيتين `compute_topic_status` و`pick_recommended_topic` إلى `app/modules/learning_progress/domain/topic_progress.py`. تحتفظ `app/services/learning_path.py` بواجهة توافق تعيد تصدير القواعد وتبقى مسؤولة عن `build_learning_path`.
+- سبب إبقاء build_learning_path في service: فهي تجمع بيانات Catalog (الأسماء والترتيب والمتطلبات) مع Progress (الإتقان والمحاولات وإكمال الدروس) وعدد الأسئلة، ثم تشكّل مخرجات API؛ هذا تجميع/Use Case وليس قاعدة مجال مستقلة.
+- النطاق: تحديث imports والاختبارات لتستهدف domain rules مباشرة، وإضافة اختبار هوية للتوافق، وتحديث README والخطة المعمارية.
+- الضمانات: لا تغيير في حالات الموضوع أو سياسة التوصية أو ترتيب المنهج، ولا تغيير في استعلامات Router أو شكل الاستجابة أو API أو DB أو migrations.
+- التحقق المطلوب: الاختبارات المركزة والتوافق، ثم Backend suite وFrontend tests/build وfull-history Gitleaks وفحوص Compose/migrations/backup على PR #35.
+- التراجع: إعادة تعريف قواعد الموضوع في service أو إعادة الاستيرادات إليها؛ تبقى واجهة الخدمة الحالية متوافقة طوال فترة الانتقال.

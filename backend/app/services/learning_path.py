@@ -1,36 +1,19 @@
 """
-مسار التعلّم — دوال بحتة (بدون قاعدة بيانات): تحسب حالة كل موضوع للطالب
-(مقفل / متاح / قيد الدراسة / متقن) وتقترح الموضوع التالي.
+تجميع مسار التعلّم — يبني مخرجات المسار من بيانات Catalog وProgress المجمّعة.
+قواعد حالة الموضوع واختيار التوصية النقية مملوكة لوحدة Learning Progress domain.
 
 قاعدة الفتح: الموضوع اللي له متطلّب سابق يُقفل لين يجتاز الطالب اختبار بوابة الموضوع السابق.
 الطالب يقدر يقرأ دروس أي موضوع، لكن الاختبارات تحتاج فتح الموضوع (راجع routers/quiz.py).
 """
 
-STATUS_LOCKED = "locked"
-STATUS_AVAILABLE = "available"
-STATUS_IN_PROGRESS = "in_progress"
-STATUS_MASTERED = "mastered"
-
-
-def compute_topic_status(*, gateway_passed: bool, prerequisite_met: bool, has_activity: bool) -> str:
-    if gateway_passed:
-        return STATUS_MASTERED
-    if not prerequisite_met:
-        return STATUS_LOCKED
-    return STATUS_IN_PROGRESS if has_activity else STATUS_AVAILABLE
-
-
-def pick_recommended_topic(ordered_topics: list[dict]) -> int | None:
-    """يقترح الموضوع التالي: أضعف موضوع قيد الدراسة (يكمّل عليه) وإلا أول موضوع متاح.
-    ordered_topics بترتيب المنهج (المادة ثم ترتيب الموضوع)."""
-    in_progress = [t for t in ordered_topics if t["status"] == STATUS_IN_PROGRESS]
-    if in_progress:
-        # min تحافظ على ترتيب المنهج عند تساوي الإتقان (ترجّع أول عنصر أصغر)
-        return min(in_progress, key=lambda t: t["mastery_percentage"])["id"]
-    for topic in ordered_topics:
-        if topic["status"] == STATUS_AVAILABLE:
-            return topic["id"]
-    return None
+from app.modules.learning_progress.domain.topic_progress import (
+    STATUS_AVAILABLE,
+    STATUS_IN_PROGRESS,
+    STATUS_LOCKED,
+    STATUS_MASTERED,
+    compute_topic_status,
+    pick_recommended_topic,
+)
 
 
 def build_learning_path(
@@ -107,3 +90,13 @@ def build_learning_path(
         "topics_mastered": mastered,
         "overall_mastery": overall,
     }
+
+__all__ = (
+    "STATUS_LOCKED",
+    "STATUS_AVAILABLE",
+    "STATUS_IN_PROGRESS",
+    "STATUS_MASTERED",
+    "build_learning_path",
+    "compute_topic_status",
+    "pick_recommended_topic",
+)

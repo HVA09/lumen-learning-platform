@@ -1,8 +1,8 @@
 # الخطة المعمارية الحالية والمراحل التنفيذية لمنصة Lumen
 
 آخر تحديث: **2026-11-03**  
-مرجع `main` قبل PR #34: `6c38ef9109dafad71a68429d103655f15592995c`  
-PR #30 و#32 و#33 مدمجة؛ CI #537 نجح على main. Backend: 404 passed؛ Frontend: 51 passed؛ build وGitleaks وCompose وmigrations وbackup/restore وRestic نجحت.
+مرجع `main` بعد PR #34: `c6ade546187e48db07ca88b50bd439d24e25a771`  
+PR #30 و#32 و#33 و#34 مدمجة؛ CI #539 نجح على main. Backend: 405 passed؛ Frontend: 51 passed؛ build وGitleaks وCompose وmigrations وbackup/restore وRestic نجحت.
 
 > الغرض هو تنظيم النظام تدريجيًا دون إعادة كتابة، أو تغيير سلوك الميزات، أو تعريض بيانات المستخدمين والترحيلات للخطر.
 
@@ -43,6 +43,8 @@ PR #30 و#32 و#33 مدمجة؛ CI #537 نجح على main. Backend: 404 passed�
 - أُضيف اختبار توافق يتحقق من تطابق هوية كل رمز عام بين المسارين القديم والجديد.
 - `app/modules/learning_progress/domain/streak_logic.py`: PR #34 ينقل قاعدة حساب أيام الدراسة المتتالية النقية إلى Learning Progress.
 - `app/services/streak_logic.py`: واجهة توافق؛ تستورد `study_activity.py` القاعدة من المسار الجديد مباشرةً.
+- `app/modules/learning_progress/domain/topic_progress.py`: PR #35 ينقل قواعد تحديد حالة الموضوع والموضوع الموصى به.
+- `app/services/learning_path.py`: يبقى مسؤولًا عن تجميع البيانات الواردة من Catalog وProgress وبناء بنية مسار التعلم؛ يعيد تصدير قواعد الموضوع القديمة للتوافق.
 
 ### Frontend
 
@@ -65,7 +67,7 @@ PR #30 و#32 و#33 مدمجة؛ CI #537 نجح على main. Backend: 404 passed�
 | Identity & Access | المستخدمون والأدوار والمصادقة والجلسات و2FA | `auth/`, User, AuthSession |
 | Learning Catalog | المواد والمواضيع والدروس والمحتوى التعليمي | Subject, Topic, Lesson, TopicCard |
 | Assessments | بنك الأسئلة والمحاولات والتصحيح وتحليل عناصر الاختبار | Question, QuizAttempt, QuestionResult, quiz_logic, question_analytics |
-| Learning Progress | الإتقان وتقدم الدروس والنشاط الدراسي وقواعد streak | TopicMastery, LessonProgress, StudyDay, study_activity, streak_logic |
+| Learning Progress | الإتقان وتقدم الدروس والنشاط الدراسي وقواعد streak وحالة الموضوع والتوصية | TopicMastery, LessonProgress, StudyDay, study_activity, streak_logic, topic_progress |
 | Review / SRS | بطاقات المستخدم وجدولة المراجعة | ReviewCard, spaced_repetition |
 | Classes | الفصول والتسجيل وعضوية الطلاب والدعوات | ClassSection, ClassEnrollment, invite services |
 | Assignments | إنشاء الواجبات والتسليم والتقييم | Assignment, AssignmentSubmission |
@@ -88,13 +90,14 @@ PR #30 و#32 و#33 مدمجة؛ CI #537 نجح على main. Backend: 404 passed�
 
 ### Learning Catalog وLearning Progress
 
-- `learning_path.py` دوال نقية تستقبل بيانات موحدة عن المواد والإتقان والدروس والأسئلة وتبني المسار الموصى به.
-- `routers/curriculum.py` يجمع بيانات ORM من Subject وTopic وLesson وTopicMastery، ثم يستدعي منطق المسار ويسجل نشاط الدراسة ويفحص الإنجازات.
-- يلزم حسم هل ملكية بناء المسار ضمن Learning Progress أم Application Use Case يجمع Catalog وProgress. لا تحسم ذلك بنقل ملف قبل توثيق قواعد الملكية.
+- `learning_path.py` يحتوي `build_learning_path`، وهو منسق نقي يستقبل بيانات مجمعة مسبقًا عن Catalog وProgress ويشكّل المخرجات؛ يبقى في service لأنه يجمع مسؤوليات عرض متعددة ولا يملك قاعدة مجال واحدة.
+- `compute_topic_status` و`pick_recommended_topic` قاعدتان نقيتان لملكية Progress، ويجري نقلهما إلى `modules/learning_progress/domain/topic_progress.py` عبر PR #35.
+- `routers/curriculum.py` يجمع بيانات ORM من Subject وTopic وLesson وTopicMastery، ثم يستدعي منسق المسار ويسجل نشاط الدراسة ويفحص الإنجازات.
 
 ### Study Activity وGamification
 
-- `streak_logic.py` قاعدة نقية لحساب أيام الدراسة المتتالية؛ تُنقل في PR #34 إلى `modules/learning_progress/domain` مع واجهة توافق للمسار القديم.
+- `streak_logic.py` قاعدة نقية لحساب أيام الدراسة المتتالية؛ نُقلت في PR #34 إلى `modules/learning_progress/domain` مع واجهة توافق للمسار القديم.
+- `topic_progress.py` في PR #35 يجمع قواعد حالة الموضوع واختيار التوصية، بعيدًا عن تجميع مخرجات المنهج.
 - `study_activity.py` خدمة تخزين وقراءة مرتبطة بـ SQLAlchemy ونموذج StudyDay، وتستورد القاعدة من المجال دون امتلاك منطق حساب السلسلة.
 - `achievements.py` يجمع استعلامات من QuizAttempt وTopicMastery وAssignmentSubmission وLessonProgress وReviewCard وUserAchievement، ويعتمد على Study Activity.
 - هذه خدمة عابرة للمجالات؛ لا تُنقل بكاملها إلى Gamification دون تصميم عقود/استعلامات قراءة واضحة.
@@ -128,7 +131,7 @@ PR #30 و#32 و#33 مدمجة؛ CI #537 نجح على main. Backend: 404 passed�
 | P1 | استخراج منطق Assessments الخالص quiz_logic | مكتمل — PR #30 مدمج وCI #526 و#527 ناجحان |
 | P2 | خريطة ملكية المجالات والاعتماديات | مكتمل توثيقيًا — التبعيات والمخاطر والمرشح التالي موثقة |
 | P3 | استخراج وحدة نقية ثانية صغيرة | مكتمل — PR #32 مدمج؛ CI #534 على PR وCI #535 على main ناجحان |
-| P4 | فصل حدود خدمات Learning/Progress/SRS/Gamification | قيد التنفيذ — PR #34 يفصل قاعدة streak النقية إلى Learning Progress مع واجهة توافق؛ تستمر مراجعة العقود للخدمات المتبقية |
+| P4 | فصل حدود خدمات Learning/Progress/SRS/Gamification | قيد التنفيذ — PR #34 فصل streak، وPR #35 يفصل قواعد topic progress؛ تبقى خدمات التجميع والـ ORM في طبقة التطبيق |
 | P5 | تنظيم Frontend تدريجيًا | بعد خريطة features/shared وعقود API واختبارات RTL/LTR |
 | P6 | lint/typecheck واختبارات متصفح وتحسين الأداء والمراقبة | تحديد الأدوات وخط الأساس قبل فرضها |
 | P7 | الإطلاق | بعد إغلاق متطلبات الاستضافة والأمن والتشغيل |
@@ -154,8 +157,8 @@ PR #30 و#32 و#33 مدمجة؛ CI #537 نجح على main. Backend: 404 passed�
 
 ## 8. نقطة الاستئناف
 
-- آخر main قبل PR #34: `6c38ef9109dafad71a68429d103655f15592995c`.
-- CI #537 نجح بالكامل: 404 Backend tests، و51 Frontend tests عبر 11 ملفًا، production build، Gitleaks full-history، Compose، migrations، PostgreSQL backup/restore، وRestic smoke test.
-- P0–P3 مكتملة. P4 قيد التنفيذ؛ أول فصل نقي هو streak_logic، مع إبقاء `study_activity.py` خدمة تخزين وقاعدة بيانات منفصلة.
+- آخر main بعد PR #34: `c6ade546187e48db07ca88b50bd439d24e25a771`.
+- CI #539 نجح بالكامل: 405 Backend tests، و51 Frontend tests عبر 11 ملفًا، production build، Gitleaks full-history، Compose، migrations، PostgreSQL backup/restore، وRestic smoke test.
+- P0–P3 مكتملة. P4 قيد التنفيذ؛ نُقلت قاعدة streak في PR #34، وPR #35 يفصل قواعد حالة الموضوع والتوصية مع إبقاء تجميع المنهج في service.
 - لا يوجد نشر إنتاجي مثبت.
 - لا يوجد نشر إنتاجي مثبت.
