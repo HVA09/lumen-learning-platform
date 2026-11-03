@@ -151,11 +151,40 @@ jobs:
               test -n "$restored"
               gzip -dc "$restored" | grep -q "ci offsite restore sentinel"
             '
-      - name: Validate Docker Compose configuration
+      - name: Validate Docker Compose configuration and offsite shell interpolation
         run: |
           cp .env.example .env
-          trap 'rm -f .env' EXIT
-          docker compose config --quiet
+          trap 'rm -f .env /tmp/lumen-compose-config.json' EXIT
+          docker compose --profile offsite-backup config --quiet
+          docker compose --profile offsite-backup config --format json > /tmp/lumen-compose-config.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          config = json.loads(Path("/tmp/lumen-compose-config.json").read_text())
+          service = config["services"]["offsite_backup"]
+          command = service["command"]
+          if isinstance(command, list):
+              command = "\n".join(command)
+
+          required_fragments = (
+              'interval="$${OFFSITE_BACKUP_INTERVAL_SECONDS:-3600}"',
+              'case "$${interval}" in',
+              'if [ "$${interval}" -eq 0 ]',
+              'sleep "$${interval}"',
+          )
+          missing = [fragment for fragment in required_fragments if fragment not in command]
+          print("Rendered offsite_backup command:", repr(command))
+          if missing:
+              raise SystemExit(
+                  "offsite_backup shell variables were not preserved by Docker Compose: "
+                  + ", ".join(missing)
+              )
+          if 'case "" in' in command or 'sleep ""' in command:
+              raise SystemExit("offsite_backup contains an empty shell interval after Compose rendering")
+
+          print("Docker Compose preserved the offsite backup shell interval expressions.")
+          PY
       - name: Verify migration data preservation and downgrade
         env:
           MIGRATION_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/lumen_migration_preservation_test

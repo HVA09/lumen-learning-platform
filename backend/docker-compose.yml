@@ -160,20 +160,20 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        interval="${OFFSITE_BACKUP_INTERVAL_SECONDS:-3600}"
-        case "$interval" in
+        interval="$${OFFSITE_BACKUP_INTERVAL_SECONDS:-3600}"
+        case "$${interval}" in
           ""|*[!0-9]*)
             echo "OFFSITE_BACKUP_INTERVAL_SECONDS must be a positive integer." >&2
             exit 1
             ;;
         esac
-        if [ "$interval" -eq 0 ]; then
+        if [ "$${interval}" -eq 0 ]; then
           echo "OFFSITE_BACKUP_INTERVAL_SECONDS must be greater than zero." >&2
           exit 1
         fi
         while true; do
           /bin/sh /scripts/offsite-backup.sh || echo "Offsite backup attempt failed; will retry."
-          sleep "$interval"
+          sleep "$${interval}"
         done
     depends_on:
       backup:
