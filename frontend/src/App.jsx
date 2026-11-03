@@ -4,11 +4,10 @@ import AppHeader from "./components/AppHeader";
 import LearningPath from "./components/LearningPath";
 import TopicPanel from "./components/TopicPanel";
 import AuthForm from "./components/AuthForm";
-import { logoutUser, refreshSession } from "./lib/authApi";
-import { setAuthSessionActive } from "./lib/api";
 import Toast from "./components/Toast";
 import useDirection from "./hooks/useDirection";
 import useNotificationsSocket from "./hooks/useNotificationsSocket";
+import useSession from "./hooks/useSession";
 
 // مُحمَّلة عند الحاجة فقط (lazy) — كل وحدة تصير ملف منفصل (code splitting)،
 // يقلّل حجم الحزمة الأولى اللي يحمّلها أي زائر
@@ -27,7 +26,6 @@ const ProgressPanel = lazy(() => import("./components/ProgressPanel"));
 const BillingSuccessPage = lazy(() => import("./components/BillingSuccessPage"));
 const BillingCancelPage = lazy(() => import("./components/BillingCancelPage"));
 const LTICallbackPage = lazy(() => import("./components/LTICallbackPage"));
-import { getCurrentUser } from "./lib/usersApi";
 import {
   listNotifications,
   markNotificationRead,
@@ -52,12 +50,9 @@ function ModalLoadingFallback() {
 }
 
 export default function App() {
-  const [authed, setAuthed] = useState(false);
-  const [authReady, setAuthReady] = useState(false);
   const [lang, setLang] = useState("ar");
   const [error, setError] = useState("");
   const [toast, setToast] = useState(null); // { message, type }
-  const [currentUser, setCurrentUser] = useState(null);
   const [showAccountSettings, setShowAccountSettings] = useState(false);
   const [showFiles, setShowFiles] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
@@ -73,18 +68,8 @@ export default function App() {
   const [notifications, setNotifications] = useState([]);
   const { i18n } = useTranslation();
 
-  useDirection();
-
-  const isAdmin = currentUser?.role === "admin";
-  const isTeacher = currentUser?.role === "teacher" || isAdmin;
-
-  const logout = useCallback(() => {
-    setAuthSessionActive(false);
-    // Revoke the server session and clear HttpOnly cookies; UI logout is immediate.
-    logoutUser().catch(() => {});
-    setAuthed(false);
+  const clearSessionUi = useCallback(() => {
     setError("");
-    setCurrentUser(null);
     setShowAccountSettings(false);
     setShowFiles(false);
     setShowAdmin(false);
@@ -92,55 +77,29 @@ export default function App() {
     setNotifications([]);
   }, []);
 
-  // لو أي طلب بأي مكان بالتطبيق رجع 401، نسجّل خروج ونوضّح السبب —
-  // قبل كذا كان يصير خروج صامت بدون تفسير
-  useEffect(() => {
-    const handleUnauthorized = () => {
-      logout();
-      setToast({ message: "انتهت الجلسة، سجّل الدخول مرة أخرى", type: "error" });
-    };
-    window.addEventListener("auth:unauthorized", handleUnauthorized);
-    return () => window.removeEventListener("auth:unauthorized", handleUnauthorized);
-  }, [logout]);
+  const handleSessionExpired = useCallback(() => {
+    clearSessionUi();
+    setToast({ message: "انتهت الجلسة، سجّل الدخول مرة أخرى", type: "error" });
+  }, [clearSessionUi]);
 
-  useEffect(() => {
-    // Remove legacy browser-stored JWTs during migration to HttpOnly cookies.
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
-  }, []);
+  const {
+    authenticated: authed,
+    authReady,
+    currentUser,
+    markAuthenticated,
+    logout: logoutSession,
+    refreshCurrentUser,
+  } = useSession({ onSessionExpired: handleSessionExpired });
 
-  useEffect(() => {
-    let mounted = true;
-    getCurrentUser()
-      .catch(async (error) => {
-        if (error.response?.status !== 401) throw error;
-        await refreshSession();
-        return getCurrentUser();
-      })
-      .then((user) => {
-        if (!mounted) return;
-        setCurrentUser(user);
-        setAuthSessionActive(true);
-        setAuthed(true);
-      })
-      .catch(() => {
-        if (mounted) setAuthSessionActive(false);
-      })
-      .finally(() => {
-        if (mounted) setAuthReady(true);
-      });
-    return () => {
-      mounted = false;
-    };
-  }, []);
+  useDirection();
 
-  const refreshCurrentUser = async () => {
-    try {
-      setCurrentUser(await getCurrentUser());
-    } catch {
-      // تجاهل بصمت — لوحة الحساب تبقى غير محدّثة لو فشل التحميل فقط
-    }
-  };
+  const isAdmin = currentUser?.role === "admin";
+  const isTeacher = currentUser?.role === "teacher" || isAdmin;
+
+  const logout = useCallback(() => {
+    logoutSession();
+    clearSessionUi();
+  }, [logoutSession, clearSessionUi]);
 
   const refreshNotifications = async () => {
     try {
@@ -151,10 +110,7 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (authed) {
-      refreshCurrentUser();
-      refreshNotifications();
-    }
+    if (authed) refreshNotifications();
   }, [authed]);
 
   const handleIncomingNotification = useCallback((notification) => {
@@ -247,7 +203,7 @@ export default function App() {
       <>
         <AuthForm
           onAuthenticated={() => {
-            setAuthed(true);
+            markAuthenticated();
             setToast({ message: "تم تسجيل الدخول بنجاح", type: "success" });
           }}
         />
