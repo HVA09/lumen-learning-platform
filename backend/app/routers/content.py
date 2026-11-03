@@ -30,7 +30,7 @@ from app.services.question_analytics import (
     sort_for_review,
     success_rate,
 )
-from app.services.quiz_logic import coerce_bool, coerce_int
+from app.modules.assessments.domain.quiz_logic import coerce_bool, coerce_int
 
 router = APIRouter(prefix="/content", tags=["Content"])
 

@@ -1,17 +1,17 @@
 # الحالة التنفيذية لمشروع Lumen Learning Platform
 
-آخر تحقق: 2026-11-02
+آخر تحقق: 2026-11-03
 
 > هذه لقطة حالة مرتبطة بالـ commits وGitHub Actions أدناه. عند استكمال العمل، حدّث هذا الملف بدل الاعتماد على ملخص محادثة قديم.
 
 ## الملخص التنفيذي — الحالة الحالية بعد الدمج (2026-11-02)
 
 - المستودع: [HVA09/lumen-learning-platform](https://github.com/HVA09/lumen-learning-platform) — عام.
-- الفرع الافتراضي `main`: محمي، وآخر commit متحقق منه هو merge commit `a945dbb38722b9386332e3528e114f8e641cda05`.
-- PR الرئيسي [#4](https://github.com/HVA09/lumen-learning-platform/pull/4) **مُدمج** في 2026-11-02؛ لا تعدّل `main` مباشرة.
-- آخر تشغيل CI على `main`: [#523](https://github.com/HVA09/lumen-learning-platform/actions/runs/41510548659)؛ Backend وFrontend/build نجحا، وفشل Gitleaks في 52 كشفًا داخل بيانات الاختبار الوهمية فقط. يجري إصلاح الاستثناءات الدقيقة ومطلوب إعادة تشغيل فحص التاريخ الكامل.
+- الفرع الافتراضي `main`: محمي، وآخر commit متحقق منه هو **44308dfbc01e1c9a85a8cb5b77c3d18ecdebd78a**.
+- PR #4 مدمج، وPR #29 مدمج لإصلاح بصمات Gitleaks الدقيقة.
+- [CI #525](https://github.com/HVA09/lumen-learning-platform/actions/runs/41648785991) **نجح بالكامل** على main: Backend، Frontend/build، فحص كامل لتاريخ Git، migrations، وbackup/restore.
+- مرحلة P1 (استخراج منطق Assessments) موجودة في فرع مستقل `refactor/assessments-quiz-domain` ضمن [PR #30](https://github.com/HVA09/lumen-learning-platform/pull/30)، وتنتظر نتائج CI قبل الدمج.
 - لا يوجد نشر إنتاجي مثبت حتى الآن.
-- فرع المعالجة الحالي: `fix/gitleaks-squash-merge-fingerprints` (PR منفصل سيُنشأ بعد هذا التوثيق).
 
 ## نتيجة CI على head الموثق
 
@@ -200,3 +200,13 @@
 - فحص سجل الوظيفة كشف 52 بصمة `generic-api-key` على commit الدمج الجديد. تمت مراجعة كل الأسطر المتأثرة في 13 ملفًا تحت `backend/tests/`; جميعها تستخدم كلمة مرور الاختبار المشتركة `StrongPass123` ولا توجد أي نتيجة خارج ملفات الاختبار.
 - سبب إعادة ظهورها: squash merge أنشأ SHA جديدًا، لذلك لم تطابق هذه النتائج استثناءات fingerprints السابقة المرتبطة بالـ commits الأصلية.
 - الإصلاح المعتمد: إضافة 52 استثناءً محددًا بالـ commit/path/rule/line في `.gitleaksignore` فقط، دون تعطيل Gitleaks أو استثناء مجلد الاختبارات أو تعديل قواعد الكشف. يلزم أن يثبت CI التالي نجاح فحص التاريخ الكامل قبل اعتبار هذه المعالجة مكتملة.
+
+
+## تحديث 2026-11-03 — بدء إعادة تنظيم Assessments (P1)
+
+- خط الأساس: `main` عند `44308dfbc01e1c9a85a8cb5b77c3d18ecdebd78a`، بعد نجاح CI #525 بالكامل.
+- التنفيذ الجاري في [PR #30](https://github.com/HVA09/lumen-learning-platform/pull/30): نقل الملف الخالص `app/services/quiz_logic.py` إلى `app/modules/assessments/domain/quiz_logic.py` دون تعديل قواعد التصحيح أو المعادلات.
+- المسار القديم يبقى واجهة توافق صريحة؛ جرى تحويل Routers وSchemas واختبارات المجال إلى المسار الجديد.
+- أضيف اختبار يضمن أن واجهة التوافق القديمة تصدر الرموز العامة نفسها وبالمراجع نفسها.
+- لا تغييرات في API أو قاعدة البيانات أو migrations أو سلوك التصحيح مقصودة.
+- P1 لا يعتبر مكتملًا حتى نجاح جميع jobs في CI الخاص بـ PR #30 ثم دمجه.
