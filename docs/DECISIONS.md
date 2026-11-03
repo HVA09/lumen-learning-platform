@@ -240,15 +240,15 @@
 - التراجع: إعادة تعريف قواعد الموضوع في service أو إعادة الاستيرادات إليها؛ تبقى واجهة الخدمة الحالية متوافقة طوال فترة الانتقال.
 
 
-## ADR-021 — فصل انتقال حالة SM-2 عن ORM (قرار تصميمي قيد التحضير)
+## ADR-021 — فصل انتقال حالة SM-2 عن ORM
 
 - التاريخ: 2026-11-03
-- الحالة: **مقترح للتحليل — لا يوجد تنفيذ أو PR بعد**
+- الحالة: **قيد التنفيذ في PR #37 — لم يُدمج بعد**
 - الجهة: توصية هندسية مبنية على مراجعة `spaced_repetition.py` و`ReviewCard` وschema وmigration.
-- القرار المقترح: فصل خوارزمية انتقال حالة المراجعة إلى دالة نقية داخل `app/modules/review/domain` تستقبل حالة بطاقة مستقلة (state, ease_factor, interval_days, repetitions, lapses, is_leech, grade, now) وتعيد الحالة التالية، بينما تبقى خدمة `app/services/spaced_repetition.py` محوّلًا بين القيمة المجالّية ونموذج ORM ثم تحفظ التغييرات على البطاقة.
-- حد ملكية الحالة: `CardState` موجود حاليًا في `app/models/review_card.py` وتستورده schema وmodel registry؛ migration `0010_review_cards.py` تعرّف PostgreSQL Enum باسم `cardstate` وبالقيم `new`, `learning`, `review`, `relearning`. يجب الحفاظ على هذه الأسماء والترتيب والتمثيل المخزن. يمكن جعل تعريف enum في المجال مصدرًا واحدًا ثم إعادة تصديره من مسار model القديم؛ لا migration أو تغيير نوع/labels.
-- النطاق المقترح: إضافة value object مستقل عن SQLAlchemy، نقل معادلات SM-2+ دون تعديل، إبقاء `review_card(card, grade, now) -> card` كواجهة خدمة متوافقة، ثم تحويل قيم ORM إلى الحالة النقية وإرجاعها إلى البطاقة داخل service.
+- القرار: فصل خوارزمية انتقال حالة المراجعة إلى `app/modules/review/domain/sm2.py` باستخدام `CardState` و`ReviewState` و`ReviewTransition` مستقلة عن ORM؛ تبقى خدمة `app/services/spaced_repetition.py` محولًا بين القيمة المجالّية ونموذج ORM ثم تحفظ التغييرات على البطاقة.
+- حد ملكية الحالة: أصبح CardState معرفًا في المجال ويعاد تصديره من `app/models/review_card.py` للمستهلكين الحاليين، وتظل schema وmodel registry على مسارات الاستيراد نفسها. migration `0010_review_cards.py` لم تتغير؛ PostgreSQL Enum اسمه `cardstate` بالقيم والترتيب `new`, `learning`, `review`, `relearning`.
+- النطاق: أضيف value object مستقل عن SQLAlchemy، ونقلت معادلات SM-2+ كما هي، وبقيت `review_card(card, grade, now) -> card` واجهة خدمة متوافقة تحول قيم ORM إلى الحالة النقية وتعيد التغييرات إلى نفس البطاقة.
 - الضمانات المطلوبة: لا تغيير API أو Pydantic response أو أعمدة/قيم قاعدة البيانات أو migration 0010 أو مواعيد المراجعة أو حدود ease factor/interval/leech. لا تستورد domain أي Model أو SQLAlchemy.
-- الاختبارات المطلوبة: الانتقالات من الحالات الأربع، again/good/easy، التخرج إلى review، إعادة التعلم بعد lapse، حد leech، الحدود الدنيا/العليا، الفواصل والتواريخ، object identity/compatibility، واختبارات API الحالية.
-- سبب التأجيل حتى يتحدد العقد: لا يجوز نقل دالة تعدّل ORM كما هي ثم الادعاء بأنها قاعدة مجال نقية؛ يجب أولًا تعريف تمثيل حالة مستقل وMapping ثابت واختبار migration schema preservation.
+- الاختبارات: الانتقالات من الحالات الأربع، again/good/easy، التخرج وإعادة التعلم، حد leech، الحدود الدنيا/العليا، الفواصل والتواريخ، هوية enum وتوافق الاستيراد وهوية كائن ORM، مع إبقاء اختبارات API الحالية.
+- سبب الفصل: منع ربط قواعد المجال بـ ORM مع إبقاء Mapping صريح قابل للاختبار وحماية schema الحالية.
 - التراجع: يبقى `app.services.spaced_repetition.review_card` هو المدخل العام، ويمكن أن يستعيد منطق الانتقال داخله إذا أظهر الاختبار أو التكامل عدم توافق؛ تظل قيم Enum والمخطط ثابتة.
