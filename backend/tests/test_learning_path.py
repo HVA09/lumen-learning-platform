@@ -1,15 +1,15 @@
 """
 اختبارات مسار التعلّم (دوال بحتة)
 """
-from app.services.learning_path import (
+from app.modules.learning_progress.domain.topic_progress import (
     STATUS_AVAILABLE,
     STATUS_IN_PROGRESS,
     STATUS_LOCKED,
     STATUS_MASTERED,
-    build_learning_path,
     compute_topic_status,
     pick_recommended_topic,
 )
+from app.services.learning_path import build_learning_path
 
 
 def _subjects():
