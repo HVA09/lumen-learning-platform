@@ -8,6 +8,7 @@ import Toast from "./components/Toast";
 import useDirection from "./hooks/useDirection";
 import useNotificationsSocket from "./hooks/useNotificationsSocket";
 import useSession from "./hooks/useSession";
+import useNotifications from "./hooks/useNotifications";
 
 // مُحمَّلة عند الحاجة فقط (lazy) — كل وحدة تصير ملف منفصل (code splitting)،
 // يقلّل حجم الحزمة الأولى اللي يحمّلها أي زائر
@@ -26,11 +27,6 @@ const ProgressPanel = lazy(() => import("./components/ProgressPanel"));
 const BillingSuccessPage = lazy(() => import("./components/BillingSuccessPage"));
 const BillingCancelPage = lazy(() => import("./components/BillingCancelPage"));
 const LTICallbackPage = lazy(() => import("./components/LTICallbackPage"));
-import {
-  listNotifications,
-  markNotificationRead,
-  markAllNotificationsRead,
-} from "./lib/notificationsApi";
 import "./i18n";
 
 function PageLoadingFallback() {
@@ -65,7 +61,6 @@ export default function App() {
   const [contentManagerTopicId, setContentManagerTopicId] = useState(undefined); // undefined = مغلق
   const [activeTopicId, setActiveTopicId] = useState(null);
   const [pathRefreshKey, setPathRefreshKey] = useState(0);
-  const [notifications, setNotifications] = useState([]);
   const { i18n } = useTranslation();
 
   const clearSessionUi = useCallback(() => {
@@ -74,7 +69,6 @@ export default function App() {
     setShowFiles(false);
     setShowAdmin(false);
     setShowBilling(false);
-    setNotifications([]);
   }, []);
 
   const handleSessionExpired = useCallback(() => {
@@ -91,6 +85,13 @@ export default function App() {
     refreshCurrentUser,
   } = useSession({ onSessionExpired: handleSessionExpired });
 
+  const {
+    notifications,
+    addNotification,
+    markNotificationRead,
+    markAllNotificationsRead,
+  } = useNotifications({ enabled: authed });
+
   useDirection();
 
   const isAdmin = currentUser?.role === "admin";
@@ -101,22 +102,10 @@ export default function App() {
     clearSessionUi();
   }, [logoutSession, clearSessionUi]);
 
-  const refreshNotifications = async () => {
-    try {
-      setNotifications(await listNotifications());
-    } catch {
-      // فشل تحميل الإشعارات لا يوقف باقي التطبيق — نتجاهله بصمت
-    }
-  };
-
-  useEffect(() => {
-    if (authed) refreshNotifications();
-  }, [authed]);
-
   const handleIncomingNotification = useCallback((notification) => {
-    setNotifications((prev) => [notification, ...prev]);
+    addNotification(notification);
     setToast({ message: notification.title, type: "success" });
-  }, []);
+  }, [addNotification]);
 
   useNotificationsSocket({
     enabled: authed,
@@ -126,24 +115,6 @@ export default function App() {
   const switchLang = (nextLang) => {
     setLang(nextLang);
     i18n.changeLanguage(nextLang);
-  };
-
-  const handleMarkNotificationRead = async (id) => {
-    try {
-      await markNotificationRead(id);
-      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)));
-    } catch {
-      // تجاهل بصمت — مو حرج
-    }
-  };
-
-  const handleMarkAllNotificationsRead = async () => {
-    try {
-      await markAllNotificationsRead();
-      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
-    } catch {
-      // تجاهل بصمت — مو حرج
-    }
   };
 
   const handleNewAchievements = (achievements) => {
@@ -231,8 +202,8 @@ export default function App() {
         isAdmin={isAdmin}
         isTeacher={isTeacher}
         notifications={notifications}
-        onMarkNotificationRead={handleMarkNotificationRead}
-        onMarkAllNotificationsRead={handleMarkAllNotificationsRead}
+        onMarkNotificationRead={markNotificationRead}
+        onMarkAllNotificationsRead={markAllNotificationsRead}
       />
 
       {error && (
