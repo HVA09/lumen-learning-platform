@@ -1,8 +1,8 @@
 # الخطة المعمارية الحالية والمراحل التنفيذية لمنصة Lumen
 
 آخر تحديث: **2026-11-03**  
-مرجع `main` بعد PR #34: `c6ade546187e48db07ca88b50bd439d24e25a771`  
-PR #30 و#32 و#33 و#34 مدمجة؛ CI #539 نجح على main. Backend: 405 passed؛ Frontend: 51 passed؛ build وGitleaks وCompose وmigrations وbackup/restore وRestic نجحت.
+مرجع `main` بعد PR #35: `0c725181a8cd1bfd4062cc828f4cc3ee58a5aec3`  
+PR #30 و#32 و#33 و#34 و#35 مدمجة؛ CI #541 نجح على main. Backend: 407 passed؛ Frontend: 51 passed؛ build وGitleaks وCompose وmigrations وbackup/restore وRestic نجحت.
 
 > الغرض هو تنظيم النظام تدريجيًا دون إعادة كتابة، أو تغيير سلوك الميزات، أو تعريض بيانات المستخدمين والترحيلات للخطر.
 
@@ -43,7 +43,7 @@ PR #30 و#32 و#33 و#34 مدمجة؛ CI #539 نجح على main. Backend: 405 p
 - أُضيف اختبار توافق يتحقق من تطابق هوية كل رمز عام بين المسارين القديم والجديد.
 - `app/modules/learning_progress/domain/streak_logic.py`: PR #34 ينقل قاعدة حساب أيام الدراسة المتتالية النقية إلى Learning Progress.
 - `app/services/streak_logic.py`: واجهة توافق؛ تستورد `study_activity.py` القاعدة من المسار الجديد مباشرةً.
-- `app/modules/learning_progress/domain/topic_progress.py`: PR #35 ينقل قواعد تحديد حالة الموضوع والموضوع الموصى به.
+- `app/modules/learning_progress/domain/topic_progress.py`: قواعد تحديد حالة الموضوع والموضوع الموصى به؛ مدمجة عبر PR #35.
 - `app/services/learning_path.py`: يبقى مسؤولًا عن تجميع البيانات الواردة من Catalog وProgress وبناء بنية مسار التعلم؛ يعيد تصدير قواعد الموضوع القديمة للتوافق.
 
 ### Frontend
@@ -97,7 +97,7 @@ PR #30 و#32 و#33 و#34 مدمجة؛ CI #539 نجح على main. Backend: 405 p
 ### Study Activity وGamification
 
 - `streak_logic.py` قاعدة نقية لحساب أيام الدراسة المتتالية؛ نُقلت في PR #34 إلى `modules/learning_progress/domain` مع واجهة توافق للمسار القديم.
-- `topic_progress.py` في PR #35 يجمع قواعد حالة الموضوع واختيار التوصية، بعيدًا عن تجميع مخرجات المنهج.
+- `topic_progress.py` يملك قواعد حالة الموضوع واختيار التوصية بعد PR #35؛ لا يملك تجميع مخرجات المنهج.
 - `study_activity.py` خدمة تخزين وقراءة مرتبطة بـ SQLAlchemy ونموذج StudyDay، وتستورد القاعدة من المجال دون امتلاك منطق حساب السلسلة.
 - `achievements.py` يجمع استعلامات من QuizAttempt وTopicMastery وAssignmentSubmission وLessonProgress وReviewCard وUserAchievement، ويعتمد على Study Activity.
 - هذه خدمة عابرة للمجالات؛ لا تُنقل بكاملها إلى Gamification دون تصميم عقود/استعلامات قراءة واضحة.
@@ -131,7 +131,7 @@ PR #30 و#32 و#33 و#34 مدمجة؛ CI #539 نجح على main. Backend: 405 p
 | P1 | استخراج منطق Assessments الخالص quiz_logic | مكتمل — PR #30 مدمج وCI #526 و#527 ناجحان |
 | P2 | خريطة ملكية المجالات والاعتماديات | مكتمل توثيقيًا — التبعيات والمخاطر والمرشح التالي موثقة |
 | P3 | استخراج وحدة نقية ثانية صغيرة | مكتمل — PR #32 مدمج؛ CI #534 على PR وCI #535 على main ناجحان |
-| P4 | فصل حدود خدمات Learning/Progress/SRS/Gamification | قيد التنفيذ — PR #34 فصل streak، وPR #35 يفصل قواعد topic progress؛ تبقى خدمات التجميع والـ ORM في طبقة التطبيق |
+| P4 | فصل حدود خدمات Learning/Progress/SRS/Gamification | قيد التنفيذ جزئيًا — PR #34 و#35 فصلا قواعد Learning Progress النقية؛ التالي تصميم فصل SM-2 عن ORM وعقود القراءة العابرة للمجالات |
 | P5 | تنظيم Frontend تدريجيًا | بعد خريطة features/shared وعقود API واختبارات RTL/LTR |
 | P6 | lint/typecheck واختبارات متصفح وتحسين الأداء والمراقبة | تحديد الأدوات وخط الأساس قبل فرضها |
 | P7 | الإطلاق | بعد إغلاق متطلبات الاستضافة والأمن والتشغيل |
@@ -157,8 +157,8 @@ PR #30 و#32 و#33 و#34 مدمجة؛ CI #539 نجح على main. Backend: 405 p
 
 ## 8. نقطة الاستئناف
 
-- آخر main بعد PR #34: `c6ade546187e48db07ca88b50bd439d24e25a771`.
-- CI #539 نجح بالكامل: 405 Backend tests، و51 Frontend tests عبر 11 ملفًا، production build، Gitleaks full-history، Compose، migrations، PostgreSQL backup/restore، وRestic smoke test.
-- P0–P3 مكتملة. P4 قيد التنفيذ؛ نُقلت قاعدة streak في PR #34، وPR #35 يفصل قواعد حالة الموضوع والتوصية مع إبقاء تجميع المنهج في service.
+- آخر main بعد PR #35: `0c725181a8cd1bfd4062cc828f4cc3ee58a5aec3`.
+- CI #541 نجح بالكامل: 407 Backend tests، و51 Frontend tests عبر 11 ملفًا، production build، Gitleaks full-history، Compose، migrations، PostgreSQL backup/restore، وRestic smoke test.
+- P0–P3 مكتملة. P4 قيد التنفيذ جزئيًا؛ نُقلت قاعدتا streak وtopic progress، مع إبقاء التخزين وتجميع المنهج في طبقة الخدمة.
 - لا يوجد نشر إنتاجي مثبت.
 - لا يوجد نشر إنتاجي مثبت.
