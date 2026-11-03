@@ -212,3 +212,16 @@
 - السبب: منطق Item Analysis خالص ولا يعتمد على HTTP أو ORM، وملكيته واضحة ضمن Assessments.
 - التحقق: CI #534 على PR #32 نجح بجميع الوظائف؛ 404 اختبار Backend و20 تحذيرًا، و51 اختبار Frontend عبر 11 ملفًا، production build، وfull-history Gitleaks. CI #535 على main بعد الدمج نجح أيضًا، بما في ذلك Compose وmigrations وPostgreSQL backup/restore وRestic smoke test.
 - التراجع: إعادة استيراد Router والاختبارات إلى واجهة `app.services.question_analytics`؛ تظل الواجهة القديمة قائمة خلال فترة التوافق.
+
+
+## ADR-019 — فصل قاعدة streak ضمن Learning Progress
+
+- التاريخ: 2026-11-03
+- الحالة: **قيد التنفيذ في PR #34 — لا يُعد مدمجًا بعد**
+- الجهة: توصية هندسية ضمن المرحلة P4 بعد مراجعة الاعتماديات.
+- القرار: نقل الدالة النقية `compute_streak` من `app/services/streak_logic.py` إلى `app/modules/learning_progress/domain/streak_logic.py`. تبقى الخدمة القديمة واجهة توافق تعيد تصدير الدالة نفسها، بينما تستورد خدمة `study_activity.py` القاعدة مباشرة من المجال.
+- النطاق: إنشاء حزمة Learning Progress، نقل الاختبارات المركزة إلى `test_streak_logic.py`، إضافة اختبار توافق، وإزالة اختبار الدالة من `test_learning_path.py` حتى تعكس ملفات الاختبار حدود كل مجال.
+- الضمانات: لا تغيير في منطق حساب الأيام المتتالية، أو توقيت UTC، أو عدد الأيام المسترجعة، أو استعلامات/معاملات SQLAlchemy، أو API أو قاعدة البيانات أو migrations.
+- السبب: فصل قاعدة المجال النقية عن خدمة التخزين؛ كما أن Gamification تستهلك نتيجة النشاط ولا تملك قاعدة حساب streak.
+- التحقق المطلوب: اختبارات streak المركزة والتوافق، ثم Backend suite وFrontend tests/build وfull-history Gitleaks وفحوص Compose/migrations/backup على PR #34.
+- التراجع: إعادة استيراد `study_activity.py` والاختبارات من `app.services.streak_logic`؛ يبقى المسار القديم قائمًا خلال فترة التوافق.
