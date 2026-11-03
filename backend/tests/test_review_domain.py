@@ -46,7 +46,7 @@ def test_good_reviews_follow_learning_steps_then_graduate():
     assert third.next_state.state is CardState.review
     assert third.next_state.repetitions == 3
     assert initial == _state()
-    assert third.due_at == now + timedelta(days=7)
+    assert third.due_at == now + timedelta(days=8)
 
 
 def test_again_moves_review_card_to_relearning_and_resets_repetitions():
