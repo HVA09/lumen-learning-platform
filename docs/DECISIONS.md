@@ -230,11 +230,25 @@
 ## ADR-020 — فصل قواعد تقدم الموضوع عن تجميع مسار التعلم
 
 - التاريخ: 2026-11-03
-- الحالة: **قيد التنفيذ في PR #35 — لا يُعد مدمجًا بعد**
+- الحالة: **مُدمج في main عبر PR #35 بتاريخ 2026-11-03؛ CI #540 و#541 ناجحان**
 - الجهة: توصية هندسية بعد فحص استعمالات `learning_path.py` وبيانات Router واختباراته.
 - القرار: نقل الثوابت `STATUS_*` والدالتين النقيتين `compute_topic_status` و`pick_recommended_topic` إلى `app/modules/learning_progress/domain/topic_progress.py`. تحتفظ `app/services/learning_path.py` بواجهة توافق تعيد تصدير القواعد وتبقى مسؤولة عن `build_learning_path`.
 - سبب إبقاء build_learning_path في service: فهي تجمع بيانات Catalog (الأسماء والترتيب والمتطلبات) مع Progress (الإتقان والمحاولات وإكمال الدروس) وعدد الأسئلة، ثم تشكّل مخرجات API؛ هذا تجميع/Use Case وليس قاعدة مجال مستقلة.
 - النطاق: تحديث imports والاختبارات لتستهدف domain rules مباشرة، وإضافة اختبار هوية للتوافق، وتحديث README والخطة المعمارية.
 - الضمانات: لا تغيير في حالات الموضوع أو سياسة التوصية أو ترتيب المنهج، ولا تغيير في استعلامات Router أو شكل الاستجابة أو API أو DB أو migrations.
-- التحقق المطلوب: الاختبارات المركزة والتوافق، ثم Backend suite وFrontend tests/build وfull-history Gitleaks وفحوص Compose/migrations/backup على PR #35.
+- التحقق: CI #540 على PR #35 نجح: 407 اختبار Backend و51 Frontend عبر 11 ملفًا، production build وfull-history Gitleaks. CI #541 على main بعد الدمج نجح كذلك، بما في ذلك Compose وmigrations وPostgreSQL backup/restore وRestic smoke test.
 - التراجع: إعادة تعريف قواعد الموضوع في service أو إعادة الاستيرادات إليها؛ تبقى واجهة الخدمة الحالية متوافقة طوال فترة الانتقال.
+
+
+## ADR-021 — فصل انتقال حالة SM-2 عن ORM (قرار تصميمي قيد التحضير)
+
+- التاريخ: 2026-11-03
+- الحالة: **مقترح للتحليل — لا يوجد تنفيذ أو PR بعد**
+- الجهة: توصية هندسية مبنية على مراجعة `spaced_repetition.py` و`ReviewCard` وschema وmigration.
+- القرار المقترح: فصل خوارزمية انتقال حالة المراجعة إلى دالة نقية داخل `app/modules/review/domain` تستقبل حالة بطاقة مستقلة (state, ease_factor, interval_days, repetitions, lapses, is_leech, grade, now) وتعيد الحالة التالية، بينما تبقى خدمة `app/services/spaced_repetition.py` محوّلًا بين القيمة المجالّية ونموذج ORM ثم تحفظ التغييرات على البطاقة.
+- حد ملكية الحالة: `CardState` موجود حاليًا في `app/models/review_card.py` وتستورده schema وmodel registry؛ migration `0010_review_cards.py` تعرّف PostgreSQL Enum باسم `cardstate` وبالقيم `new`, `learning`, `review`, `relearning`. يجب الحفاظ على هذه الأسماء والترتيب والتمثيل المخزن. يمكن جعل تعريف enum في المجال مصدرًا واحدًا ثم إعادة تصديره من مسار model القديم؛ لا migration أو تغيير نوع/labels.
+- النطاق المقترح: إضافة value object مستقل عن SQLAlchemy، نقل معادلات SM-2+ دون تعديل، إبقاء `review_card(card, grade, now) -> card` كواجهة خدمة متوافقة، ثم تحويل قيم ORM إلى الحالة النقية وإرجاعها إلى البطاقة داخل service.
+- الضمانات المطلوبة: لا تغيير API أو Pydantic response أو أعمدة/قيم قاعدة البيانات أو migration 0010 أو مواعيد المراجعة أو حدود ease factor/interval/leech. لا تستورد domain أي Model أو SQLAlchemy.
+- الاختبارات المطلوبة: الانتقالات من الحالات الأربع، again/good/easy، التخرج إلى review، إعادة التعلم بعد lapse، حد leech، الحدود الدنيا/العليا، الفواصل والتواريخ، object identity/compatibility، واختبارات API الحالية.
+- سبب التأجيل حتى يتحدد العقد: لا يجوز نقل دالة تعدّل ORM كما هي ثم الادعاء بأنها قاعدة مجال نقية؛ يجب أولًا تعريف تمثيل حالة مستقل وMapping ثابت واختبار migration schema preservation.
+- التراجع: يبقى `app.services.spaced_repetition.review_card` هو المدخل العام، ويمكن أن يستعيد منطق الانتقال داخله إذا أظهر الاختبار أو التكامل عدم توافق؛ تظل قيم Enum والمخطط ثابتة.
