@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.study_day import StudyDay
-from app.services.streak_logic import compute_streak
+from app.modules.learning_progress.domain.streak_logic import compute_streak
 
 STREAK_LOOKBACK_DAYS = 400
 
