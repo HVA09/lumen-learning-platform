@@ -8,11 +8,11 @@
 
 - المستودع: [HVA09/lumen-learning-platform](https://github.com/HVA09/lumen-learning-platform) — عام.
 - الفرع الأساسي: `main`.
-- آخر commit على `main` بعد دمج PR #32: `5ddad0395d504caec3c134061c8f95f23b28f8f4`.
-- PR #4 مستورد خط الأساس ومُدمج، وPR #29 أصلح بصمات Gitleaks بعد squash merge، وPR #30 نقل منطق الاختبارات إلى مجال Assessments، وPR #31 حدّث التوثيق وCI لمسارات docs، وPR #32 نقل تحليل الأسئلة إلى Assessments؛ جميعها مدمجة.
+- آخر commit متحقق على `main` قبل PR #34: `6c38ef9109dafad71a68429d103655f15592995c`.
+- PR #4 مستورد خط الأساس ومُدمج، وPR #29 أصلح بصمات Gitleaks بعد squash merge، وPR #30 نقل منطق الاختبارات إلى مجال Assessments، وPR #31 حدّث التوثيق وCI لمسارات docs، وPR #32 نقل تحليل الأسئلة إلى Assessments، وPR #33 وثّق اكتمال P3؛ جميعها مدمجة. PR #34 ينفذ أول فصل نقي داخل Learning Progress.
 - PR #30 دُمج في 2026-11-03. بقي المسار القديم `app.services.quiz_logic` كواجهة توافق.
 - CI #526 نجح على رأس PR #30، وCI #532 على PR #31، وCI #534 على PR #32؛ جميع وظائف Backend وFrontend/build وFull Git history secret scan نجحت.
-- CI #535 على commit `main` الحالي `5ddad039` **نجح بالكامل**: Backend **404 passed, 0 failed, 20 warnings**؛ Frontend **51 passed عبر 11 ملف اختبار**؛ production build وGitleaks full-history وCompose وmigrations وPostgreSQL backup/restore وRestic smoke test كلها ناجحة.
+- CI #537 على commit `main` الحالي `6c38ef91` **نجح بالكامل**: Backend **404 passed, 0 failed, 20 warnings**؛ Frontend **51 passed عبر 11 ملف اختبار**؛ production build وGitleaks full-history وCompose وmigrations وPostgreSQL backup/restore وRestic smoke test كلها ناجحة.
 - لا يوجد نشر إنتاجي مثبت.
 
 ## حالة المراحل
@@ -23,7 +23,7 @@
 | P1 — استخراج منطق Assessments | مكتمل | PR #30 مدمج، وCI #526 و#527 ناجحان |
 | P2 — خريطة حدود المجالات والاعتماديات | مكتمل توثيقيًا | توثيق الاعتماديات والملكية الأولية في `ARCHITECTURE_PLAN.md` وADR-017؛ لا نقل إضافي قبل قرار مستقل |
 | P3 — تجربة Backend ثانية صغيرة | مكتمل | PR #32 مدمج؛ CI #534 على PR وCI #535 على main نجحا |
-| P4 — فصل حدود خدمات Backend | لم يبدأ | مراجعة الملكية والعقود بين Learning/Progress/SRS/Gamification قبل أي نقل |
+| P4 — فصل حدود خدمات Backend | قيد التنفيذ | PR #34 يفصل أول قاعدة نقية `streak_logic` إلى Learning Progress مع واجهة توافق؛ بقية الخدمات تحتاج تحليلًا منفصلًا |
 | P5 — تنظيم Frontend | لم يبدأ | إعداد خريطة features/shared وعقود API واختبارات RTL/LTR |
 | P6 — الجودة والأداء والمراقبة | جزئي / مخطط | CI موجود؛ lint/typecheck واختبارات متصفح وقياس أداء ومراقبة تحتاج baseline |
 | P7 — الإطلاق | غير جاهز | بوابات الاستضافة والتشغيل أدناه لم تُغلق |
@@ -35,7 +35,9 @@
 - [CI #527](https://github.com/HVA09/lumen-learning-platform/actions/runs/41658136856): نجح على commit PR #30.
 - [CI #532](https://github.com/HVA09/lumen-learning-platform/actions/runs/41659564175): نجح على PR #31.
 - [CI #534](https://github.com/HVA09/lumen-learning-platform/actions/runs/41661359094): نجح على PR #32، بما في ذلك 404 اختبار Backend و51 اختبار Frontend.
-- [CI #535](https://github.com/HVA09/lumen-learning-platform/actions/runs/41671140458): **نجح بالكامل على main** commit `5ddad0395d504caec3c134061c8f95f23b28f8f4`.
+- [CI #535](https://github.com/HVA09/lumen-learning-platform/actions/runs/41671140458): نجح على main بعد PR #32.
+- [CI #536](https://github.com/HVA09/lumen-learning-platform/actions/runs/41672070138): نجح على PR #33.
+- [CI #537](https://github.com/HVA09/lumen-learning-platform/actions/runs/41672915529): **نجح بالكامل على main** commit `6c38ef9109dafad71a68429d103655f15592995c`.
 
 ## ما تم إنجازه
 
@@ -51,7 +53,8 @@
 ## الوضع المعماري الحالي
 
 - Backend: FastAPI + PostgreSQL. ما زالت معظم المكونات منظمة أفقيًا في `auth/` و`routers/` و`models/` و`schemas/` و`services/`.
-- Assessments: منطق التصحيح والتحقق والاختيار والإتقان في `app/modules/assessments/domain/quiz_logic.py`، ومنطق تحليل الأسئلة النقي في `app/modules/assessments/domain/question_analytics.py`. المساران القديمان في `app/services/` واجهتا توافق تعيدان تصدير الرموز العامة نفسها.
+- Assessments: منطق التصحيح والتحقق والاختيار والإتقان في `app/modules/assessments/domain/quiz_logic.py`، ومنطق تحليل الأسئلة النقي في `app/modules/assessments/domain/question_analytics.py`. المساران القديمان في `app/services/` واجهتا توافق.
+- Learning Progress: PR #34 ينقل `compute_streak` النقية إلى `app/modules/learning_progress/domain/streak_logic.py`؛ تبقى الخدمة `study_activity.py` مسؤولة عن SQLAlchemy، ويحافظ `app/services/streak_logic.py` على الاستيراد القديم.
 - Frontend: React 19 + Vite. عملاء API مقسمون حسب المجال في `src/lib`، والمكونات في `src/components`.
 - يجب المحافظة على جلسات HttpOnly وCSRF، وعقود API الحالية، والعربية/الإنجليزية، وRTL/LTR، وتجربة الهاتف.
 - سجل النماذج الصريح في `app/models/__init__.py` ضروري لاكتشاف Alembic؛ لا تنقل النماذج قبل خطة تسجيل واختبارات ترحيل.
@@ -60,7 +63,7 @@
 
 - `question_analytics.py`: دوال نقية لتحليل الأسئلة نُقلت إلى `modules/assessments/domain` عبر PR #32؛ بقيت استعلامات SQL وتجميع استجابة API داخل `routers/content.py`.
 - `learning_path.py`: دوال نقية تبني مسار الطالب انطلاقًا من بيانات مجمعة؛ ملكيتها بين Learning Catalog وLearning Progress تحتاج حسمًا.
-- `study_activity.py`: خدمة مرتبطة بقاعدة البيانات لقراءة وكتابة `StudyDay`؛ تستعمل الدالة النقية `streak_logic.py`.
+- `study_activity.py`: خدمة مرتبطة بقاعدة البيانات لقراءة وكتابة `StudyDay`؛ تستورد قاعدة حساب السلسلة الآن من `modules/learning_progress/domain/streak_logic.py` عبر PR #34.
 - `spaced_repetition.py`: الخوارزمية مرتبطة حاليًا مباشرة بنموذج ORM `ReviewCard` وتعدله in-place؛ لا تُعامل كمنطق نقي قبل فصل حساب الحالة عن التخزين.
 - `achievements.py`: خدمة استعلامات عابرة لمجالات الاختبارات والواجبات والدروس والبطاقات والتقدم؛ لا تنقلها ككتلة واحدة إلى مجال منفرد.
 - `routers/content.py` يجمع إدارة الدروس والأسئلة وتحليلها؛ و`routers/assignments.py` يعتمد على عضوية الفصول؛ يجب احترام هذه العلاقات عند رسم الحدود.
@@ -91,7 +94,7 @@
 
 ## الخطوة التالية
 
-1. P0–P3 مكتملة ومتحقق منها على `main`؛ أحدث خط أساس ناجح هو CI #535 على `5ddad039`.
-2. ابدأ P4 بتحليل ملكية وعقود خدمات Learning/Progress/SRS/Gamification، ولا تنقل الخدمات المتشابكة كوحدة واحدة.
-3. افحص أولًا `learning_path.py` و`study_activity.py` و`streak_logic.py` و`spaced_repetition.py` واختَر أصغر فصل يملك عقدًا واضحًا واختبارات مستقرة.
-4. تبقى P5 تنظيم Frontend بعد بناء خريطة المكونات والميزات وعلاقاتها بعملاء API.
+1. P0–P3 مكتملة ومتحقق منها على `main`؛ أحدث خط أساس ناجح قبل PR #34 هو CI #537 على `6c38ef91`.
+2. PR #34 هو أول شريحة من P4: فصل `streak_logic` النقية عن خدمة `study_activity` مع الحفاظ على التوافق.
+3. لا تنقل `learning_path.py` قبل حسم ملكية البيانات بين Learning Catalog وLearning Progress، ولا تنقل `spaced_repetition.py` قبل فصل انتقال الحالة عن ORM.
+4. بعد نجاح PR #34، تابع تحليل عقود الخدمات المتشابكة ثم نظّم Frontend عبر خريطة features/shared.
