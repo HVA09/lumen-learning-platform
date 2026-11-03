@@ -23,7 +23,8 @@ def _fresh_card() -> ReviewCard:
 
 def test_first_good_review_moves_to_learning_with_short_interval():
     card = _fresh_card()
-    review_card(card, "good")
+    result = review_card(card, "good")
+    assert result is card
     assert card.state == CardState.learning
     assert card.interval_days == 1
     assert card.repetitions == 1

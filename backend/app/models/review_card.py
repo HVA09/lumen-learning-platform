@@ -2,21 +2,14 @@
 بطاقات التكرار المتباعد (Spaced Repetition, SM-2+) — كل بطاقة تتبع حالتها
 الخاصة (new/learning/review/relearning) ومعامل السهولة الخاص فيها
 """
-import enum
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Enum, Float, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Enum, Float, ForeignKey, Index, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from app.database import Base
-
-
-class CardState(str, enum.Enum):
-    new = "new"
-    learning = "learning"
-    review = "review"
-    relearning = "relearning"
+from app.modules.review.domain.sm2 import CardState
 
 
 class ReviewCard(Base):

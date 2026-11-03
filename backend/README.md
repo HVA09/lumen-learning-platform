@@ -23,6 +23,8 @@ app/
                    منطق Assessments النقي: quiz_logic وquestion_analytics
   modules/learning_progress/domain/
                    منطق Learning Progress النقي: streak_logic وtopic_progress
+  modules/review/domain/
+                   حالة وخوارزمية SM-2+ النقية: sm2.py
   services/        خدمات وتنسيق الأعمال: learning_path، spaced_repetition،
                    study_activity، الإنجازات ولوحة المتصدرين
   content/         المحتوى التعليمي الجاهز (دروس/أسئلة/بطاقات) ودالة زرعه
