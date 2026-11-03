@@ -97,3 +97,11 @@ def test_dangling_prerequisite_does_not_lock_forever():
 
 def test_pick_recommended_topic_empty_list():
     assert pick_recommended_topic([]) is None
+
+
+def test_pick_recommended_topic_preserves_order_when_mastery_is_equal():
+    ordered_topics = [
+        {"id": 9, "status": STATUS_IN_PROGRESS, "mastery_percentage": 50.0},
+        {"id": 4, "status": STATUS_IN_PROGRESS, "mastery_percentage": 50.0},
+    ]
+    assert pick_recommended_topic(ordered_topics) == 9
