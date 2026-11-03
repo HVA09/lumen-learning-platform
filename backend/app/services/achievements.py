@@ -17,15 +17,17 @@ from app.models.review_card import ReviewCard
 from app.models.topic_mastery import TopicMastery
 from app.models.user_achievement import UserAchievement
 from app.services.study_activity import get_study_streak
+from app.modules.gamification.domain.scoring import (
+    MAX_REVIEWED_CARDS_FOR_POINTS,
+    POINTS_PER_GATEWAY_PASSED,
+    POINTS_PER_PASSING_ASSIGNMENT,
+    POINTS_PER_REVIEWED_CARD,
+    POINTS_PER_TEN_MASTERY_PERCENT,
+    ScoreComponents,
+    calculate_score,
+)
 
 PASSING_ASSIGNMENT_PERCENTAGE = 70
-
-# نقاط لوحة المتصدرين
-POINTS_PER_GATEWAY_PASSED = 20
-POINTS_PER_PASSING_ASSIGNMENT = 15
-POINTS_PER_TEN_MASTERY_PERCENT = 1  # كل 10% إتقان بموضوع = نقطة (حتى 10 نقاط للموضوع)
-POINTS_PER_REVIEWED_CARD = 2
-MAX_REVIEWED_CARDS_FOR_POINTS = 25  # سقف يمنع تكديس النقاط بإنشاء بطاقات كثيرة
 
 
 @dataclass
@@ -163,10 +165,23 @@ def compute_scores(db: Session, user_id: int | None = None) -> dict[int, int]:
 
     النقاط: 20 لكل بوابة إتقان مجتازة + 15 لكل واجب ناجح (≥70% قيّمه معلّم)
     + نقطة لكل 10% إتقان بكل موضوع + نقطتان لكل بطاقة تحت مراجعة فعلية (حتى 25 بطاقة)"""
-    scores: dict[int, int] = {}
+    components_by_user: dict[int, ScoreComponents] = {}
 
-    def _add(uid: int, points: int) -> None:
-        scores[uid] = scores.get(uid, 0) + int(points)
+    def _add(
+        uid: int,
+        *,
+        gateway_passed_count: int = 0,
+        mastery_points: int = 0,
+        passing_assignment_count: int = 0,
+        reviewed_card_count: int = 0,
+    ) -> None:
+        current = components_by_user.get(uid, ScoreComponents())
+        components_by_user[uid] = ScoreComponents(
+            gateway_passed_count=current.gateway_passed_count + int(gateway_passed_count),
+            mastery_points=current.mastery_points + int(mastery_points),
+            passing_assignment_count=current.passing_assignment_count + int(passing_assignment_count),
+            reviewed_card_count=current.reviewed_card_count + int(reviewed_card_count),
+        )
 
     gateway_query = db.query(TopicMastery.user_id, func.count(TopicMastery.id)).filter(
         TopicMastery.gateway_quiz_passed.is_(True)
@@ -190,15 +205,19 @@ def compute_scores(db: Session, user_id: int | None = None) -> dict[int, int]:
         cards_query = cards_query.filter(ReviewCard.user_id == user_id)
 
     for uid, count in gateway_query.group_by(TopicMastery.user_id).all():
-        _add(uid, count * POINTS_PER_GATEWAY_PASSED)
+        _add(uid, gateway_passed_count=count)
     for uid, total in mastery_query.group_by(TopicMastery.user_id).all():
-        _add(uid, (total or 0) * POINTS_PER_TEN_MASTERY_PERCENT)
+        _add(uid, mastery_points=total or 0)
     for uid, count in assignments_query.group_by(AssignmentSubmission.student_user_id).all():
-        _add(uid, count * POINTS_PER_PASSING_ASSIGNMENT)
+        _add(uid, passing_assignment_count=count)
     for uid, count in cards_query.group_by(ReviewCard.user_id).all():
-        _add(uid, min(count, MAX_REVIEWED_CARDS_FOR_POINTS) * POINTS_PER_REVIEWED_CARD)
+        _add(uid, reviewed_card_count=count)
 
-    return {uid: points for uid, points in scores.items() if points > 0}
+    return {
+        uid: score
+        for uid, components in components_by_user.items()
+        if (score := calculate_score(components)) > 0
+    }
 
 
 def compute_leaderboard_score(db: Session, user_id: int) -> int:
