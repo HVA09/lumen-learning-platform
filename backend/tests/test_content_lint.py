@@ -9,7 +9,7 @@ from app.content.cards_data import CARDS
 from app.content.legacy import load_seed_v1
 from app.content.lessons_data import LESSONS
 from app.content.questions_data import QUESTIONS
-from app.services.quiz_logic import grade_answer, validate_question_definition
+from app.modules.assessments.domain.quiz_logic import grade_answer, validate_question_definition
 
 
 def _legacy():

@@ -2,7 +2,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.services.quiz_logic import normalize_correct_answer, validate_question_definition
+from app.modules.assessments.domain.quiz_logic import normalize_correct_answer, validate_question_definition
 
 
 class QuestionCreate(BaseModel):

@@ -4,7 +4,7 @@
 import random
 from datetime import datetime, timedelta, timezone
 
-from app.services.quiz_logic import (
+from app.modules.assessments.domain.quiz_logic import (
     GATEWAY_PASS_PERCENTAGE,
     can_resume_attempt,
     compute_score_percentage,

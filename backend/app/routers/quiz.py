@@ -30,7 +30,7 @@ from app.schemas.quiz import (
     QuizSubmitRequest,
 )
 from app.services.achievements import check_and_award_achievements
-from app.services.quiz_logic import (
+from app.modules.assessments.domain.quiz_logic import (
     GATEWAY_PASS_PERCENTAGE,
     can_resume_attempt,
     compute_score_percentage,
