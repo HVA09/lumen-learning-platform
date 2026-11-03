@@ -1,8 +1,8 @@
 # الخطة المعمارية الحالية والمراحل التنفيذية لمنصة Lumen
 
 آخر تحديث: **2026-11-03**  
-مرجع `main`: `5ddad0395d504caec3c134061c8f95f23b28f8f4`  
-PR #30 و#32 مدمجان؛ CI #535 نجح على commit main. Backend: 404 passed؛ Frontend: 51 passed؛ build وGitleaks وCompose وmigrations وbackup/restore وRestic نجحت.
+مرجع `main` قبل PR #34: `6c38ef9109dafad71a68429d103655f15592995c`  
+PR #30 و#32 و#33 مدمجة؛ CI #537 نجح على main. Backend: 404 passed؛ Frontend: 51 passed؛ build وGitleaks وCompose وmigrations وbackup/restore وRestic نجحت.
 
 > الغرض هو تنظيم النظام تدريجيًا دون إعادة كتابة، أو تغيير سلوك الميزات، أو تعريض بيانات المستخدمين والترحيلات للخطر.
 
@@ -41,6 +41,8 @@ PR #30 و#32 مدمجان؛ CI #535 نجح على commit main. Backend: 404 pass
 - `app/modules/assessments/domain/question_analytics.py`: دوال نقية لتحليل أداء السؤال وتصنيفه وترتيب الأسئلة التي تحتاج مراجعة؛ مدمجة عبر PR #32.
 - `app/services/question_analytics.py`: واجهة توافق تعيد تصدير الرموز العامة نفسها؛ يستورد Router والاختبار الأساسي المجال مباشرةً.
 - أُضيف اختبار توافق يتحقق من تطابق هوية كل رمز عام بين المسارين القديم والجديد.
+- `app/modules/learning_progress/domain/streak_logic.py`: PR #34 ينقل قاعدة حساب أيام الدراسة المتتالية النقية إلى Learning Progress.
+- `app/services/streak_logic.py`: واجهة توافق؛ تستورد `study_activity.py` القاعدة من المسار الجديد مباشرةً.
 
 ### Frontend
 
@@ -63,12 +65,12 @@ PR #30 و#32 مدمجان؛ CI #535 نجح على commit main. Backend: 404 pass
 | Identity & Access | المستخدمون والأدوار والمصادقة والجلسات و2FA | `auth/`, User, AuthSession |
 | Learning Catalog | المواد والمواضيع والدروس والمحتوى التعليمي | Subject, Topic, Lesson, TopicCard |
 | Assessments | بنك الأسئلة والمحاولات والتصحيح وتحليل عناصر الاختبار | Question, QuizAttempt, QuestionResult, quiz_logic, question_analytics |
-| Learning Progress | الإتقان وتقدم الدروس والنشاط الدراسي | TopicMastery, LessonProgress, StudyDay, study_activity |
+| Learning Progress | الإتقان وتقدم الدروس والنشاط الدراسي وقواعد streak | TopicMastery, LessonProgress, StudyDay, study_activity, streak_logic |
 | Review / SRS | بطاقات المستخدم وجدولة المراجعة | ReviewCard, spaced_repetition |
 | Classes | الفصول والتسجيل وعضوية الطلاب والدعوات | ClassSection, ClassEnrollment, invite services |
 | Assignments | إنشاء الواجبات والتسليم والتقييم | Assignment, AssignmentSubmission |
 | Files | المرفقات والتحقق والفحص والتخزين | FileAttachment, files router, malware_scanner |
-| Gamification | الإنجازات والنقاط ولوحة المتصدرين | UserAchievement, achievements, streak logic |
+| Gamification | الإنجازات والنقاط ولوحة المتصدرين | UserAchievement, achievements (تستهلك مؤشرات النشاط من Learning Progress) |
 | Notifications | الإشعارات وقنوات التسليم | Notification, notifications |
 | Billing | الخطط والاشتراكات وأحداث الدفع | Plan, Subscription, ProcessedWebhookEvent |
 | LTI Integration | تسجيل LMS وOIDC وربط الهوية وAGS | LTIPlatform, LTI routers/services |
@@ -92,8 +94,8 @@ PR #30 و#32 مدمجان؛ CI #535 نجح على commit main. Backend: 404 pass
 
 ### Study Activity وGamification
 
-- `streak_logic.py` دالة نقية لحساب أيام الدراسة المتتالية.
-- `study_activity.py` خدمة تخزين وقراءة مرتبطة بـ SQLAlchemy ونموذج StudyDay.
+- `streak_logic.py` قاعدة نقية لحساب أيام الدراسة المتتالية؛ تُنقل في PR #34 إلى `modules/learning_progress/domain` مع واجهة توافق للمسار القديم.
+- `study_activity.py` خدمة تخزين وقراءة مرتبطة بـ SQLAlchemy ونموذج StudyDay، وتستورد القاعدة من المجال دون امتلاك منطق حساب السلسلة.
 - `achievements.py` يجمع استعلامات من QuizAttempt وTopicMastery وAssignmentSubmission وLessonProgress وReviewCard وUserAchievement، ويعتمد على Study Activity.
 - هذه خدمة عابرة للمجالات؛ لا تُنقل بكاملها إلى Gamification دون تصميم عقود/استعلامات قراءة واضحة.
 
@@ -126,7 +128,7 @@ PR #30 و#32 مدمجان؛ CI #535 نجح على commit main. Backend: 404 pass
 | P1 | استخراج منطق Assessments الخالص quiz_logic | مكتمل — PR #30 مدمج وCI #526 و#527 ناجحان |
 | P2 | خريطة ملكية المجالات والاعتماديات | مكتمل توثيقيًا — التبعيات والمخاطر والمرشح التالي موثقة |
 | P3 | استخراج وحدة نقية ثانية صغيرة | مكتمل — PR #32 مدمج؛ CI #534 على PR وCI #535 على main ناجحان |
-| P4 | فصل حدود خدمات Learning/Progress/SRS/Gamification | يبدأ بتحليل الملكية والعقود؛ لا نقل واسع قبل اختبارات تكامل لكل مجال |
+| P4 | فصل حدود خدمات Learning/Progress/SRS/Gamification | قيد التنفيذ — PR #34 يفصل قاعدة streak النقية إلى Learning Progress مع واجهة توافق؛ تستمر مراجعة العقود للخدمات المتبقية |
 | P5 | تنظيم Frontend تدريجيًا | بعد خريطة features/shared وعقود API واختبارات RTL/LTR |
 | P6 | lint/typecheck واختبارات متصفح وتحسين الأداء والمراقبة | تحديد الأدوات وخط الأساس قبل فرضها |
 | P7 | الإطلاق | بعد إغلاق متطلبات الاستضافة والأمن والتشغيل |
@@ -152,8 +154,8 @@ PR #30 و#32 مدمجان؛ CI #535 نجح على commit main. Backend: 404 pass
 
 ## 8. نقطة الاستئناف
 
-- آخر main بعد PR #32: `5ddad0395d504caec3c134061c8f95f23b28f8f4`.
-- CI #534 نجح على PR #32، وCI #535 على main بعد الدمج نجح بالكامل: 404 Backend tests، و51 Frontend tests عبر 11 ملفًا، production build، Gitleaks full-history، Compose، migrations، PostgreSQL backup/restore، وRestic smoke test.
-- P0–P3 مكتملة. P4 التالية تبدأ بتحليل حدود الخدمات وعقودها قبل فصل Learning/Progress/SRS/Gamification.
+- آخر main قبل PR #34: `6c38ef9109dafad71a68429d103655f15592995c`.
+- CI #537 نجح بالكامل: 404 Backend tests، و51 Frontend tests عبر 11 ملفًا، production build، Gitleaks full-history، Compose، migrations، PostgreSQL backup/restore، وRestic smoke test.
+- P0–P3 مكتملة. P4 قيد التنفيذ؛ أول فصل نقي هو streak_logic، مع إبقاء `study_activity.py` خدمة تخزين وقاعدة بيانات منفصلة.
 - لا يوجد نشر إنتاجي مثبت.
 - لا يوجد نشر إنتاجي مثبت.

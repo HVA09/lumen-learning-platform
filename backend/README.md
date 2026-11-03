@@ -21,8 +21,10 @@ app/
                    /reports /admin /users ...
   modules/assessments/domain/
                    منطق Assessments النقي: quiz_logic وquestion_analytics
+  modules/learning_progress/domain/
+                   منطق Learning Progress النقي: streak_logic
   services/        خدمات وتنسيق الأعمال: learning_path، spaced_repetition،
-                   الدراسة اليومية، الإنجازات ولوحة المتصدرين
+                   study_activity، الإنجازات ولوحة المتصدرين
   content/         المحتوى التعليمي الجاهز (دروس/أسئلة/بطاقات) ودالة زرعه
                    (seeder.py) — idempotent، آمن يشتغل أكثر من مرة
 tests/             pytest (auth + curriculum + quiz + content + assignments +
