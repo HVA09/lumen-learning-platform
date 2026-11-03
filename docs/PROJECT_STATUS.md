@@ -8,15 +8,16 @@
 
 - المستودع: [HVA09/lumen-learning-platform](https://github.com/HVA09/lumen-learning-platform) — عام.
 - الفرع الأساسي: `main`.
-- آخر commit متحقق على `main` بعد PR #37: `de79d3e441b943f33ca263f313dd48b86bba3251`.
-- PR #4 مستورد خط الأساس ومُدمج، وPR #29 أصلح بصمات Gitleaks بعد squash merge، وPR #30 نقل منطق الاختبارات إلى مجال Assessments، وPR #31 حدّث التوثيق وCI لمسارات docs، وPR #32 نقل تحليل الأسئلة إلى Assessments، وPR #33 وثّق اكتمال P3، وPR #34 فصل قاعدة streak إلى Learning Progress، وPR #35 فصل قواعد حالة الموضوع والتوصية، وPR #36 وثّق إكمال P4 الجزئي، وPR #37 فصل SM-2+ عن ORM؛ جميعها مدمجة.
+- آخر commit متحقق على `main` قبل PR #39: `ced8b0c0bd067649e171074d601a839a9f9a379e`.
+- PR #4 مستورد خط الأساس ومُدمج، وPR #29 أصلح بصمات Gitleaks بعد squash merge، وPR #30 نقل منطق الاختبارات إلى مجال Assessments، وPR #31 حدّث التوثيق وCI لمسارات docs، وPR #32 نقل تحليل الأسئلة إلى Assessments، وPR #33 وثّق اكتمال P3، وPR #34 فصل قاعدة streak إلى Learning Progress، وPR #35 فصل قواعد حالة الموضوع والتوصية، وPR #36 وثّق إكمال P4 الجزئي، وPR #37 فصل SM-2+ عن ORM، وPR #38 وثّق إكمال SRS وخطة Gamification؛ جميعها مدمجة. PR #39 يفصل حساب النقاط النقي عن استعلامات SQL.
 - PR #30 دُمج في 2026-11-03. بقي المسار القديم `app.services.quiz_logic` كواجهة توافق.
 - CI #526 نجح على رأس PR #30، وCI #532 على PR #31، وCI #534 على PR #32؛ جميع وظائف Backend وFrontend/build وFull Git history secret scan نجحت.
 - CI #537 نجح على main قبل PR #34: Backend **404 passed** وFrontend **51 passed**.
 - CI #539 نجح على main بعد PR #34: Backend **405 passed** وFrontend **51 passed**.
 - CI #541 نجح على main بعد PR #35: Backend **407 passed** وFrontend **51 passed**.
 - CI #543 نجح على main بعد PR #36: Backend **407 passed** وFrontend **51 passed**.
-- CI #545 على commit `main` الحالي `de79d3e4` **نجح بالكامل**: Backend **417 passed, 0 failed, 20 warnings**؛ Frontend **51 passed عبر 11 ملف اختبار**؛ production build وGitleaks full-history وCompose وmigrations وPostgreSQL backup/restore وRestic smoke test كلها ناجحة.
+- CI #545 نجح على main بعد PR #37: Backend **417 passed** وFrontend **51 passed**.
+- CI #547 على commit `main` الحالي `ced8b0c0` **نجح بالكامل**: Backend **417 passed, 0 failed, 20 warnings**؛ Frontend **51 passed عبر 11 ملف اختبار**؛ production build وGitleaks full-history وCompose وmigrations وPostgreSQL backup/restore وRestic smoke test كلها ناجحة.
 - لا يوجد نشر إنتاجي مثبت.
 
 ## حالة المراحل
@@ -27,7 +28,7 @@
 | P1 — استخراج منطق Assessments | مكتمل | PR #30 مدمج، وCI #526 و#527 ناجحان |
 | P2 — خريطة حدود المجالات والاعتماديات | مكتمل توثيقيًا | توثيق الاعتماديات والملكية الأولية في `ARCHITECTURE_PLAN.md` وADR-017؛ لا نقل إضافي قبل قرار مستقل |
 | P3 — تجربة Backend ثانية صغيرة | مكتمل | PR #32 مدمج؛ CI #534 على PR وCI #535 على main نجحا |
-| P4 — فصل حدود خدمات Backend | قيد التنفيذ جزئيًا | PR #34 و#35 فصلا Learning Progress، وPR #37 فصل SM-2+ عن ORM؛ التالي فصل حساب النقاط النقي في Gamification عن استعلامات SQL |
+| P4 — فصل حدود خدمات Backend | قيد التنفيذ | PR #34 و#35 فصلا Learning Progress، وPR #37 فصل SM-2+ عن ORM؛ PR #39 يفصل معادلة نقاط Gamification ويبقي استعلامات SQL في الخدمة |
 | P5 — تنظيم Frontend | لم يبدأ | إعداد خريطة features/shared وعقود API واختبارات RTL/LTR |
 | P6 — الجودة والأداء والمراقبة | جزئي / مخطط | CI موجود؛ lint/typecheck واختبارات متصفح وقياس أداء ومراقبة تحتاج baseline |
 | P7 — الإطلاق | غير جاهز | بوابات الاستضافة والتشغيل أدناه لم تُغلق |
@@ -48,7 +49,9 @@
 - [CI #541](https://github.com/HVA09/lumen-learning-platform/actions/runs/41677706751): نجح على main بعد PR #35؛ 407 Backend و51 Frontend.
 - [CI #543](https://github.com/HVA09/lumen-learning-platform/actions/runs/41679570211): نجح على main بعد PR #36؛ 407 Backend و51 Frontend.
 - [CI #544](https://github.com/HVA09/lumen-learning-platform/actions/runs/41687074194): نجح على PR #37؛ 417 Backend و51 Frontend.
-- [CI #545](https://github.com/HVA09/lumen-learning-platform/actions/runs/41687829625): **نجح بالكامل على main** commit `de79d3e441b943f33ca263f313dd48b86bba3251`؛ 417 Backend و51 Frontend.
+- [CI #545](https://github.com/HVA09/lumen-learning-platform/actions/runs/41687829625): نجح على main بعد PR #37؛ 417 Backend و51 Frontend.
+- [CI #546](https://github.com/HVA09/lumen-learning-platform/actions/runs/41688876585): نجح على PR #38؛ 417 Backend و51 Frontend.
+- [CI #547](https://github.com/HVA09/lumen-learning-platform/actions/runs/41689692319): **نجح بالكامل على main** commit `ced8b0c0bd067649e171074d601a839a9f9a379e`؛ 417 Backend و51 Frontend.
 
 ## ما تم إنجازه
 
@@ -67,6 +70,7 @@
 - Assessments: منطق التصحيح والتحقق والاختيار والإتقان في `app/modules/assessments/domain/quiz_logic.py`، ومنطق تحليل الأسئلة النقي في `app/modules/assessments/domain/question_analytics.py`. المساران القديمان في `app/services/` واجهتا توافق.
 - Learning Progress: قاعدتا `compute_streak` و`topic_progress` في `app/modules/learning_progress/domain/` بعد PR #34 و#35، مع واجهات توافق. يبقى `study_activity.py` مسؤولًا عن التخزين، و`build_learning_path` جامعًا لبيانات Catalog وProgress داخل service.
 - Review/SRS: انتقال SM-2+ النقي وEnum `CardState` في `app/modules/review/domain/sm2.py` بعد PR #37؛ يبقى `ReviewCard` في ORM والخدمة محولًا متوافقًا، وmigration 0010 دون تغيير.
+- Gamification: PR #39 ينقل معادلة نقاط اللوحة إلى `app/modules/gamification/domain/scoring.py`؛ تبقى استعلامات البيانات المجمعة داخل `app/services/achievements.py` وشروط فتح الإنجازات كما هي.
 - Frontend: React 19 + Vite. عملاء API مقسمون حسب المجال في `src/lib`، والمكونات في `src/components`.
 - يجب المحافظة على جلسات HttpOnly وCSRF، وعقود API الحالية، والعربية/الإنجليزية، وRTL/LTR، وتجربة الهاتف.
 - سجل النماذج الصريح في `app/models/__init__.py` ضروري لاكتشاف Alembic؛ لا تنقل النماذج قبل خطة تسجيل واختبارات ترحيل.
@@ -106,7 +110,7 @@
 
 ## الخطوة التالية
 
-1. P0–P3 مكتملة؛ P4 فصلت Learning Progress وSRS عبر PR #34 و#35 و#37. أحدث خط أساس ناجح هو CI #545 على `de79d3e4`.
-2. الخطوة التالية: فصل معادلة النقاط النقية في Gamification عن الاستعلامات المجمعة في `compute_scores`، مع بقاء مصادر البيانات server-side.
-3. لا تنقل `achievements.py` ككتلة واحدة؛ شروط الإنجازات تستعلم عبر مجالات عدة، ويجب تحديد عقود قراءة مستقلة قبل فصلها.
-4. بعد Gamification، انتقل إلى خريطة Frontend features/shared وعقود API واختبارات RTL/LTR.
+1. P0–P3 مكتملة؛ P4 تشمل PR #34 و#35 و#37 المدمجة، وPR #39 قيد التحقق. أحدث خط أساس ناجح قبل PR #39 هو CI #547 على `ced8b0c0`.
+2. PR #39 يفصل معادلة نقاط اللوحة فقط؛ تبقى مصادر البيانات واستعلامات SQL في `compute_scores` داخل service.
+3. لا تنقل `achievements.py` ككتلة واحدة؛ شروط الإنجازات تستعلم عبر مجالات عدة، وتحتاج عقود قراءة مستقلة قبل فصلها.
+4. بعد نجاح شريحة Gamification، انتقل إلى خريطة Frontend features/shared وعقود API واختبارات RTL/LTR.
