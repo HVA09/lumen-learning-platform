@@ -1,6 +1,6 @@
 """
-مسار التعلّم — دوال بحتة (بدون قاعدة بيانات): تحسب حالة كل موضوع للطالب
-(مقفل / متاح / قيد الدراسة / متقن) وتقترح الموضوع التالي.
+تجميع مسار التعلّم — يبني مخرجات المسار من بيانات Catalog وProgress المجمّعة.
+قواعد حالة الموضوع واختيار التوصية النقية مملوكة لوحدة Learning Progress domain.
 
 قاعدة الفتح: الموضوع اللي له متطلّب سابق يُقفل لين يجتاز الطالب اختبار بوابة الموضوع السابق.
 الطالب يقدر يقرأ دروس أي موضوع، لكن الاختبارات تحتاج فتح الموضوع (راجع routers/quiz.py).
@@ -14,6 +14,7 @@ from app.modules.learning_progress.domain.topic_progress import (
     compute_topic_status,
     pick_recommended_topic,
 )
+
 
 def build_learning_path(
     subjects: list[dict],
