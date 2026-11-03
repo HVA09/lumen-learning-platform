@@ -8,13 +8,14 @@
 
 - المستودع: [HVA09/lumen-learning-platform](https://github.com/HVA09/lumen-learning-platform) — عام.
 - الفرع الأساسي: `main`.
-- آخر commit متحقق على `main` بعد PR #35: `0c725181a8cd1bfd4062cc828f4cc3ee58a5aec3`.
+- آخر commit متحقق على `main` بعد PR #36: `df59462f538929d571f640aa11b88e34c46025e9`.
 - PR #4 مستورد خط الأساس ومُدمج، وPR #29 أصلح بصمات Gitleaks بعد squash merge، وPR #30 نقل منطق الاختبارات إلى مجال Assessments، وPR #31 حدّث التوثيق وCI لمسارات docs، وPR #32 نقل تحليل الأسئلة إلى Assessments، وPR #33 وثّق اكتمال P3، وPR #34 فصل قاعدة streak إلى Learning Progress، وPR #35 فصل قواعد حالة الموضوع والتوصية؛ جميعها مدمجة.
 - PR #30 دُمج في 2026-11-03. بقي المسار القديم `app.services.quiz_logic` كواجهة توافق.
 - CI #526 نجح على رأس PR #30، وCI #532 على PR #31، وCI #534 على PR #32؛ جميع وظائف Backend وFrontend/build وFull Git history secret scan نجحت.
 - CI #537 نجح على main قبل PR #34: Backend **404 passed** وFrontend **51 passed**.
 - CI #539 نجح على main بعد PR #34: Backend **405 passed** وFrontend **51 passed**.
-- CI #541 على commit `main` الحالي `0c725181` **نجح بالكامل**: Backend **407 passed, 0 failed, 20 warnings**؛ Frontend **51 passed عبر 11 ملف اختبار**؛ production build وGitleaks full-history وCompose وmigrations وPostgreSQL backup/restore وRestic smoke test كلها ناجحة.
+- CI #541 نجح على main بعد PR #35: Backend **407 passed** وFrontend **51 passed**.
+- CI #543 على commit `main` الحالي `df59462f` **نجح بالكامل**: Backend **407 passed, 0 failed, 20 warnings**؛ Frontend **51 passed عبر 11 ملف اختبار**؛ production build وGitleaks full-history وCompose وmigrations وPostgreSQL backup/restore وRestic smoke test كلها ناجحة.
 - لا يوجد نشر إنتاجي مثبت.
 
 ## حالة المراحل
@@ -25,7 +26,7 @@
 | P1 — استخراج منطق Assessments | مكتمل | PR #30 مدمج، وCI #526 و#527 ناجحان |
 | P2 — خريطة حدود المجالات والاعتماديات | مكتمل توثيقيًا | توثيق الاعتماديات والملكية الأولية في `ARCHITECTURE_PLAN.md` وADR-017؛ لا نقل إضافي قبل قرار مستقل |
 | P3 — تجربة Backend ثانية صغيرة | مكتمل | PR #32 مدمج؛ CI #534 على PR وCI #535 على main نجحا |
-| P4 — فصل حدود خدمات Backend | قيد التنفيذ جزئيًا | PR #34 و#35 أكملا فصل قاعدتي streak وtopic progress؛ ما زال فصل انتقال SM-2 عن ORM وتحليل عقود الخدمات العابرة للمجالات مطلوبًا |
+| P4 — فصل حدود خدمات Backend | قيد التنفيذ | PR #34 و#35 فصلا قواعد Learning Progress؛ PR #37 يفصل انتقال SM-2+ عن ORM مع إبقاء enum والمخطط والتوافق |
 | P5 — تنظيم Frontend | لم يبدأ | إعداد خريطة features/shared وعقود API واختبارات RTL/LTR |
 | P6 — الجودة والأداء والمراقبة | جزئي / مخطط | CI موجود؛ lint/typecheck واختبارات متصفح وقياس أداء ومراقبة تحتاج baseline |
 | P7 — الإطلاق | غير جاهز | بوابات الاستضافة والتشغيل أدناه لم تُغلق |
@@ -43,7 +44,8 @@
 - [CI #538](https://github.com/HVA09/lumen-learning-platform/actions/runs/41675092421): نجح على PR #34؛ 405 اختبارات Backend و51 Frontend.
 - [CI #539](https://github.com/HVA09/lumen-learning-platform/actions/runs/41675793048): نجح بالكامل على main بعد PR #34؛ 405 Backend و51 Frontend.
 - [CI #540](https://github.com/HVA09/lumen-learning-platform/actions/runs/41677067045): نجح على PR #35؛ 407 Backend و51 Frontend.
-- [CI #541](https://github.com/HVA09/lumen-learning-platform/actions/runs/41677706751): **نجح بالكامل على main** commit `0c725181a8cd1bfd4062cc828f4cc3ee58a5aec3`؛ 407 Backend و51 Frontend.
+- [CI #541](https://github.com/HVA09/lumen-learning-platform/actions/runs/41677706751): نجح على main بعد PR #35؛ 407 Backend و51 Frontend.
+- [CI #543](https://github.com/HVA09/lumen-learning-platform/actions/runs/41679570211): **نجح بالكامل على main** commit `df59462f538929d571f640aa11b88e34c46025e9`؛ 407 Backend و51 Frontend.
 
 ## ما تم إنجازه
 
@@ -100,7 +102,7 @@
 
 ## الخطوة التالية
 
-1. P0–P3 مكتملة ومتحقق منها، وP4 بدأت بتنفيذ حدّي Learning Progress: PR #34 و#35 مدمجان؛ أحدث خط أساس ناجح هو CI #541 على `0c725181`.
+1. P0–P3 مكتملة؛ P4 تشمل PR #34 و#35 المدمجين، وPR #37 قيد التحقق. أحدث خط أساس ناجح قبل PR #37 هو CI #543 على `df59462f`.
 2. فصل `streak_logic` و`topic_progress` مكتمل. يبقى تحليل وفصل انتقال حالة SM-2 عن ORM مع الحفاظ على Enum والمخطط الحالي.
 3. لا تنقل `achievements.py` ككتلة واحدة؛ هي خدمة استعلامات عابرة لمجالات متعددة وتحتاج عقود قراءة واضحة.
-4. بعد حسم حدود SRS وGamification، انتقل إلى خريطة Frontend features/shared وعقود API.
+4. بعد نجاح PR #37، حلّل عقود الاستعلامات العابرة للمجالات في `achievements.py` قبل أي فصل، ثم انتقل إلى خريطة Frontend features/shared.
