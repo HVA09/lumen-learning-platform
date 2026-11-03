@@ -185,7 +185,7 @@
 - القرار: نقل منطق التصحيح والتحقق والاختيار والإتقان الخالص من `app/services/quiz_logic.py` إلى `app/modules/assessments/domain/quiz_logic.py`. يظل المسار القديم واجهة توافق صريحة تعيد تصدير الواجهة العامة نفسها.
 - نطاق التغيير: تحويل الاستيرادات في Routers وSchemas واختبارات المجال إلى المسار الجديد، وإضافة اختبار توافق. لا تغيير في قواعد التصحيح، API، قاعدة البيانات، migrations أو إعدادات التشغيل.
 - السبب: توفير أول وحدة مجال واضحة في نمط Modular Monolith مع عزل منطق المجال عن تفاصيل HTTP/ORM، وبأقل مخاطرة ممكنة.
-- التحقق: CI #526 نجح على رأس PR #30 `7e87b7f5fb64be38d45402d47b9efd2196a66bc0`، وجميع وظائف Backend وFrontend/build وFull Git history secret scan نجحت. دُمج الطلب في `main` بالـ commit `597c8b26ec151207e3d76b111cf5d96c507ace55`. CI #527 على commit الدمج كان قيد التنفيذ عند آخر تحقق.
+- التحقق: CI #526 نجح على رأس PR #30 `7e87b7f5fb64be38d45402d47b9efd2196a66bc0`، وجميع وظائف Backend وFrontend/build وFull Git history secret scan نجحت. دُمج الطلب في `main` بالـ commit `597c8b26ec151207e3d76b111cf5d96c507ace55`. CI #527 على commit الدمج نجح بالكامل: 403 اختبار Backend، و51 اختبار Frontend عبر 11 ملفًا، production build، full-history Gitleaks، Compose، migrations، وbackup/restore.
 - التراجع: إعادة استيرادات المستهلكين إلى واجهة `app.services.quiz_logic`؛ تبقى الواجهة القديمة قائمة خلال فترة التوافق.
 
 
