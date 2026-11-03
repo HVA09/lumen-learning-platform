@@ -8,10 +8,10 @@
 
 - المستودع: [HVA09/lumen-learning-platform](https://github.com/HVA09/lumen-learning-platform) — عام.
 - الفرع الأساسي: `main`.
-- آخر commit بعد دمج إعادة تنظيم Assessments: `597c8b26ec151207e3d76b111cf5d96c507ace55`.
-- PR #4 مستورد خط الأساس ومُدمج، وPR #29 أصلح بصمات Gitleaks بعد squash merge، وPR #30 نقل منطق الاختبارات إلى مجال Assessments؛ الثلاثة مدمجة.
+- آخر commit على `main` بعد دمج التوثيق PR #31: `57d85d7c776afb3b65f8579b6c12361fd8c03ea6`.
+- PR #4 مستورد خط الأساس ومُدمج، وPR #29 أصلح بصمات Gitleaks بعد squash merge، وPR #30 نقل منطق الاختبارات إلى مجال Assessments، وPR #31 حدّث التوثيق وCI لمسارات docs؛ جميعها مدمجة.
 - PR #30 دُمج في 2026-11-03. بقي المسار القديم `app.services.quiz_logic` كواجهة توافق.
-- CI #526 نجح على رأس PR #30 قبل الدمج، بجميع وظائف Backend وFrontend/build وFull Git history secret scan.
+- CI #526 نجح على رأس PR #30 قبل الدمج، وCI #532 نجح على النسخة النهائية من PR #31 بجميع وظائف Backend وFrontend/build وFull Git history secret scan.
 - CI #527 على commit الدمج في `main` **نجح بالكامل**؛ Backend: 403 passed, 0 failed, 20 warnings؛ Frontend: 51 passed عبر 11 ملف اختبار؛ production build وGitleaks full-history وCompose وmigrations وPostgreSQL backup/restore وRestic smoke test كلها ناجحة.
 - لا يوجد نشر إنتاجي مثبت.
 
@@ -22,7 +22,7 @@
 | P0 — تثبيت خط الأساس | مكتمل | PR #4 و#29 مدمجان؛ CI #525 نجح على خط الأساس السابق لـ P1 |
 | P1 — استخراج منطق Assessments | مكتمل | PR #30 مدمج، وCI #526 و#527 ناجحان |
 | P2 — خريطة حدود المجالات والاعتماديات | مكتمل توثيقيًا | توثيق الاعتماديات والملكية الأولية في `ARCHITECTURE_PLAN.md` وADR-017؛ لا نقل إضافي قبل قرار مستقل |
-| P3 — تجربة Backend ثانية صغيرة | لم تبدأ | اختيار وحدة نقية بعد إتمام P2 |
+| P3 — تجربة Backend ثانية صغيرة | قيد التنفيذ | PR #32 ينقل question_analytics إلى Assessments مع واجهة توافق واختبارات |
 | P4 — تنظيم Frontend | لم يبدأ | يتطلب خريطة features وعقود API واختبارات RTL/LTR |
 | P5 — تحسين بوابة الجودة | جزئي / مخطط | CI موجود؛ lint/typecheck واختبارات متصفح إضافية تحتاج قرارًا منفصلًا |
 | P6 — الأداء والمراقبة | لم يبدأ | يتطلب بيئة قياس وخط أساس للأداء |
@@ -48,7 +48,7 @@
 ## الوضع المعماري الحالي
 
 - Backend: FastAPI + PostgreSQL. ما زالت معظم المكونات منظمة أفقيًا في `auth/` و`routers/` و`models/` و`schemas/` و`services/`.
-- Assessments: منطق التصحيح والتحقق والاختيار والإتقان أصبح في `app/modules/assessments/domain/quiz_logic.py`. المسار القديم واجهة توافق مؤقتة.
+- Assessments: منطق التصحيح والتحقق والاختيار والإتقان في `app/modules/assessments/domain/quiz_logic.py`. يجري نقل منطق تحليل الأسئلة إلى `question_analytics.py` في المجال نفسه عبر PR #32. تبقى واجهات الخدمات القديمة للتوافق.
 - Frontend: React 19 + Vite. عملاء API مقسمون حسب المجال في `src/lib`، والمكونات في `src/components`.
 - يجب المحافظة على جلسات HttpOnly وCSRF، وعقود API الحالية، والعربية/الإنجليزية، وRTL/LTR، وتجربة الهاتف.
 - سجل النماذج الصريح في `app/models/__init__.py` ضروري لاكتشاف Alembic؛ لا تنقل النماذج قبل خطة تسجيل واختبارات ترحيل.
@@ -90,5 +90,5 @@
 
 1. تم التحقق من CI #527 بنجاح على commit `597c8b26`؛ انتقل إلى إكمال P2.
 2. خريطة P2 الأولية مكتملة؛ احتفظ بها كمرجع قبل أي تغيير برمجي.
-3. الخطوة البرمجية التالية المقترحة: نقل `question_analytics.py` إلى Assessments كتغيير تنظيمي صغير بواجهة توافق واختبارات ثابتة.
+3. يجري تنفيذ نقل `question_analytics.py` إلى Assessments في PR #32، مع واجهة توافق واختبار يثبت تطابق الكائنات العامة.
 4. عدم نقل `learning_path.py` أو `spaced_repetition.py` أو `achievements.py` قبل فصل تبعياتها وتصميم عقودها.

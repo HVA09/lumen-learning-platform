@@ -23,7 +23,7 @@ from app.schemas.content import (
     QuestionAnalyticsOut,
     QuestionCreate,
 )
-from app.services.question_analytics import (
+from app.modules.assessments.domain.question_analytics import (
     FLAG_LABELS_AR,
     classify_question,
     most_common_wrong_answer,

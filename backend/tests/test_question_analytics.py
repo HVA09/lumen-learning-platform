@@ -1,5 +1,5 @@
 """اختبارات تحليل الأسئلة (دوال بحتة)"""
-from app.services.question_analytics import (
+from app.modules.assessments.domain.question_analytics import (
     FLAG_CHECK_KEY,
     FLAG_EASIER,
     FLAG_HARDER,
