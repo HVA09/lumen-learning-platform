@@ -67,7 +67,7 @@ PR #30 و#32 و#33 و#34 مدمجة؛ CI #539 نجح على main. Backend: 405 p
 | Identity & Access | المستخدمون والأدوار والمصادقة والجلسات و2FA | `auth/`, User, AuthSession |
 | Learning Catalog | المواد والمواضيع والدروس والمحتوى التعليمي | Subject, Topic, Lesson, TopicCard |
 | Assessments | بنك الأسئلة والمحاولات والتصحيح وتحليل عناصر الاختبار | Question, QuizAttempt, QuestionResult, quiz_logic, question_analytics |
-| Learning Progress | الإتقان وتقدم الدروس والنشاط الدراسي وقواعد streak | TopicMastery, LessonProgress, StudyDay, study_activity, streak_logic |
+| Learning Progress | الإتقان وتقدم الدروس والنشاط الدراسي وقواعد streak وحالة الموضوع والتوصية | TopicMastery, LessonProgress, StudyDay, study_activity, streak_logic, topic_progress |
 | Review / SRS | بطاقات المستخدم وجدولة المراجعة | ReviewCard, spaced_repetition |
 | Classes | الفصول والتسجيل وعضوية الطلاب والدعوات | ClassSection, ClassEnrollment, invite services |
 | Assignments | إنشاء الواجبات والتسليم والتقييم | Assignment, AssignmentSubmission |
@@ -90,9 +90,9 @@ PR #30 و#32 و#33 و#34 مدمجة؛ CI #539 نجح على main. Backend: 405 p
 
 ### Learning Catalog وLearning Progress
 
-- `learning_path.py` دوال نقية تستقبل بيانات موحدة عن المواد والإتقان والدروس والأسئلة وتبني المسار الموصى به.
-- `routers/curriculum.py` يجمع بيانات ORM من Subject وTopic وLesson وTopicMastery، ثم يستدعي منطق المسار ويسجل نشاط الدراسة ويفحص الإنجازات.
-- ملكية بناء المسار الكامل ليست قاعدة مجال منفردة: الدالة تبني مخرجات تحتوي أسماء Catalog، المتطلبات، إكمال الدروس، وعدّ الأسئلة وبيانات Progress. لذلك تبقى build_learning_path منسقًا/Use Case في service؛ أما compute_topic_status وpick_recommended_topic فقواعد Progress مستقلة تُنقل عبر PR #35.
+- `learning_path.py` يحتوي `build_learning_path`، وهو منسق نقي يستقبل بيانات مجمعة مسبقًا عن Catalog وProgress ويشكّل المخرجات؛ يبقى في service لأنه يجمع مسؤوليات عرض متعددة ولا يملك قاعدة مجال واحدة.
+- `compute_topic_status` و`pick_recommended_topic` قاعدتان نقيتان لملكية Progress، ويجري نقلهما إلى `modules/learning_progress/domain/topic_progress.py` عبر PR #35.
+- `routers/curriculum.py` يجمع بيانات ORM من Subject وTopic وLesson وTopicMastery، ثم يستدعي منسق المسار ويسجل نشاط الدراسة ويفحص الإنجازات.
 
 ### Study Activity وGamification
 
