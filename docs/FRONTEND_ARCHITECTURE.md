@@ -33,7 +33,8 @@ frontend/src/
 │   ├── useDirection.js
 │   └── useSession.js
 ├── lib/
-│   └── api.js
+│   ├── api.js
+│   └── وحدات API المتبقية حسب المجال
 └── test/
     └── setup.js
 ```
