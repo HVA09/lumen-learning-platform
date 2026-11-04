@@ -187,7 +187,6 @@ def run_smoke_test() -> None:
             assert logout_response.status == 200, (
                 f"Logout endpoint returned HTTP {logout_response.status}"
             )
-            logout_response.finished()
             expect(page.get_by_placeholder("البريد الإلكتروني")).to_be_visible(
                 timeout=30_000
             )
