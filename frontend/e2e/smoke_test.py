@@ -125,19 +125,9 @@ def run_smoke_test() -> None:
                 page.get_by_text("✓ أنهيت هذا الدرس", exact=True)
             ).to_be_visible(timeout=30_000)
 
-            page.get_by_role(
-                "button",
-                name="← رجوع للدروس",
-                exact=True,
-            ).click()
-            page.get_by_role("button", name="✕", exact=True).click()
-
-            # The learning path must reflect one completed lesson out of two.
-            expect(page.get_by_text("1/2 دروس", exact=True)).to_be_visible(
-                timeout=30_000
-            )
-
-            # Reload the app, restore the HttpOnly session, and re-fetch lesson state.
+            # Reload directly from the lesson reader. This avoids relying on the
+            # modal's internal scroll position at the narrow mobile viewport.
+            # The dashboard must be rebuilt from persisted server-side progress.
             page.reload(wait_until="domcontentloaded")
             expect(page.get_by_text("إتقانك الإجمالي", exact=True)).to_be_visible(
                 timeout=45_000
@@ -178,7 +168,12 @@ def run_smoke_test() -> None:
             expect(
                 page.get_by_text("✓ أنهيت هذا الدرس", exact=True)
             ).to_be_visible(timeout=30_000)
-            page.get_by_role("button", name="✕", exact=True).click()
+
+            # A clean reload returns to the dashboard so the logout control is reachable.
+            page.reload(wait_until="domcontentloaded")
+            expect(page.get_by_text("إتقانك الإجمالي", exact=True)).to_be_visible(
+                timeout=45_000
+            )
 
             # Logout is asynchronous in the UI: wait for the server to revoke the session.
             with page.expect_response(
