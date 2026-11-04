@@ -8,8 +8,8 @@
 
 - المستودع: [HVA09/lumen-learning-platform](https://github.com/HVA09/lumen-learning-platform) — عام.
 - الفرع الأساسي: `main`.
-- آخر commit متحقق على `main`: `dc2f2267851837e724b015d9d4b8a710fd3b29cf` بعد دمج PR #56.
-- PR #4 و#29–#46 و#48 و#49 و#51–#54 و#56 مدمجة. PR #51 حدّث سجلات الحالة بعد Ruff، وPR #52 جعل إعادة التصدير في واجهات التوافق صريحة، وPR #53 خفّض نتائج Ruff من 62 إلى صفر، وPR #54 حدّث التوثيق الدائم وخطة الجودة، وPR #56 أزال ثلاثة findings مؤكدة في الواجهة. PR #55 أُغلق دون دمج لأنه كان تجربة ESLint مؤقتة لا تمثل baseline معتمدًا. أُغلق PR #50 دون دمج لأن التغيير كان قد وصل إلى `main` عبر PR #49.
+- آخر commit متحقق على `main`: `96fff938fa5ec85b921de247bfe7a3dbe3300071` بعد دمج PR #57.
+- PR #4 و#29–#46 و#48 و#49 و#51–#54 و#56–#57 مدمجة. PR #51 حدّث سجلات الحالة بعد Ruff، وPR #52 جعل إعادة التصدير في واجهات التوافق صريحة، وPR #53 خفّض نتائج Ruff من 62 إلى صفر، وPR #54 و#57 حدّثا التوثيق الدائم وخط أساس الجودة، وPR #56 أزال ثلاثة findings مؤكدة في الواجهة. PR #55 أُغلق دون دمج لأنه كان تجربة ESLint مؤقتة لا تمثل baseline معتمدًا. أُغلق PR #50 دون دمج لأن التغيير كان قد وصل إلى `main` عبر PR #49.
 - PR #30 دُمج في 2026-11-03. بقي المسار القديم `app.services.quiz_logic` كواجهة توافق.
 - CI #526 نجح على رأس PR #30، وCI #532 على PR #31، وCI #534 على PR #32؛ جميع وظائف Backend وFrontend/build وFull Git history secret scan نجحت.
 - CI #537 نجح على main قبل PR #34: Backend **404 passed** وFrontend **51 passed**.
@@ -17,7 +17,7 @@
 - CI #541 نجح على main بعد PR #35: Backend **407 passed** وFrontend **51 passed**.
 - CI #543 نجح على main بعد PR #36: Backend **407 passed** وFrontend **51 passed**.
 - CI بعد PR #54: [#41759458975](https://github.com/HVA09/lumen-learning-platform/actions/runs/41759458975) نجح بالكامل على `7f6953636241997156e478a5ec489159825a7d2f`.
-- أحدث تشغيل CI على `main` بعد PR #56: [#41763352189](https://github.com/HVA09/lumen-learning-platform/actions/runs/41763352189) نجح بالكامل على `dc2f2267851837e724b015d9d4b8a710fd3b29cf`. Backend: **423 passed, 20 warnings**؛ Ruff: **0 diagnostic(s)**؛ Frontend tests وproduction build، Gitleaks، migrations، Compose، Restic، وPostgreSQL backup/restore كلها نجحت.
+- CI بعد PR #56: [#41763352189](https://github.com/HVA09/lumen-learning-platform/actions/runs/41763352189) نجح بالكامل. أحدث CI على `main` بعد PR #57: [#41767787126](https://github.com/HVA09/lumen-learning-platform/actions/runs/41767787126) نجح بالكامل على `96fff938fa5ec85b921de247bfe7a3dbe3300071`: Backend **423 passed, 20 warnings**؛ Ruff **0 diagnostics**؛ Frontend **73 passed عبر 14 ملفًا**؛ production build، Gitleaks، migrations، Compose، Restic، وPostgreSQL backup/restore كلها ناجحة.
 - لا يوجد نشر إنتاجي مثبت.
 
 ## حالة المراحل
@@ -126,4 +126,4 @@
 3. أُضيف Ruff 0.17.3 عبر PR #49 بوضع report-only على `app`, `tests`, `scripts`, و`migrations`. عولجت إعادة التصدير المقصودة في PR #52، ثم الاستيرادات والتعيينات وأسماء المتغيرات في PR #53؛ التقرير الحالي **0 diagnostic(s)**. يبقى Ruff report-only. ESLint للواجهة لم يُثبّت أو يُشغّل بعد؛ يجب أولًا توليد `package-lock.json` باستخدام npm والتحقق بـ `npm ci` قبل تسجيل أي baseline.
 4. تبقى سلسلة LTI/AGS #16–#23 بحاجة إلى إعادة تأسيس وتحليل تعارضات وترحيلات ثم اختبار Sandbox؛ لا تدمجها مباشرة.
 5. لا يوجد نشر إنتاجي مثبت. اختبار Restic الحالي يستخدم مستودعًا مؤقتًا في CI وليس وجهة تخزين خارجية حقيقية.
-6. آخر تحديث برمجي: PR #56 مدمج في `main` عند `dc2f2267851837e724b015d9d4b8a710fd3b29cf`؛ PR CI #41760360217 وmain CI #41763352189 نجحا. الخطوة الهندسية التالية إنشاء ESLint baseline رسمي بعد تثبيت حزم pinned وتوليد lockfile عبر npm؛ لا تعتبر تجربة PR #55 baseline معتمدًا.
+6. آخر تحديث: PR #57 توثيقي فقط ومُدمج في `main` عند `96fff938fa5ec85b921de247bfe7a3dbe3300071`؛ PR CI #41766914355 وmain CI #41767787126 نجحا. ESLint لا يزال غير مثبت ولا يوجد baseline رسمي. بيئة التنفيذ المتاحة بها Node/npm لكن تعذر الوصول إلى `registry.npmjs.org` بسبب فشل DNS، ولا توجد حزم ESLint في cache؛ لذلك لم يُعدّل `package.json` أو lockfile. الخطوة التالية لا تزال تثبيت ESLint وReact Hooks plugin بإصدارات محددة عند توفر اتصال npm، وتوليد lockfile بواسطة npm ثم نجاح `npm ci`.
