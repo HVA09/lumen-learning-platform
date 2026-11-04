@@ -317,6 +317,6 @@
 - السبب: خفض نتائج Ruff من 62 diagnostic(s) إلى صفر دون حذف آثار جانبية أو اختبارات تحقق أو تغيير قواعد العمل.
 - النطاق: `lti_service.py`, `test_lti.py`, migration 0015 (إزالة binding محلي فقط)، script الحفاظ على بيانات الترحيل، واختبارات auth/content/content_lint/curriculum.
 - الضمانات: لا تغيير في API أو مخطط قاعدة البيانات أو عمليات migration أو dependencies أو إعدادات التشغيل؛ لم يُستخدم auto-fix شامل أو استثناءات واسعة.
-- التحقق: PR #53 CI #41757169187 نجح؛ Ruff **0 diagnostic(s)**، Backend **423 passed و20 warnings**، Frontend **73 passed عبر 14 ملفًا**، production build، Gitleaks، Compose، migrations، وPostgreSQL backup/restore وRestic smoke نجحت.
+- التحقق: PR #53 CI #41757169187 نجح؛ Ruff **0 diagnostic(s)**، Backend **423 passed و20 warnings**، Frontend **73 passed عبر 14 ملفًا**، production build، Gitleaks، Compose، migrations، وPostgreSQL backup/restore وRestic smoke نجحت. كما نجح تشغيل main بعد الدمج في CI #41757735260.
 - أثر القرار: أصبح Ruff report-only baseline صفرًا، لكنه لم يتحول إلى required merge check. يجب إبقاء بوابات Backend/Frontend/Gitleaks الحالية.
 - التراجع: استعادة التعديلات على مستوى كل ملف ممكنة دون migration أو تحديث بيانات؛ لا تُرجع استعلام الخطة أو طلب تسجيل الدخول لأنهما جزء من تحقق الاختبارات.
