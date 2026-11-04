@@ -37,7 +37,7 @@ export default defineConfig({
         // without downloading every feature during service-worker installation.
         runtimeCaching: [
           {
-            urlPattern: /\\/assets\\/(?!index-[^/]+\\.(?:js|css)$)[^/]+\\.(?:js|css)$/i,
+            urlPattern: /\/assets\/(?!index-[^/]+\.(?:js|css)$)[^/]+\.(?:js|css)$/i,
             handler: "CacheFirst",
             options: {
               cacheName: "lumen-versioned-assets",
@@ -52,7 +52,7 @@ export default defineConfig({
           },
         ],
         // WebSocket routes are interactive and must always use a live connection.
-        navigateFallbackDenylist: [/^\\/ws/],
+        navigateFallbackDenylist: [/^\/ws/],
       },
     }),
   ],
