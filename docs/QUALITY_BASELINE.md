@@ -5,7 +5,7 @@
 ## 1. المرجع وحدود هذا التقييم
 
 - المستودع: `HVA09/lumen-learning-platform`.
-- خط أساس `main` المحدث بعد دمج PR #54: `7f6953636241997156e478a5ec489159825a7d2f`.
+- خط أساس `main` المحدث بعد دمج PR #56: `dc2f2267851837e724b015d9d4b8a710fd3b29cf`.
 - هذا الملف يوثق ما هو مفعّل فعليًا في المستودع وCI، ثم يقترح إدخال أدوات الجودة تدريجيًا.
 - هذا التقييم توثيقي فقط؛ لا يضيف اعتماديات أو يغيّر سلوك التطبيق أو شروط CI.
 
@@ -33,7 +33,7 @@
 - تشغيل main بعد دمج PR #53: [CI #41757735260](https://github.com/HVA09/lumen-learning-platform/actions/runs/41757735260) نجح بالكامل على commit `4f70cb904e7f92283af8e16a738caf283e5ae494`؛ Backend 423 passed و20 warnings، Frontend 73 passed عبر 14 ملفًا، Gitleaks وmigrations وCompose وRestic وPostgreSQL backup/restore نجحت.
 - PR #54 تحديث توثيقي فقط لخمس وثائق. تشغيل main بعد دمجه: [CI #41759458975](https://github.com/HVA09/lumen-learning-platform/actions/runs/41759458975) نجح بالكامل على `7f6953636241997156e478a5ec489159825a7d2f`؛ Backend **423 passed, 20 warnings**، Ruff **0 diagnostics**، Frontend tests وproduction build وGitleaks وmigrations وCompose وRestic وPostgreSQL backup/restore نجحت. npm production audit وجد **0 vulnerabilities** ضمن مستوى `--audit-level=high` مع `--omit=dev`.
 - PR #55 (مغلق دون دمج): تجربة ESLint مؤقتة باستخدام npx على 70 ملف JS/JSX. CI #41759875976 نجح بجميع وظائفه، لكن التقرير لم يكن baseline معتمدًا: 3 تحذيرات `no-unused-vars` (استيراد واحد ومعاملان في `drawCircuit`)، وتوجيها `react-hooks/exhaustive-deps` غير معروفين لأن إضافة React Hooks لم تكن محمّلة، وتعليق تعطيل قديم واحد. لا تعتمد النتائج بوصفها تغطية كاملة لقواعد React.
-- PR #56 أزال الحالات الثلاث المؤكدة (استيراد App غير المستخدم، معاملا الرسم غير المستخدمين، وتعليق التعطيل القديم)؛ PR CI #41760360217 نجح: Backend **423 passed, 20 warnings**، وFrontend tests/build، وGitleaks جميعها نجحت. دُمج عبر `dc2f2267851837e724b015d9d4b8a710fd3b29cf`؛ تحقق main بعد الدمج موثق في CI #41763352189.
+- PR #56 أزال الحالات الثلاث المؤكدة (استيراد App غير المستخدم، معاملا الرسم غير المستخدمين، وتعليق التعطيل القديم)؛ PR CI #41760360217 نجح: Backend **423 passed, 20 warnings**، وFrontend tests/build، وGitleaks جميعها نجحت. دُمج عبر `dc2f2267851837e724b015d9d4b8a710fd3b29cf`؛ main CI #41763352189 نجح بعد الدمج: Backend **423 passed, 20 warnings**، Ruff **0 diagnostics**، Frontend tests/build، Gitleaks، migrations، Compose، Restic، وPostgreSQL backup/restore.
 - بناء الواجهة في CI #41757169187، وتكرر القياس في main CI #41759458975، أظهر `index-DoXdqRsw.js` بحجم 830.50 kB قبل gzip و258.09 kB بعد gzip، كما ظهر `AdminDashboard` بحجم 401.91 kB قبل gzip و110.80 kB بعد gzip؛ ما زال تحذير Vite بشأن حجم chunk قائمًا ولا توجد ميزانية أداء معتمدة.
 - تدقيق الاعتماديات الإنتاجية في CI #41757169187: **0 vulnerabilities** عند المستوى الذي يفحصه الأمر الحالي.
 - نتيجة npm production audit في CI #570: **0 vulnerabilities** عند مستوى High/Critical المشمول بالأمر الحالي. أما التقرير الكامل لكل شجرة الاعتماديات فسجّل **10 تنبيهات غير عالية: 2 Low و8 Moderate**؛ أغلبها في سلسلة `vite-plugin-pwa` والاعتماديات التابعة لها. لا تُحدّث السلسلة عشوائيًا؛ افحص الشجرة والتوافق وPWA قبل أي ترقية.
@@ -160,8 +160,10 @@
 
 ## 8. نقطة الاستئناف
 
+- آخر `main` متحقق: `dc2f2267851837e724b015d9d4b8a710fd3b29cf` بعد PR #56؛ CI PR #41760360217 وmain #41763352189 نجحا.
+
 1. P6.0 موثق، وP5.4 مكتملة ومدمجة.
-2. PR #49 أدخل Ruff؛ PR #52 و#53 أتما معالجة baseline، والنتيجة الحالية **0 diagnostic(s)**. تحقق ذلك في CI PR #53 #41757169187، ثم في main بعد PR #54 عبر CI #41759458975.
+2. PR #49 أدخل Ruff؛ PR #52 و#53 أتما معالجة baseline، والنتيجة الحالية **0 diagnostic(s)**. تحقق ذلك في CI PR #53 #41757169187، ثم في main بعد PR #54 عبر CI #41759458975، وبعد PR #56 عبر CI #41763352189.
 3. Ruff يبقى report-only. ESLint لم يُعتمد في main؛ PR #55 كان تجربة مؤقتة مغلقة، وPR #56 دمج إصلاحات مؤكدة فقط. الخطوة الرسمية تتطلب تثبيت الإصدارات وإنتاج lockfile عبر npm ونجاح `npm ci`.
 4. أحجام البناء الحالية مسجلة أعلاه؛ يجب قياس أثر أي code splitting لاحقًا قبل وضع ميزانية chunk.
 5. لا يوجد نشر إنتاجي مثبت. اختبار Restic الحالي يستخدم مستودعًا مؤقتًا في CI وليس وجهة تخزين خارجية حقيقية.
