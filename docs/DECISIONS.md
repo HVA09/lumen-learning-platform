@@ -347,3 +347,16 @@
 - الضمانات: لم تتغير API أو DB أو migrations أو dependencies أو lockfile؛ استخدم التغيير `Suspense` fallback موجودًا. PR CI #41850891816 وmain CI #41851527075 نجحا: Backend **423 passed, 20 warnings**، Ruff **0 diagnostics**، Frontend **73 passed عبر 14 ملفًا**، build وGitleaks وفحوص PostgreSQL/backup/restore نجحت.
 - القيد: نتائج build تقيس حجم الملفات فقط؛ لا تثبت زمن تحميل ميداني أو Core Web Vitals. أول فتح لمحتوى الدرس ما زال يتطلب تنزيل `TopicPanel` و`MathText`، ويجب قياس التجربة على اتصالات أبطأ قبل ميزانية أداء نهائية.
 - التراجع: إعادة الاستيراد الساكن لـ `TopicPanel` في `App.jsx` وإزالة `Suspense` المحيط بها؛ لا migration ولا تعديل بيانات.
+
+
+## ADR-029 — تأجيل محرك Markdown/KaTeX وCSS إلى وقت عرض المحتوى
+
+- التاريخ: 2026-11-04
+- الحالة: **منفذ ومُدمج — PR #62**
+- الجهة: توصية هندسية ضمن P6.5 لتحسين تحميل المحتوى على اتصالات بطيئة.
+- القرار: إبقاء `MathText` غلافًا خفيفًا يستخدم `React.lazy` لتحميل `MathTextRenderer` عند عرضه، ونقل `katex/dist/katex.min.css` من `main.jsx` إلى `MathTextRenderer.jsx`. يعرض الغلاف fallback قصيرًا مع `aria-busy`، ويحافظ المحرك على ReactMarkdown وremark GFM/math وrehype-katex وخيارات العرض نفسها.
+- السبب: بعد PR #59 أصبح محرك MathText في chunk مستقل، لكنه كان يُحمّل عند تنزيل لوحة الموضوع. صفحة الموضوع الأولى لا تحتاجه حتى يفتح الطالب درسًا أو سؤالًا يحتوي Markdown/LaTeX. كما أن CSS الخاص بـ KaTeX لم يكن مطلوبًا على شاشة الدخول أو قائمة الموضوع.
+- القياس قبل PR #62 في main CI #41851527075: CSS الأولي `index` **51.37 kB / 12.77 kB gzip**. بعد PR #62 في PR CI #41855423230 وتأكيد main CI #41856247148: CSS الأولي **21.17 kB / 4.67 kB gzip**؛ CSS محرك الرياضيات **30.20 kB / 8.08 kB gzip** في ملف منفصل؛ JS `MathTextRenderer` **442.53 kB / 133.49 kB gzip** في chunk ديناميكي، والـ wrapper `MathText` **0.70 kB / 0.41 kB gzip**. حجم entry JS بقي تقريبًا **362.87 kB / 116.81 kB gzip**؛ الفائدة هنا تأجيل التحميل وليست خفضًا جديدًا لحجم entry JS.
+- الضمانات: لا تغييرات في الاعتماديات أو lockfile أو API أو DB أو migrations أو سلوك Markdown/LaTeX؛ اختبارات MathText وTopicPanel وQuizPanel تنتظر اكتمال التحميل الكسول وتتحقق من عرض المعادلات والجداول والكود. PR CI #41855423230 وmain CI #41856247148 نجحا بالكامل: Backend **423 passed, 20 warnings**، Ruff **0 diagnostics**، Frontend **73 passed عبر 14 ملفًا**، Gitleaks والبناء وتدقيق الاعتماديات وفحوص PostgreSQL/backup/restore نجحت.
+- القيد: أحجام الملفات لا تثبت زمن التحميل الفعلي على أجهزة الطلاب. أول محتوى رياضي سيؤدي إلى طلب محرك JS وCSS؛ يجب قياس زمن ظهوره وتجربة Suspense على هاتف واتصال بطيء قبل ميزانية أداء نهائية.
+- التراجع: إعادة استيراد ReactMarkdown/remark/rehype وKaTeX CSS إلى `MathText.jsx` أو `main.jsx` وإزالة lazy boundary؛ لا migration ولا تعديل بيانات.
