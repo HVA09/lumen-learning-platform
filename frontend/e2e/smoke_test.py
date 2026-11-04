@@ -82,7 +82,7 @@ def run_smoke_test() -> None:
             ) as lesson_list_info:
                 page.get_by_role(
                     "button",
-                    name=re.compile(re.escape(topic_name)),
+                    name=re.compile(rf"^{re.escape(topic_name)}\\s"),
                 ).click()
 
             lesson_list_response = lesson_list_info.value
@@ -154,7 +154,7 @@ def run_smoke_test() -> None:
             ) as refreshed_lessons_info:
                 page.get_by_role(
                     "button",
-                    name=re.compile(re.escape(topic_name)),
+                    name=re.compile(rf"^{re.escape(topic_name)}\\s"),
                 ).click()
 
             refreshed_lessons_response = refreshed_lessons_info.value
