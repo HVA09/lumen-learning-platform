@@ -189,7 +189,7 @@
 
 ## 8. نقطة الاستئناف
 
-- آخر تغيير برمجي على `main`: `2453b9124fc4eaa617aa5bb5493ebc0cf1400c9a` بعد PR #67؛ PR CI #41876997024 ناجح، وmain CI بعد PR #67 #41886648386 اكتمل بنجاح. PR #68 التوثيقي دُمج عند `11d6695913bc0b6587225c95489c4abffd7ff9a0`؛ CI PR #41887034381 نجح، وmain CI بعد PR #68 #41903896915 كان عالقًا في `in_progress` عند آخر تحقق دون سجل متاح.
+- آخر تغيير برمجي على `main`: `2453b9124fc4eaa617aa5bb5493ebc0cf1400c9a` بعد PR #67؛ CI بعد الدمج #41886648386 نجح بالكامل. PR #68 التوثيقي دُمج عند `11d6695913bc0b6587225c95489c4abffd7ff9a0`؛ PR CI #41887034381 وmain CI بعد الدمج #41903896915 نجحا بالكامل: Backend **423 passed, 20 warnings**، Ruff **0 diagnostics**، Frontend **80 passed عبر 16 ملفًا**، production build precache **8 entries / 378.63 KiB**، production dependency audit **0 vulnerabilities**، وGitleaks ناجح.
 
 1. P6.0 موثق، وP5.4 مكتملة ومدمجة.
 2. PR #49 أدخل Ruff؛ PR #52 و#53 أتما معالجة baseline، والنتيجة الحالية **0 diagnostic(s)**. تحقق ذلك في CI PR #53 #41757169187، ثم في main بعد PR #54 عبر CI #41759458975، وبعد PR #56 عبر CI #41763352189.
