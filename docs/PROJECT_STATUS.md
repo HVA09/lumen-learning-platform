@@ -8,7 +8,7 @@
 
 - المستودع: [HVA09/lumen-learning-platform](https://github.com/HVA09/lumen-learning-platform) — عام.
 - الفرع الأساسي: `main`.
-- آخر تغيير برمجي مدمج على `main`: PR #73 عند commit `2d8721efbd581952cb16c3b6d64904a6ef5f6256` (Squash Merge)، لتوسيع Browser E2E باختبار إكمال الدرس واستمرار التقدم بعد إعادة التحميل. CI على رأس PR [#41919944969](https://github.com/HVA09/lumen-learning-platform/actions/runs/41919944969) نجح بجميع الوظائف الأربع: Backend **423 passed, 20 warnings**، Frontend **80 passed عبر 16 ملفًا**، Browser E2E، وGitleaks full-history. CI بعد الدمج على `main` [#41920779594](https://github.com/HVA09/lumen-learning-platform/actions/runs/41920779594) جارٍ عند هذا التحديث؛ لا يُسجل كنجاح قبل اكتماله.
+- آخر تغيير برمجي مدمج على `main`: PR #73 عند commit `2d8721efbd581952cb16c3b6d64904a6ef5f6256` (Squash Merge)، لتوسيع Browser E2E باختبار إكمال الدرس واستمرار التقدم بعد إعادة التحميل. CI على رأس PR [#41919944969](https://github.com/HVA09/lumen-learning-platform/actions/runs/41919944969) نجح بجميع الوظائف الأربع: Backend **423 passed, 20 warnings**، Frontend **80 passed عبر 16 ملفًا**، Browser E2E، وGitleaks full-history. CI بعد الدمج على `main` [#41920779594](https://github.com/HVA09/lumen-learning-platform/actions/runs/41920779594) نجح بجميع الوظائف الأربع: Backend **423 passed, 20 warnings**، Frontend **80 passed عبر 16 ملفًا**، Browser E2E، وGitleaks full-history. Ruff **0 diagnostics**؛ production audit **0 vulnerabilities**؛ full dependency audit **2 Low و4 Moderate، وصفر High/Critical**.
 - PR #4 و#29–#46 و#48 و#49 و#51–#54 و#56–#59 و#62 و#64–#73 مدمجة، بما فيها PR #68 و#69 التوثيقيتان وPR #70/#73 لاختبارات Browser E2E. PR #55 مغلق دون دمج. PR #59/#62/#64 خفّضت التحميل الأولي، و#65 أضاف Vite preload recovery، و#67 خفّض precache إلى 8 entries/378.63 KiB.
 - PR #30 دُمج في 2026-11-03. بقي المسار القديم `app.services.quiz_logic` كواجهة توافق.
 - CI #526 نجح على رأس PR #30، وCI #532 على PR #31، وCI #534 على PR #32؛ جميع وظائف Backend وFrontend/build وFull Git history secret scan نجحت.
@@ -42,7 +42,7 @@
 ## آخر نقاط التحقق
 
 - [CI #41919944969](https://github.com/HVA09/lumen-learning-platform/actions/runs/41919944969): نجح على رأس PR #73 `1f929c6403a59cc4154999f42d4c9f784124b963` قبل الدمج. Backend **423 passed, 20 warnings**؛ Frontend **80 passed عبر 16 ملفًا**؛ Playwright أثبت إكمال الدرس واستعادة `completed=true` بعد reload؛ Ruff **0 diagnostics**؛ production audit **0 vulnerabilities**؛ full dependency audit **2 Low و4 Moderate**؛ Gitleaks full-history نجح.
-- [CI #41920779594](https://github.com/HVA09/lumen-learning-platform/actions/runs/41920779594): تشغيل ما بعد دمج PR #73 على `main` عند commit `2d8721efbd581952cb16c3b6d64904a6ef5f6256`؛ **جارٍ عند آخر تحديث لهذه الوثيقة**، ويجب تحديث حالته بعد اكتماله.
+- [CI #41920779594](https://github.com/HVA09/lumen-learning-platform/actions/runs/41920779594): تحقق ما بعد دمج PR #73 على `main` عند commit `2d8721efbd581952cb16c3b6d64904a6ef5f6256`؛ الوظائف الأربع نجحت. Backend **423 passed, 20 warnings**، Frontend **80 passed عبر 16 ملفًا**، Browser E2E أثبت إكمال الدرس واستمرار التقدم بعد reload، Ruff **0 diagnostics**، production audit **0 vulnerabilities**، full dependency audit **2 Low و4 Moderate**، وGitleaks full-history نجح.
 
 - [CI #525](https://github.com/HVA09/lumen-learning-platform/actions/runs/41648785991): نجح على خط الأساس `44308dfbc01e1c9a85a8cb5b77c3d18ecdebd78a` قبل PR #30؛ شمل 402 اختبار Backend، و51 اختبار Frontend، وبناء الإنتاج، وفحص Git history الكامل، وفحوصات Compose وmigrations وbackup/restore.
 - [CI #526](https://github.com/HVA09/lumen-learning-platform/actions/runs/41651497742): نجح على رأس PR #30 `7e87b7f5fb64be38d45402d47b9efd2196a66bc0`؛ جميع الوظائف الثلاث نجحت.
@@ -130,7 +130,7 @@
 
 ## الخطوة التالية
 
-1. PR #70 وPR #73 مدمجان في `main`. PR #73 أضاف اختبارًا فعليًا لحفظ إكمال الدرس واسترجاعه بعد reload؛ تحقق PR CI #41919944969 نجح، وفحص ما بعد الدمج #41920779594 يجب تأكيد نتيجته قبل تحديث حالة الوثيقة إلى مكتمل بعد الدمج.
+1. PR #70 وPR #73 مدمجان في `main`. تحقق PR CI #41919944969 وCI ما بعد الدمج على `main` #41920779594 نجحا بجميع الوظائف الأربع؛ اختبار المتصفح يغطي إكمال الدرس واسترجاع التقدم بعد reload.
 2. الخطوة التالية في P6.6 هي Browser E2E لتسليم Quiz والتحقق من النتيجة وسجل المحاولات؛ استخدم المنهج المزروع وبيانات مستخدم مؤقتة فقط.
 3. بعد Quiz، أضف تغطية أدوار teacher/admin، إدارة المحتوى، رفع الملفات، الإشعارات/WebSocket، مع التحقق من الصلاحيات وعدم تسريب بيانات بين المستخدمين.
 4. اختبر RTL/LTR وحالات الانقطاع والعودة على تدفقات المتعلم الأساسية؛ لا تدّعِ أن PWA تجعل API أو WebSocket تعمل دون اتصال.
