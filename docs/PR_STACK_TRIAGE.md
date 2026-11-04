@@ -9,7 +9,7 @@
 - لا نعدّ أي PR مدمجًا إلا بعد التحقق من حالة GitHub والـ merge commit.
 - [CI #41745646366](https://github.com/HVA09/lumen-learning-platform/actions/runs/41745646366) نجح بالكامل على `main` بعد PR #46.
 - [CI #41754238271](https://github.com/HVA09/lumen-learning-platform/actions/runs/41754238271) نجح بالكامل على `main` بعد PR #49.
-- CI [#41757735260](https://github.com/HVA09/lumen-learning-platform/actions/runs/41757735260) بدأ بعد PR #53؛ Frontend وGitleaks اكتملتا، وBackend كان يعمل وقت التحديث. PR CI #41757169187 نجح بالكامل.
+- CI [#41757735260](https://github.com/HVA09/lumen-learning-platform/actions/runs/41757735260) نجح بالكامل على `main` بعد PR #53؛ Backend 423 passed و20 warnings، وFrontend 73 passed عبر 14 ملفًا، وGitleaks وbuild وmigrations وbackup/restore وRuff 0 diagnostics كلها ناجحة.
 - [CI #41750390626](https://github.com/HVA09/lumen-learning-platform/actions/runs/41750390626) نجح على PR #49 قبل دمجه.
 - لا يوجد نشر إنتاجي مثبت.
 
