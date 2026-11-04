@@ -317,6 +317,19 @@
 - السبب: خفض نتائج Ruff من 62 diagnostic(s) إلى صفر دون حذف آثار جانبية أو اختبارات تحقق أو تغيير قواعد العمل.
 - النطاق: `lti_service.py`, `test_lti.py`, migration 0015 (إزالة binding محلي فقط)، script الحفاظ على بيانات الترحيل، واختبارات auth/content/content_lint/curriculum.
 - الضمانات: لا تغيير في API أو مخطط قاعدة البيانات أو عمليات migration أو dependencies أو إعدادات التشغيل؛ لم يُستخدم auto-fix شامل أو استثناءات واسعة.
-- التحقق: PR #53 CI #41757169187 نجح؛ Ruff **0 diagnostic(s)**، Backend **423 passed و20 warnings**، Frontend **73 passed عبر 14 ملفًا**، production build، Gitleaks، Compose، migrations، وPostgreSQL backup/restore وRestic smoke نجحت. كما نجح تشغيل main بعد الدمج في CI #41757735260.
+- التحقق: PR #53 CI #41757169187 نجح؛ Ruff **0 diagnostic(s)**، Backend **423 passed و20 warnings**، Frontend **73 passed عبر 14 ملفًا**، production build، Gitleaks، Compose، migrations، وPostgreSQL backup/restore وRestic smoke نجحت. كما نجح تشغيل main بعد الدمج في CI #41757735260، ثم نجح main بعد PR #54 في CI #41759458975 على `7f6953636241997156e478a5ec489159825a7d2f`.
 - أثر القرار: أصبح Ruff report-only baseline صفرًا، لكنه لم يتحول إلى required merge check. يجب إبقاء بوابات Backend/Frontend/Gitleaks الحالية.
 - التراجع: استعادة التعديلات على مستوى كل ملف ممكنة دون migration أو تحديث بيانات؛ لا تُرجع استعلام الخطة أو طلب تسجيل الدخول لأنهما جزء من تحقق الاختبارات.
+
+
+## ADR-027 — لا نعتمد ESLint قبل تثبيت الاعتماديات وتوليد lockfile قابل لإعادة الإنتاج
+
+- التاريخ: 2026-11-04
+- الحالة: **معتمد تشغيليًا — توصية هندسية؛ التنفيذ معلّق**
+- الجهة: توصية هندسية ضمن P6.1.
+- القرار: لا نضيف إعداد ESLint أو خطوة CI تعتمد على npx بإصدار عائم، ولا نحرر `frontend/package-lock.json` يدويًا. يجب اختيار إصدار ESLint والإضافات المتوافقة مع React/Vite، ثم تحديث `frontend/package.json` وتوليد lockfile باستخدام npm، والتحقق من نجاح `npm ci` قبل اعتماد الفحص.
+- السبب: الواجهة تعتمد تثبيتًا حتميًا عبر `npm ci` في CI. عدم تطابق manifest وlockfile يكسر التثبيت، والتنزيل المؤقت بإصدار غير مثبت لا يعطي baseline قابلاً لإعادة الإنتاج.
+- النطاق: لا توجد حاليًا حزم ESLint أو إعداد ESLint أو script lint في `frontend/package.json`؛ لذلك لا يوجد ESLint baseline بعد ولا يجوز إعلان عدد findings قبل تشغيل الأداة.
+- الأثر: يبقى ESLint report-only في أول مرحلة. تظل اختبارات Vitest وبناء Vite وتدقيق الاعتماديات وفحوص Backend وGitleaks الحالية إلزامية دون تغيير.
+- معيار التنفيذ: تثبيت الإصدارات، توليد lockfile باستخدام npm، نجاح `npm ci`، تشغيل lint على ملفات المصدر والاختبارات، حفظ التقرير وتصنيف النتائج قبل اتخاذ قرار بشأن أي required check.
+- التراجع: إزالة script وإعداد ESLint واعتمادياته من `package.json` وإعادة توليد lockfile باستخدام npm؛ لا تتطلب الخطوة تغيير API أو DB أو migrations.
