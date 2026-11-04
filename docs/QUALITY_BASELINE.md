@@ -5,7 +5,7 @@
 ## 1. المرجع وحدود هذا التقييم
 
 - المستودع: `HVA09/lumen-learning-platform`.
-- خط أساس `main` المحدث بعد دمج PR #49: `42986e93060c09e00ffcf917a784390f35adb40f`.
+- خط أساس `main` المحدث بعد دمج PR #53: `4f70cb904e7f92283af8e16a738caf283e5ae494`.
 - هذا الملف يوثق ما هو مفعّل فعليًا في المستودع وCI، ثم يقترح إدخال أدوات الجودة تدريجيًا.
 - هذا التقييم توثيقي فقط؛ لا يضيف اعتماديات أو يغيّر سلوك التطبيق أو شروط CI.
 
@@ -28,7 +28,11 @@
 - في CI #41737808038 نجح Vite production build، وتدقيق الاعتماديات الإنتاجية، وGitleaks، وCompose، وRestic CI smoke، والتحقق من migrations وPostgreSQL backup/restore.
 - PR #39 أصلح escaping لمتغيرات shell في خدمة `offsite_backup` وأضاف assertion يتحقق من command بعد Docker Compose rendering؛ CI #41738681026 نجح قبل دمجه إلى `main` في commit `b63574af78f20971563a0a8bc9df2f0a563515a7`.
 - PR #46 نقل الإشعارات إلى `features/notifications`؛ كل وظائف CI على رأس PR #46 نجحت في #41744744642، ثم نجحت جميع وظائف CI على `main` بعد الدمج في #41745646366.
-- PR #49 أضاف Ruff 0.17.3 في متطلبات التطوير وإعداد Python 3.12، وأدخل فحصًا report-only على `app`, `tests`, `scripts`, و`migrations`. CI #41750390626 على PR وCI #41754238271 على `main` نجحا.
+- PR #49 أضاف Ruff 0.17.3 كتقرير فقط؛ PR #52 جعل إعادة التصدير المقصودة صريحة، وPR #53 عالج الاستيرادات والتعيينات والمتغيرات المتبقية. CI #41757169187 على PR #53 نجح بالكامل: Backend **423 passed, 20 warnings**، وFrontend **73 passed عبر 14 ملفًا**، production build، Gitleaks، Compose، migrations وbackup/restore.
+- تقرير Ruff بعد المعالجة: **0 diagnostic(s)**. لا توجد حتى الآن بوابة lint تمنع الدمج.
+- تشغيل main بعد دمج PR #53: [CI #41757735260](https://github.com/HVA09/lumen-learning-platform/actions/runs/41757735260) نجح بالكامل على commit `4f70cb904e7f92283af8e16a738caf283e5ae494`؛ Backend 423 passed و20 warnings، Frontend 73 passed عبر 14 ملفًا، Gitleaks وmigrations وCompose وRestic وPostgreSQL backup/restore نجحت.
+- بناء الواجهة في CI #41757169187 أظهر `index-DoXdqRsw.js` بحجم 830.50 kB قبل gzip و258.09 kB بعد gzip، كما ظهر `AdminDashboard` بحجم 401.91 kB قبل gzip؛ ما زال تحذير Vite بشأن حجم chunk قائمًا ولا توجد ميزانية أداء معتمدة.
+- تدقيق الاعتماديات الإنتاجية في CI #41757169187: **0 vulnerabilities** عند المستوى الذي يفحصه الأمر الحالي.
 - نتيجة npm production audit في CI #570: **0 vulnerabilities** عند مستوى High/Critical المشمول بالأمر الحالي. أما التقرير الكامل لكل شجرة الاعتماديات فسجّل **10 تنبيهات غير عالية: 2 Low و8 Moderate**؛ أغلبها في سلسلة `vite-plugin-pwa` والاعتماديات التابعة لها. لا تُحدّث السلسلة عشوائيًا؛ افحص الشجرة والتوافق وPWA قبل أي ترقية.
 - يظهر تحذير حجم Chunk في بناء Vite، ولا يوجد حتى الآن حد أداء رقمي معتمد.
 
@@ -44,6 +48,7 @@
 - [CI #41745646366 — main بعد دمج PR #46](https://github.com/HVA09/lumen-learning-platform/actions/runs/41745646366)
 - [CI #41750390626 — PR #49 Ruff report-only](https://github.com/HVA09/lumen-learning-platform/actions/runs/41750390626)
 - [CI #41754238271 — main بعد دمج Ruff](https://github.com/HVA09/lumen-learning-platform/actions/runs/41754238271)
+- [CI #41757735260 — main بعد PR #53 وإغلاق Ruff baseline](https://github.com/HVA09/lumen-learning-platform/actions/runs/41757735260)
 
 مهم: تغييرات P5.1–P5.3 أصبحت جزءًا من `main` بعد دمج PR #41 ثم #43 ثم #44 بالترتيب. نجاح CI لا يثبت تشغيلًا إنتاجيًا أو اختبار متصفح حي.
 
@@ -93,23 +98,22 @@
 
 ### P6.1 — Lint تدريجي دون كسر المستودع
 
-**الحالة: قياس Ruff الأول مكتمل؛ معالجة الملاحظات لم تبدأ بعد.**
+**الحالة: مكتمل للخلفية؛ Ruff report-only baseline الحالي يساوي صفرًا.**
 
 - Ruff مثبت في `backend/requirements-dev.txt` بإصدار `0.17.3`، مع `target-version = py312` و`line-length = 100`.
-- مجموعة القواعد الحالية: `E4`, `E7`, `E9`, و`F`.
-- CI يشغّل Ruff على `app`, `tests`, `scripts`, و`migrations` بتنسيق JSON. الملاحظات (exit code 1) تُعرض ولا تفشل CI؛ أخطاء التشغيل/الإعداد (exit code أكبر من 1) تبقى فشلًا حقيقيًا.
-- أول تقرير موثق: **62 ملاحظة** — `F401`: 49، و`E741`: 10، و`F841`: 3.
-- توزيع `F401`: 13 في `services/question_analytics.py` و26 في `services/quiz_logic.py` و2 في `services/streak_logic.py`؛ هذه الملفات واجهات توافق وتحتاج توضيح إعادة التصدير بدل إسكات القاعدة. توجد أيضًا 5 imports في `services/achievements.py`، وواحد في `services/lti_service.py`، واثنان في `tests/test_lti.py` تحتاج تحققًا وإزالة ما ثبت عدم استخدامه.
-- `E741` العشرة محصورة في أسماء متغيرات قصيرة داخل `tests/test_content.py` و`tests/test_content_lint.py` و`tests/test_curriculum.py`؛ يمكن إعادة تسميتها بأسماء واضحة دون تغيير السلوك.
-- `F841` الثلاثة في downgrade migration 0015، واختبار الحفاظ على بيانات الترحيل، واختبار تعطيل المستخدم؛ يجب فحص مقصد كل تعيين قبل تعديله.
-- لا يستخدم CI `--fix` ولا يحوّل النتائج الحالية إلى شرط دمج؛ يظل Backend tests وFrontend tests/build وGitleaks إلزاميًا.
+- مجموعة القواعد: `E4`, `E7`, `E9`, و`F`. يفحص CI مجلدات `app`, `tests`, `scripts`, و`migrations`.
+- نتيجة baseline الأولى عبر PR #49: **62 ملاحظة** — `F401`: 49، و`E741`: 10، و`F841`: 3.
+- PR #52 جعل إعادة التصدير المقصودة في `achievements.py`, `question_analytics.py`, `quiz_logic.py`, و`streak_logic.py` صريحة باستخدام same-name aliases، مع إبقاء واجهات الاستيراد القديمة واختبارات هوية الرموز.
+- PR #53 أزال الاستيرادات غير المستخدمة المؤكدة في LTI، وأزال bindings غير مستخدمة دون إسقاط الآثار الجانبية أو تحقق البيانات، وأعاد تسمية متغيرات الدروس المبهمة في الاختبارات.
+- النتيجة بعد PR #53: **0 diagnostic(s)** في Ruff report-only.
+- تحقق PR #53: CI #41757169187 نجح بالكامل؛ Backend **423 passed, 20 warnings**، وFrontend **73 passed عبر 14 ملفًا**، وproduction build وتدقيق الإنتاج وGitleaks وCompose وmigrations وPostgreSQL backup/restore وRestic smoke ناجحة.
+- لا يستخدم CI `--fix` ولا يحوّل Ruff إلى شرط دمج؛ نجاح Ruff التشغيلي لا يلغي ضرورة إبقاء اختبارات Backend وFrontend والبناء وGitleaks إلزامية.
 
-**الخطوات التالية:**
-1. معالجة imports في واجهات التوافق عبر إعادة تصدير صريحة (`name as name`) والحفاظ على اختبارات تطابق هوية الرموز.
-2. فحص imports السبعة المحتملة غير المستخدمة، وعدم إزالة أي رمز عام قبل التحقق من عقود التوافق والاستعمال.
-3. إصلاح E741 وF841 على دفعات صغيرة مع الاختبارات المركزة ثم CI الكامل.
-4. بعد استقرار Python lint، دراسة ESLint منفصلًا مع تحديث `package.json` و`package-lock.json` باستخدام npm والتحقق عبر `npm ci`.
-5. لا تجعل lint بوابة required إلا بعد خفض baseline وتصنيف الاستثناءات بوضوح.
+**الخطوة التالية:**
+1. إدخال ESLint للواجهة في وضع report-only بعد مراجعة ملفات إعداد Vite الحالية.
+2. تحديث `frontend/package.json` و`frontend/package-lock.json` معًا باستخدام npm، ثم إثبات قابلية إعادة التثبيت عبر `npm ci`.
+3. قياس وتصنيف أي findings قبل فرض lint كشرط دمج.
+4. لا تضف إعدادات واسعة أو تعطّل قواعد لمجرد إخفاء النتائج.
 
 معيار القبول: لا auto-fix شامل، لا استثناءات واسعة، لا إخفاء للأخطاء، وتظل بوابات الاختبار والأمن الحالية إلزامية.
 
@@ -153,7 +157,7 @@
 ## 8. نقطة الاستئناف
 
 1. P6.0 موثق، وP5.4 مكتملة ومدمجة.
-2. PR #49 دمج Ruff baseline في `main` بالـ commit `42986e93060c09e00ffcf917a784390f35adb40f`؛ CI #41750390626 على PR و#41754238271 بعد الدمج نجحا.
-3. أول baseline سجّل 62 ملاحظة: 49 F401 و10 E741 و3 F841. تبدأ المعالجة من إعادة التصدير في واجهات التوافق، ثم إزالة الاستيرادات غير المستخدمة المؤكدة وتصحيح أسماء المتغيرات والتعيينات غير المستخدمة.
-4. ESLint مؤجل إلى دفعة لاحقة بسبب ضرورة تحديث `package.json` و`package-lock.json` معًا والتحقق عبر `npm ci`.
+2. PR #49 أدخل Ruff؛ PR #52 و#53 أتما معالجة baseline، والنتيجة الحالية **0 diagnostic(s)**. PR #53 CI #41757169187 نجح بجميع وظائفه.
+3. Ruff يبقى report-only؛ الخطوة التالية ESLint للواجهة، مع تحديث package.json وpackage-lock.json معًا وتشغيل npm ci قبل اعتماد أي إعداد.
+4. أحجام البناء الحالية مسجلة أعلاه؛ يجب قياس أثر أي code splitting لاحقًا قبل وضع ميزانية chunk.
 5. لا يوجد نشر إنتاجي مثبت. اختبار Restic الحالي يستخدم مستودعًا مؤقتًا في CI وليس وجهة تخزين خارجية حقيقية.
