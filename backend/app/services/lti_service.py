@@ -19,7 +19,6 @@ from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
 from jose import jwk, jwt
 
 from app.config import settings
