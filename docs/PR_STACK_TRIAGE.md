@@ -5,10 +5,11 @@
 
 ## 1. الحالة الحالية
 
-- HEAD الحالي لـ `main`: `42986e93060c09e00ffcf917a784390f35adb40f` بعد دمج PR #49.
+- HEAD الحالي لـ `main`: `4f70cb904e7f92283af8e16a738caf283e5ae494` بعد دمج PR #53.
 - لا نعدّ أي PR مدمجًا إلا بعد التحقق من حالة GitHub والـ merge commit.
 - [CI #41745646366](https://github.com/HVA09/lumen-learning-platform/actions/runs/41745646366) نجح بالكامل على `main` بعد PR #46.
-- [CI #41754238271](https://github.com/HVA09/lumen-learning-platform/actions/runs/41754238271) نجح بالكامل على `main` بعد PR #49؛ Backend وFrontend/build وGitleaks كلها ناجحة.
+- [CI #41754238271](https://github.com/HVA09/lumen-learning-platform/actions/runs/41754238271) نجح بالكامل على `main` بعد PR #49.
+- CI [#41757735260](https://github.com/HVA09/lumen-learning-platform/actions/runs/41757735260) بدأ بعد PR #53؛ Frontend وGitleaks اكتملتا، وBackend كان يعمل وقت التحديث. PR CI #41757169187 نجح بالكامل.
 - [CI #41750390626](https://github.com/HVA09/lumen-learning-platform/actions/runs/41750390626) نجح على PR #49 قبل دمجه.
 - لا يوجد نشر إنتاجي مثبت.
 
@@ -25,8 +26,11 @@
 | #46 | نقل الإشعارات إلى `features/notifications` | `ee149a40b144883b0fea34232ae730574d5e5ed7` | مدمج |
 | #48 | تحديث نقطة الاستئناف بعد P5.4 | `462dcc3c0386afc42ead51225ccf7c3d28ca21f9` | مدمج |
 | #49 | إضافة Ruff report-only baseline | `42986e93060c09e00ffcf917a784390f35adb40f` | مدمج؛ CI #41750390626 و#41754238271 ناجحان |
+| #51 | تحديث الحالة والخطة وسجل الجودة بعد Ruff | `f8c3e9653028cc169c95c8dedcc23c364a315e4f` | مدمج؛ PR CI #41755785196 وmain CI #41756353787 ناجحان |
+| #52 | جعل إعادة التصدير في واجهات التوافق صريحة | `9b04b4e2154192a0214fe1b5024ae3cdf3dac792` | مدمج؛ PR CI #41756512842 وmain CI #41756990109 ناجحان |
+| #53 | معالجة ملاحظات Ruff المتبقية والوصول إلى صفر findings | `4f70cb904e7f92283af8e16a738caf283e5ae494` | مدمج؛ PR CI #41757169187 ناجح: Backend 423 passed وFrontend 73 passed، وRuff 0 diagnostics |
 
-P5.1–P5.4 دخلت `main`: WebSocket (#41)، Session (#43)، notification state (#44)، ثم نقل notifications (#46). PR #39 أصلح Compose، و#42 و#45 وثّقا الخطة والجودة، و#48 حدّث السجلات، و#49 أدخل Ruff report-only.
+P5.1–P5.4 دخلت `main`: WebSocket (#41)، Session (#43)، notification state (#44)، ثم نقل notifications (#46). PR #39 أصلح Compose، و#42 و#45 و#48 وثّقت مراحل الواجهة والجودة، و#49 أدخل Ruff، و#51 حدّث السجلات، و#52 صرّح بإعادة التصدير المتوافقة، و#53 خفّض Ruff baseline إلى صفر.
 
 ## 3. طلبات التوثيق والهيكلة المدمجة
 
@@ -37,8 +41,11 @@ P5.1–P5.4 دخلت `main`: WebSocket (#41)، Session (#43)، notification stat
 | #46 | P5.4 نقل Notifications إلى `features/notifications` | `ee149a40b144883b0fea34232ae730574d5e5ed7` | مدمج؛ PR CI #41744744642 وmain CI #41745646366 ناجحان |
 | #48 | تحديث نقطة الاستئناف بعد PR #46 | `462dcc3c0386afc42ead51225ccf7c3d28ca21f9` | مدمج؛ main CI #41750270590 ناجح |
 | #49 | تثبيت Ruff report-only baseline | `42986e93060c09e00ffcf917a784390f35adb40f` | مدمج؛ PR CI #41750390626 وmain CI #41754238271 ناجحان |
+| #51 | تحديث سجلات المشروع بعد baseline | `f8c3e9653028cc169c95c8dedcc23c364a315e4f` | مدمج؛ PR/main CI ناجحان |
+| #52 | explicit re-exports لواجهات التوافق | `9b04b4e2154192a0214fe1b5024ae3cdf3dac792` | مدمج؛ PR/main CI ناجحان |
+| #53 | Ruff cleanup حتى 0 diagnostics | `4f70cb904e7f92283af8e16a738caf283e5ae494` | مدمج؛ PR CI #41757169187 ناجح بالكامل |
 
-أُغلق PR #50 دون دمج؛ كان يحتوي تغيير Ruff نفسه بعد أن وصل التغيير إلى `main` عبر PR #49، ولذلك لم يُكرر إدخاله. لا يوجد طلب P6.1 مفتوح آخر في لحظة تحديث هذا السجل؛ العمل التالي هو معالجة baseline على دفعات. سلسلة LTI #16–#23 ما زالت منفصلة ومتراكبة على فروع قديمة.
+أُغلق PR #50 دون دمج؛ كان يكرر تغيير Ruff الذي وصل إلى `main` عبر PR #49. أُغلقت دفعتا P6.1 عبر PR #52 و#53 وأصبح Ruff baseline صفرًا. الخطوة التالية ESLint كتقرير فقط مع تحديث lockfile عبر npm. سلسلة LTI #16–#23 ما زالت منفصلة ومتراكبة على فروع قديمة.
 
 ## 4. سلسلة LTI/AGS — PR #16 إلى #23
 
