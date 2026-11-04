@@ -9,7 +9,7 @@
 - المستودع: [HVA09/lumen-learning-platform](https://github.com/HVA09/lumen-learning-platform) — عام.
 - الفرع الأساسي: `main`.
 - آخر commit على `main`: `de1197927ab5321b739206ce09770499ccb55ebe` (دمج PR #69 التوثيقي). آخر commit برمجي على `main` ما زال `2453b9124fc4eaa617aa5bb5493ebc0cf1400c9a` بعد PR #67. CI بعد دمج PR #69 على `main` [#41907780368](https://github.com/HVA09/lumen-learning-platform/actions/runs/41907780368) نجح بالكامل. كما نجح CI الخاص بفرع PR #70 على commit `7b7e8c76b40c6da6cc1cacb94c676682a3a67462` في [#41909053692](https://github.com/HVA09/lumen-learning-platform/actions/runs/41909053692): Backend **423 passed, 20 warnings**، Frontend **80 passed عبر 16 ملفًا**، Ruff **0 diagnostics**، production build وnpm production audit وGitleaks full-history ناجحة، وفحص Browser E2E نجح. PR #70 مفتوح ولم يُدمج بعد.
-- PR #4 و#29–#46 و#48 و#49 و#51–#54 و#56–#59 و#62 و#64–#67 مدمجة. PR #59/#62/#64 خفّضت التحميل الأولي، و#65 أضاف Vite preload recovery، و#66 حدّثت السجلات، و#67 خفّضت precache إلى 8 entries/378.63 KiB.
+- PR #4 و#29–#46 و#48 و#49 و#51–#54 و#56–#59 و#62 و#64–#69 مدمجة، بما فيها PR #68 و#69 التوثيقيتان. PR #70 مفتوح وغير مدمج ويضيف أول Browser E2E smoke. PR #59/#62/#64 خفّضت التحميل الأولي، و#65 أضاف Vite preload recovery، و#66 حدّثت السجلات، و#67 خفّضت precache إلى 8 entries/378.63 KiB.
 - PR #30 دُمج في 2026-11-03. بقي المسار القديم `app.services.quiz_logic` كواجهة توافق.
 - CI #526 نجح على رأس PR #30، وCI #532 على PR #31، وCI #534 على PR #32؛ جميع وظائف Backend وFrontend/build وFull Git history secret scan نجحت.
 - CI #537 نجح على main قبل PR #34: Backend **404 passed** وFrontend **51 passed**.
