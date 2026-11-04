@@ -2,13 +2,15 @@ import { lazy, Suspense, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import AppHeader from "./components/AppHeader";
 import LearningPath from "./components/LearningPath";
-import TopicPanel from "./components/TopicPanel";
 import AuthForm from "./components/AuthForm";
 import Toast from "./components/Toast";
 import useDirection from "./hooks/useDirection";
 import { useNotifications, useNotificationsSocket } from "./features/notifications";
 import useSession from "./hooks/useSession";
 
+
+// لوحة الدرس والاختبار والمعادلات لا تُحمّل إلا بعد اختيار موضوع.
+const TopicPanel = lazy(() => import("./components/TopicPanel"));
 
 // مُحمَّلة عند الحاجة فقط (lazy) — كل وحدة تصير ملف منفصل (code splitting)،
 // يقلّل حجم الحزمة الأولى اللي يحمّلها أي زائر
@@ -217,16 +219,18 @@ export default function App() {
       <Toast message={toast?.message} type={toast?.type} onDismiss={() => setToast(null)} />
 
       {activeTopicId && (
-        <TopicPanel
-          topicId={activeTopicId}
-          onClose={closeTopicPanel}
-          isTeacher={isTeacher}
-          onManageContent={(topicId) => {
-            closeTopicPanel();
-            setContentManagerTopicId(topicId);
-          }}
-          onAchievements={handleNewAchievements}
-        />
+        <Suspense fallback={<ModalLoadingFallback />}>
+          <TopicPanel
+            topicId={activeTopicId}
+            onClose={closeTopicPanel}
+            isTeacher={isTeacher}
+            onManageContent={(topicId) => {
+              closeTopicPanel();
+              setContentManagerTopicId(topicId);
+            }}
+            onAchievements={handleNewAchievements}
+          />
+        </Suspense>
       )}
 
       {showAccountSettings && (
