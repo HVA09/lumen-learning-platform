@@ -89,7 +89,7 @@ def run_smoke_test() -> None:
             assert lesson_list_response.status == 200, (
                 f"Lesson list returned HTTP {lesson_list_response.status}"
             )
-            topic_match = re.search(r"/curriculum/topics/(\\d+)/lessons$", lesson_list_response.url)
+            topic_match = re.search(r"/curriculum/topics/(\d+)/lessons$", lesson_list_response.url)
             assert topic_match, f"Could not determine topic id from {lesson_list_response.url}"
             topic_id = int(topic_match.group(1))
             lessons = lesson_list_response.json()
@@ -256,7 +256,7 @@ def run_smoke_test() -> None:
             ) as quiz_history_info:
                 page.get_by_role(
                     "button",
-                    name=re.compile(rf"^{re.escape(topic_name)}\\s"),
+                    name=re.compile(rf"^{re.escape(topic_name)}\s"),
                 ).click()
 
             quiz_history_response = quiz_history_info.value
@@ -299,7 +299,7 @@ def run_smoke_test() -> None:
             assert not page_errors, f"Unexpected browser errors: {page_errors}"
 
             print(
-                "Browser E2E passed: registration, HttpOnly session, lesson progress, quiz submission/history, "
+                "Browser E2E passed: registration, HttpOnly session, lesson progress, quiz submission, "
                 "persisted lesson progress, server-graded quiz result, persisted quiz history, and logout."
             )
         except Exception:
