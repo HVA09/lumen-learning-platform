@@ -334,3 +334,16 @@
 - معيار التنفيذ: تثبيت ESLint وReact Hooks plugin والإعدادات المتوافقة بإصدارات محددة، توليد lockfile باستخدام npm، نجاح `npm ci`، تشغيل lint على ملفات المصدر والاختبارات، التحقق من قواعد React Hooks، حفظ التقرير وتصنيف النتائج قبل اتخاذ قرار بشأن أي required check.
 - قيد التنفيذ: Node.js وnpm متاحان في بيئة الأدوات، لكن طلب DNS إلى `registry.npmjs.org` فشل، ولا توجد حزم ESLint أو React Hooks في npm cache. لذلك لم تُنفذ عملية install ولم تُغيّر ملفات manifest/lockfile. لا تعتمد أي baseline حتى تنجح عملية تثبيت حتمية.
 - التراجع: إزالة script وإعداد ESLint واعتمادياته من `package.json` وإعادة توليد lockfile باستخدام npm؛ لا تتطلب الخطوة تغيير API أو DB أو migrations.
+
+
+## ADR-028 — تحميل لوحة الدرس عند الطلب لتقليل JavaScript الأولي
+
+- التاريخ: 2026-11-04
+- الحالة: **منفذ ومُدمج — PR #59**
+- الجهة: توصية هندسية ضمن P6.5 لتحسين code splitting مع الحفاظ على السلوك.
+- القرار: استبدال الاستيراد الساكن لـ `TopicPanel` في `frontend/src/App.jsx` بتحميل `React.lazy(() => import(...))`، وعرض `ModalLoadingFallback` عبر `Suspense` أثناء تنزيل اللوحة. لا تُحمّل لوحة الدرس والاختبار والمختبر وMarkdown إلا بعد اختيار موضوع.
+- السبب: كانت `TopicPanel` لا تظهر إلا بعد اختيار موضوع، لكن استيرادها الساكن يضم تبعيات الدروس والاختبارات والرياضيات في الحزمة الأولية.
+- القياس قبل التغيير في main CI #41767787126: entry **830.50 kB** / **258.06 kB gzip**. القياس بعد التغيير في PR CI #41850891816: entry **362.86 kB** / **116.80 kB gzip**؛ انخفاض **56.3%** قبل الضغط و**54.7%** بعد gzip. ظهرت chunks مستقلة: `TopicPanel` **23.28 kB** / **6.90 gzip**، و`MathText` **442.53 kB** / **133.49 gzip**، و`AdminDashboard` **401.91 kB** / **110.80 gzip**. لم يظهر تحذير Vite >500 kB في build الجديد.
+- الضمانات: لم تتغير API أو DB أو migrations أو dependencies أو lockfile؛ استخدم التغيير `Suspense` fallback موجودًا. PR CI #41850891816 نجح: Backend **423 passed, 20 warnings**، Ruff **0 diagnostics**، Frontend **73 passed عبر 14 ملفًا**، build وGitleaks وفحوص PostgreSQL/backup/restore نجحت.
+- القيد: نتائج build تقيس حجم الملفات فقط؛ لا تثبت زمن تحميل ميداني أو Core Web Vitals. أول فتح لمحتوى الدرس ما زال يتطلب تنزيل `TopicPanel` و`MathText`، ويجب قياس التجربة على اتصالات أبطأ قبل ميزانية أداء نهائية.
+- التراجع: إعادة الاستيراد الساكن لـ `TopicPanel` في `App.jsx` وإزالة `Suspense` المحيط بها؛ لا migration ولا تعديل بيانات.
