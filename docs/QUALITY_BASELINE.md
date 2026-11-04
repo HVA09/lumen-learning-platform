@@ -5,7 +5,7 @@
 ## 1. المرجع وحدود هذا التقييم
 
 - المستودع: `HVA09/lumen-learning-platform`.
-- آخر تغيير برمجي مدمج على `main`: PR #73 عند commit `2d8721efbd581952cb16c3b6d64904a6ef5f6256`. CI على رأس PR #73 [#41919944969](https://github.com/HVA09/lumen-learning-platform/actions/runs/41919944969) نجح بجميع الوظائف الأربع: Backend **423 passed, 20 warnings**، Frontend **80 passed عبر 16 ملفًا**، Browser E2E لإكمال الدرس واسترجاع تقدمه بعد reload، وGitleaks full-history. CI بعد الدمج على `main` [#41920779594](https://github.com/HVA09/lumen-learning-platform/actions/runs/41920779594) جارٍ عند هذا التحديث؛ لا يُسجل كنجاح بعد.
+- آخر تغيير برمجي مدمج على `main`: PR #73 عند commit `2d8721efbd581952cb16c3b6d64904a6ef5f6256`. CI على رأس PR #73 [#41919944969](https://github.com/HVA09/lumen-learning-platform/actions/runs/41919944969) نجح بجميع الوظائف الأربع: Backend **423 passed, 20 warnings**، Frontend **80 passed عبر 16 ملفًا**، Browser E2E لإكمال الدرس واسترجاع تقدمه بعد reload، وGitleaks full-history. CI بعد الدمج على `main` [#41920779594](https://github.com/HVA09/lumen-learning-platform/actions/runs/41920779594) نجح: Backend **423 passed, 20 warnings**، Frontend **80 passed عبر 16 ملفًا**، Browser E2E، Gitleaks full-history، Ruff **0 diagnostics**، production audit **0 vulnerabilities**، وfull dependency audit **2 Low و4 Moderate**.
 - هذا الملف يوثق ما هو مفعّل فعليًا في المستودع وCI، ثم يقترح إدخال أدوات الجودة تدريجيًا.
 - هذا التقييم توثيقي فقط؛ لا يضيف اعتماديات أو يغيّر سلوك التطبيق أو شروط CI.
 
@@ -24,7 +24,7 @@
 
 - PR #70 (CI ما بعد الدمج #41914599965) أثبت التسجيل والجلسة الآمنة واستعادتها والخروج.
 - PR #73 (CI #41919944969 على رأس `1f929c6403a59cc4154999f42d4c9f784124b963`) وسّع السيناريو إلى إكمال درس والتحقق من حفظ التقدم في الخادم واستعادته بعد reload. الوظائف الأربع نجحت: Backend **423 passed, 20 warnings**؛ Ruff **0 diagnostic(s)**؛ Frontend **80 passed عبر 16 ملفًا**؛ Browser E2E passed؛ production audit **0 vulnerabilities**؛ full dependency audit **2 Low و4 Moderate، وصفر High/Critical**؛ Gitleaks full-history نجح.
-- CI ما بعد دمج PR #73 على `main` هو [#41920779594](https://github.com/HVA09/lumen-learning-platform/actions/runs/41920779594) وما زال جارياً عند إعداد هذا التحديث؛ لا يُستخدم كدليل نجاح حتى ينتهي.
+- CI ما بعد دمج PR #73 على `main` هو [#41920779594](https://github.com/HVA09/lumen-learning-platform/actions/runs/41920779594) ونجح بجميع الوظائف الأربع على commit `2d8721efbd581952cb16c3b6d64904a6ef5f6256`. Backend **423 passed, 20 warnings**؛ Frontend **80 passed عبر 16 ملفًا**؛ Browser E2E أثبت إكمال الدرس واستمرار التقدم بعد reload؛ Ruff **0 diagnostics**؛ production audit **0 vulnerabilities**؛ full dependency audit **2 Low و4 Moderate**؛ Gitleaks full-history نجح.
 
 نتيجة خط الأساس المدمج:
 
