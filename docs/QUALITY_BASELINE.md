@@ -5,7 +5,7 @@
 ## 1. المرجع وحدود هذا التقييم
 
 - المستودع: `HVA09/lumen-learning-platform`.
-- خط أساس `main` المحدث بعد دمج PR #53: `4f70cb904e7f92283af8e16a738caf283e5ae494`.
+- خط أساس `main` المحدث بعد دمج PR #54: `7f6953636241997156e478a5ec489159825a7d2f`.
 - هذا الملف يوثق ما هو مفعّل فعليًا في المستودع وCI، ثم يقترح إدخال أدوات الجودة تدريجيًا.
 - هذا التقييم توثيقي فقط؛ لا يضيف اعتماديات أو يغيّر سلوك التطبيق أو شروط CI.
 
@@ -31,7 +31,8 @@
 - PR #49 أضاف Ruff 0.17.3 كتقرير فقط؛ PR #52 جعل إعادة التصدير المقصودة صريحة، وPR #53 عالج الاستيرادات والتعيينات والمتغيرات المتبقية. CI #41757169187 على PR #53 نجح بالكامل: Backend **423 passed, 20 warnings**، وFrontend **73 passed عبر 14 ملفًا**، production build، Gitleaks، Compose، migrations وbackup/restore.
 - تقرير Ruff بعد المعالجة: **0 diagnostic(s)**. لا توجد حتى الآن بوابة lint تمنع الدمج.
 - تشغيل main بعد دمج PR #53: [CI #41757735260](https://github.com/HVA09/lumen-learning-platform/actions/runs/41757735260) نجح بالكامل على commit `4f70cb904e7f92283af8e16a738caf283e5ae494`؛ Backend 423 passed و20 warnings، Frontend 73 passed عبر 14 ملفًا، Gitleaks وmigrations وCompose وRestic وPostgreSQL backup/restore نجحت.
-- بناء الواجهة في CI #41757169187 أظهر `index-DoXdqRsw.js` بحجم 830.50 kB قبل gzip و258.09 kB بعد gzip، كما ظهر `AdminDashboard` بحجم 401.91 kB قبل gzip؛ ما زال تحذير Vite بشأن حجم chunk قائمًا ولا توجد ميزانية أداء معتمدة.
+- PR #54 تحديث توثيقي فقط لخمس وثائق. تشغيل main بعد دمجه: [CI #41759458975](https://github.com/HVA09/lumen-learning-platform/actions/runs/41759458975) نجح بالكامل على `7f6953636241997156e478a5ec489159825a7d2f`؛ Backend **423 passed, 20 warnings**، Ruff **0 diagnostics**، Frontend tests وproduction build وGitleaks وmigrations وCompose وRestic وPostgreSQL backup/restore نجحت. npm production audit وجد **0 vulnerabilities** ضمن مستوى `--audit-level=high` مع `--omit=dev`.
+- بناء الواجهة في CI #41757169187، وتكرر القياس في main CI #41759458975، أظهر `index-DoXdqRsw.js` بحجم 830.50 kB قبل gzip و258.09 kB بعد gzip، كما ظهر `AdminDashboard` بحجم 401.91 kB قبل gzip و110.80 kB بعد gzip؛ ما زال تحذير Vite بشأن حجم chunk قائمًا ولا توجد ميزانية أداء معتمدة.
 - تدقيق الاعتماديات الإنتاجية في CI #41757169187: **0 vulnerabilities** عند المستوى الذي يفحصه الأمر الحالي.
 - نتيجة npm production audit في CI #570: **0 vulnerabilities** عند مستوى High/Critical المشمول بالأمر الحالي. أما التقرير الكامل لكل شجرة الاعتماديات فسجّل **10 تنبيهات غير عالية: 2 Low و8 Moderate**؛ أغلبها في سلسلة `vite-plugin-pwa` والاعتماديات التابعة لها. لا تُحدّث السلسلة عشوائيًا؛ افحص الشجرة والتوافق وPWA قبل أي ترقية.
 - يظهر تحذير حجم Chunk في بناء Vite، ولا يوجد حتى الآن حد أداء رقمي معتمد.
@@ -63,7 +64,7 @@
 
 الاختبارات تستخدم Vitest وReact Testing Library وjsdom وفق إعداد `frontend/vite.config.js`.
 
-لا يظهر حاليًا script مستقل لـ ESLint أو TypeScript typecheck أو browser end-to-end test في `package.json` أو CI. لا توجد حاليًا خطوة Playwright/Cypress في workflow المعتمد.
+لا يظهر حاليًا script مستقل لـ ESLint أو TypeScript typecheck أو browser end-to-end test في `package.json` أو CI. لا توجد حاليًا خطوة Playwright/Cypress في workflow المعتمد. كما لا تظهر حزم ESLint أو إضافاته في `frontend/package.json` الحالي؛ لذلك لم يتم قياس baseline للواجهة بعد.
 
 ## 4. الأدوات والقدرات الموجودة في الخلفية
 
@@ -82,7 +83,7 @@
 |---|---|---|
 | Lint للواجهة | غير مفعّل في scripts/CI | لا يوجد ESLint baseline أو قواعد مشتركة |
 | Type checking | لا يوجد TypeScript أو typecheck job | لا يوجد فحص أنواع آلي للواجهة |
-| Lint للخلفية | Ruff 0.17.3 report-only | 62 ملاحظة مرصودة؛ لا توجد بوابة منع بعد، ويجب تصنيف compatibility re-exports قبل معالجة F401 |
+| Lint للخلفية | Ruff 0.17.3 report-only | 0 diagnostics بعد PR #52 و#53؛ لا توجد بوابة منع، ولا حاجة لإعادة تصنيف F401 في baseline الحالي |
 | تغطية الاختبارات | مجموعات اختبارات ناجحة | لا يوجد coverage baseline أو تقرير اتجاهات |
 | Browser E2E | Vitest/jsdom | لا يوجد اختبار متصفح حقيقي لتدفقات الدخول والتعلم والإشعارات |
 | الأداء | Vite build مع تحذير chunk | لا توجد ميزانية حجم/زمن مبنية على خط قياس |
@@ -105,15 +106,16 @@
 - نتيجة baseline الأولى عبر PR #49: **62 ملاحظة** — `F401`: 49، و`E741`: 10، و`F841`: 3.
 - PR #52 جعل إعادة التصدير المقصودة في `achievements.py`, `question_analytics.py`, `quiz_logic.py`, و`streak_logic.py` صريحة باستخدام same-name aliases، مع إبقاء واجهات الاستيراد القديمة واختبارات هوية الرموز.
 - PR #53 أزال الاستيرادات غير المستخدمة المؤكدة في LTI، وأزال bindings غير مستخدمة دون إسقاط الآثار الجانبية أو تحقق البيانات، وأعاد تسمية متغيرات الدروس المبهمة في الاختبارات.
-- النتيجة بعد PR #53: **0 diagnostic(s)** في Ruff report-only.
+- النتيجة بعد PR #53، وتأكدت مرة أخرى على `main` بعد PR #54: **0 diagnostic(s)** في Ruff report-only.
 - تحقق PR #53: CI #41757169187 نجح بالكامل؛ Backend **423 passed, 20 warnings**، وFrontend **73 passed عبر 14 ملفًا**، وproduction build وتدقيق الإنتاج وGitleaks وCompose وmigrations وPostgreSQL backup/restore وRestic smoke ناجحة.
 - لا يستخدم CI `--fix` ولا يحوّل Ruff إلى شرط دمج؛ نجاح Ruff التشغيلي لا يلغي ضرورة إبقاء اختبارات Backend وFrontend والبناء وGitleaks إلزامية.
 
-**الخطوة التالية:**
-1. إدخال ESLint للواجهة في وضع report-only بعد مراجعة ملفات إعداد Vite الحالية.
-2. تحديث `frontend/package.json` و`frontend/package-lock.json` معًا باستخدام npm، ثم إثبات قابلية إعادة التثبيت عبر `npm ci`.
-3. قياس وتصنيف أي findings قبل فرض lint كشرط دمج.
-4. لا تضف إعدادات واسعة أو تعطّل قواعد لمجرد إخفاء النتائج.
+**الخطوة التالية — ESLint للواجهة، لم يبدأ التنفيذ بعد:**
+1. مراجعة ملفات JSX/JS و`vite.config.js` واختيار إعداد ESLint متوافق مع React 19 وبيئة Vite وVitest.
+2. إضافة الإصدارات المحددة إلى `frontend/package.json` وتوليد `frontend/package-lock.json` بواسطة npm نفسه؛ لا تعدّل lockfile يدويًا ولا تعتمد `npx` بإصدار عائم.
+3. إثبات قابلية إعادة التثبيت عبر `npm ci`، ثم تشغيل lint على المصدر والاختبارات وجمع النتائج كـ report-only.
+4. تصنيف findings وإصلاح دفعات صغيرة مع بقاء الاختبارات والبناء وGitleaks شروطًا إلزامية؛ لا تجعل ESLint required check قبل baseline مستقر.
+5. في هذه المرحلة لا يوجد ESLint executable/config/script، ولذلك لا ندّعي وجود عدد findings أو نتيجة scan.
 
 معيار القبول: لا auto-fix شامل، لا استثناءات واسعة، لا إخفاء للأخطاء، وتظل بوابات الاختبار والأمن الحالية إلزامية.
 
@@ -157,7 +159,7 @@
 ## 8. نقطة الاستئناف
 
 1. P6.0 موثق، وP5.4 مكتملة ومدمجة.
-2. PR #49 أدخل Ruff؛ PR #52 و#53 أتما معالجة baseline، والنتيجة الحالية **0 diagnostic(s)**. PR #53 CI #41757169187 نجح بجميع وظائفه.
-3. Ruff يبقى report-only؛ الخطوة التالية ESLint للواجهة، مع تحديث package.json وpackage-lock.json معًا وتشغيل npm ci قبل اعتماد أي إعداد.
+2. PR #49 أدخل Ruff؛ PR #52 و#53 أتما معالجة baseline، والنتيجة الحالية **0 diagnostic(s)**. تحقق ذلك في CI PR #53 #41757169187، ثم في main بعد PR #54 عبر CI #41759458975.
+3. Ruff يبقى report-only. ESLint لم يُثبت ولم يُشغّل؛ لا تبدأ إعداد CI له قبل توليد lockfile عبر npm ونجاح `npm ci`.
 4. أحجام البناء الحالية مسجلة أعلاه؛ يجب قياس أثر أي code splitting لاحقًا قبل وضع ميزانية chunk.
 5. لا يوجد نشر إنتاجي مثبت. اختبار Restic الحالي يستخدم مستودعًا مؤقتًا في CI وليس وجهة تخزين خارجية حقيقية.
