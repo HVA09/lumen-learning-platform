@@ -119,9 +119,9 @@ def test_topic_lessons_are_seeded_in_order_and_start_incomplete(client):
     assert response.status_code == 200
     lessons = response.json()
     assert len(lessons) == 2
-    assert [l["order_index"] for l in lessons] == sorted(l["order_index"] for l in lessons)
-    assert all(l["completed"] is False for l in lessons)
-    assert all(len(l["body_md"]) > 100 for l in lessons)
+    assert [lesson["order_index"] for lesson in lessons] == sorted(lesson["order_index"] for lesson in lessons)
+    assert all(lesson["completed"] is False for lesson in lessons)
+    assert all(len(lesson["body_md"]) > 100 for lesson in lessons)
 
 
 def test_lessons_for_unknown_topic_404(client):
@@ -145,7 +145,7 @@ def test_complete_lesson_is_idempotent_and_updates_progress(client):
     assert again.json()["new_achievements"] == []  # ما يتكرر فتح الإنجاز
 
     refreshed = client.get(f"/curriculum/topics/{topic_id}/lessons", headers=headers).json()
-    assert [l["completed"] for l in refreshed] == [True, False]
+    assert [lesson["completed"] for lesson in refreshed] == [True, False]
 
     _, topics = _path_topics(client, token)
     assert topics["linear-equations"]["lessons_completed"] == 1

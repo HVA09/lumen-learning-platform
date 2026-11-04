@@ -96,7 +96,7 @@ def test_refresh_fails_for_deactivated_user(client, db_session):
     client.post(
         "/auth/register", json={"email": "inactive@example.com", "password": "StrongPass123"}
     )
-    login_response = client.post(
+    client.post(
         "/auth/login", json={"email": "inactive@example.com", "password": "StrongPass123"}
     )
 

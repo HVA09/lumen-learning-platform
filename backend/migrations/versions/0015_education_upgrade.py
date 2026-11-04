@@ -203,8 +203,6 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    bind = op.get_bind()
-
     op.drop_table("study_days")
     op.drop_table("topic_cards")
     op.drop_table("quiz_attempts")

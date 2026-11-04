@@ -152,12 +152,12 @@ def test_teacher_lesson_lifecycle_and_unpublished_lessons_are_hidden_from_studen
 
     # مخفي عن الطالب طالما غير منشور
     student_view = client.get(f"/curriculum/topics/{topic_id}/lessons", headers=auth(student_token)).json()
-    assert all(l["id"] != lesson["id"] for l in student_view)
+    assert all(visible_lesson["id"] != lesson["id"] for visible_lesson in student_view)
     assert client.post(f"/curriculum/lessons/{lesson['id']}/complete", headers=auth(student_token)).status_code == 404
 
     # المعلّم يشوفه ويعدّله وينشره
     teacher_view = client.get(url, headers=auth(teacher_token)).json()
-    assert any(l["id"] == lesson["id"] for l in teacher_view)
+    assert any(visible_lesson["id"] == lesson["id"] for visible_lesson in teacher_view)
     updated = client.put(
         f"/content/lessons/{lesson['id']}",
         json={"title_ar": "درس منشور", "body_md": "نص", "estimated_minutes": 4, "order_index": 5, "is_published": True},
@@ -165,7 +165,7 @@ def test_teacher_lesson_lifecycle_and_unpublished_lessons_are_hidden_from_studen
     )
     assert updated.status_code == 200
     student_view = client.get(f"/curriculum/topics/{topic_id}/lessons", headers=auth(student_token)).json()
-    assert any(l["id"] == lesson["id"] and l["title_ar"] == "درس منشور" for l in student_view)
+    assert any(visible_lesson["id"] == lesson["id"] and visible_lesson["title_ar"] == "درس منشور" for visible_lesson in student_view)
 
     assert client.delete(f"/content/lessons/{lesson['id']}", headers=auth(teacher_token)).status_code == 204
     assert client.delete(f"/content/lessons/{lesson['id']}", headers=auth(teacher_token)).status_code == 404
