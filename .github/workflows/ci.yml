@@ -60,6 +60,105 @@ jobs:
           }
           NODE
 
+  browser-e2e:
+    name: Browser E2E (registration and browser session)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: lumen_e2e
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d lumen_e2e"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/lumen_e2e
+      JWT_SECRET_KEY: ci-only-secret-for-browser-e2e-not-for-deployment
+      ENVIRONMENT: development
+      DEBUG: "false"
+      FRONTEND_URL: http://127.0.0.1:4173
+      CORS_ORIGINS: '["http://127.0.0.1:4173"]'
+      REDIS_URL: redis://localhost:6379/0
+      CELERY_BROKER_URL: redis://localhost:6379/1
+      CELERY_RESULT_BACKEND: redis://localhost:6379/1
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22.23.4"
+      - name: Install backend and browser automation dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt -r frontend/e2e/requirements.txt
+      - name: Install locked frontend dependencies
+        run: npm ci --prefix frontend --no-audit --no-fund
+      - name: Install Chromium for Playwright
+        run: python -m playwright install --with-deps chromium
+      - name: Apply database migrations and seed curriculum
+        working-directory: backend
+        run: alembic upgrade head
+      - name: Start API and wait for database-backed health check
+        working-directory: backend
+        run: |
+          nohup uvicorn app.main:app --host 127.0.0.1 --port 8000 > /tmp/lumen-e2e-api.log 2>&1 &
+          echo $! > /tmp/lumen-e2e-api.pid
+          for attempt in $(seq 1 40); do
+            if curl --silent --fail http://127.0.0.1:8000/health > /tmp/lumen-e2e-health.json; then
+              if grep -q '"status":"ok"' /tmp/lumen-e2e-health.json; then
+                cat /tmp/lumen-e2e-health.json
+                exit 0
+              fi
+            fi
+            sleep 2
+          done
+          cat /tmp/lumen-e2e-api.log
+          echo "Backend did not become healthy in time."
+          exit 1
+      - name: Build production frontend against the test API
+        env:
+          VITE_API_BASE_URL: http://127.0.0.1:8000
+        run: npm run build --prefix frontend
+      - name: Start frontend preview
+        run: |
+          nohup npm run preview --prefix frontend -- --host 127.0.0.1 --port 4173 --strictPort > /tmp/lumen-e2e-frontend.log 2>&1 &
+          echo $! > /tmp/lumen-e2e-frontend.pid
+          for attempt in $(seq 1 30); do
+            if curl --silent --fail http://127.0.0.1:4173/ > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/lumen-e2e-frontend.log
+          echo "Frontend preview did not become ready in time."
+          exit 1
+      - name: Run real-browser registration, session, reload, and logout flow
+        env:
+          LUMEN_E2E_BASE_URL: http://127.0.0.1:4173
+          LUMEN_E2E_API_URL: http://127.0.0.1:8000
+        run: python frontend/e2e/smoke_test.py
+
   backend:
     name: Backend tests
     runs-on: ubuntu-24.04
