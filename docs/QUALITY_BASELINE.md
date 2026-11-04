@@ -46,6 +46,10 @@
 - بعد PR #64 في main CI #41858290575: entry `index-BM88lNV5.js` **362.89 kB / 116.82 kB gzip**؛ `TopicPanel` **6.76 kB / 2.47 kB gzip**؛ `QuizPanel` **4.88 kB / 1.96 kB gzip**؛ `LabPanel` **1.80 kB / 0.86 kB gzip**. ملفات المحاكاة المؤجلة: LinearFunctionSim **1.92 / 1.05**، DerivativeSim **1.82 / 1.04**، ProjectileSim **2.47 / 1.29**، PythonLabSim **2.71 / 1.44**، CircuitSim **3.23 / 1.34** kB/gzip. بقي MathTextRenderer **442.53 / 133.49 kB gzip** وAdminDashboard **401.91 / 110.80 kB gzip** كملفات منفصلة غير أولية. نجاح build لا يقيس زمن التنزيل على جهاز فعلي.
 - تدقيق الاعتماديات الإنتاجية في CI #41767787126 وجد **0 vulnerabilities** عند المستوى الذي يفحصه الأمر الحالي (`--omit=dev --audit-level=high`).
 - نتيجة npm production audit في CI #570: **0 vulnerabilities** عند مستوى High/Critical المشمول بالأمر الحالي. أما التقرير الكامل لكل شجرة الاعتماديات فسجّل **10 تنبيهات غير عالية: 2 Low و8 Moderate**؛ أغلبها في سلسلة `vite-plugin-pwa` والاعتماديات التابعة لها. لا تُحدّث السلسلة عشوائيًا؛ افحص الشجرة والتوافق وPWA قبل أي ترقية.
+- نتيجة تدقيق PR #67 CI [#41876997024](https://github.com/HVA09/lumen-learning-platform/actions/runs/41876997024): `npm audit --omit=dev --audit-level=high` وجد **0 vulnerabilities** في اعتماديات الإنتاج. التدقيق الكامل سجل **10 تنبيهات في شجرة التطوير (2 Low و8 Moderate؛ صفر High/Critical)**.
+- الإصدارات التي ظهرت في `frontend/package-lock.json`: `vite-plugin-pwa` 2.0.0 و`workbox-build` 7.4.1؛ `glob` 11.1.0 المتأثر بـ [GHSA-3g3m-2fjr-6pw4](https://github.com/advisories/GHSA-3g3m-2fjr-6pw4) والمصحح في 14.0.2؛ `minimatch` 10.2.6 ونسخة متداخلة 5.1.9 المتأثرتان بـ [GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249) والمصحح في 11.0.1. كما يتضمن المسار `ejs -> jake -> filelist -> minimatch` و`@trickfilm400/rollup-plugin-off-main-thread` 3.0.0-pre1.
+- هذه تبعيات build/test عليها `dev: true` في lockfile، وليست حزم التشغيل. بعض تنبيهات EJS/Jake/Filelist مترابطة عبر minimatch؛ لا تُعامل EJS 3.1.10 على أنها مصابة بالثغرة القديمة التي عولجت في هذا الإصدار نفسه. لا تُنفّذ `npm audit fix --force` أو تخفيض `vite-plugin-pwa` إلى 1.1.0 دون اختبار؛ راجع ADR-033.
+- المعالجة مؤجلة عمداً إلى تحديث متوافق من Workbox أو overrides محددة ومختبرة. لا تعدّل lockfile يدوياً؛ يجب توليده بواسطة npm وإثبات `npm ci` والاختبارات والبناء وسلوك Service Worker وفحص audit بعد التحديث.
 - يظهر تحذير حجم Chunk في بناء Vite، ولا يوجد حتى الآن حد أداء رقمي معتمد.
 
 روابط النتائج:
@@ -98,7 +102,8 @@
 | Lint للخلفية | Ruff 0.17.3 report-only | 0 diagnostics بعد PR #52 و#53؛ لا توجد بوابة منع، ولا حاجة لإعادة تصنيف F401 في baseline الحالي |
 | تغطية الاختبارات | مجموعات اختبارات ناجحة | لا يوجد coverage baseline أو تقرير اتجاهات |
 | Browser E2E | Vitest/jsdom | لا يوجد اختبار متصفح حقيقي لتدفقات الدخول والتعلم والإشعارات |
-| الأداء | PR #59/#62/#64/#65 فصلت الميزات الثقيلة وأعادت محاولة تحميل chunks عند فشل preload؛ PR #67 قلّص Workbox precache من 35/1328.16 KiB إلى 8/378.63 KiB | لا توجد ميزانية أداء رقمية أو RUM/قياسات Core Web Vitals ميدانية؛ CacheFirst لا يجعل API/WebSocket تعمل دون اتصال |
+| الأداء | PR #59/#62/#64/#65 فصلت الميزات الثقيلة؛ PR #67 خفّض Workbox precache من 35/1328.16 KiB إلى 8/378.63 KiB | لا توجد ميزانية أداء رقمية أو RUM/قياسات Core Web Vitals ميدانية؛ CacheFirst لا يجعل API/WebSocket تعمل دون اتصال |
+| أمن اعتماديات التطوير | تدقيق الإنتاج: 0 vulnerabilities؛ الشجرة الكاملة: 2 Low و8 Moderate في أدوات بناء PWA/Workbox | glob 11.1.0 وminimatch 10.2.6 ضمن تنبيهات حديثة؛ المعالجة تتطلب تحديثًا متوافقًا وإعادة توليد lockfile واختبارات كاملة؛ التفاصيل في ADR-033 |
 | المراقبة | إعدادات تشغيل موجودة جزئيًا | لا يوجد تحقق حي من telemetry على استضافة إنتاجية |
 
 ## 6. ترتيب التنفيذ المقترح
@@ -166,6 +171,8 @@
 
 - PR #67 (Workbox app-shell precache + runtime cache للقطع المؤجلة): [PR CI #41876997024](https://github.com/HVA09/lumen-learning-platform/actions/runs/41876997024) نجح بالكامل. Frontend **80 passed عبر 16 ملفًا**، Backend **423 passed, 20 warnings**، Ruff **0 diagnostics**، production build وGitleaks ناجحة. تغيّر Workbox من **35 entries / 1328.16 KiB** إلى **8 entries / 378.63 KiB** (انخفاض تقريبي **71.5%** في حجم قائمة precache). القطع المؤجلة تُخزّن بعد أول طلب ضمن CacheFirst؛ API وWebSocket لم تُضف إلى هذا التخزين. CI بعد الدمج #41886648386 كان قيد التنفيذ عند آخر تحقق.
 
+- معالجة تنبيهات اعتماديات PWA/Workbox المحددة في ADR-033 دون تخفيض عشوائي أو تعديل lockfile يدوي.
+
 **الخطوات التالية:**
 - قياس زمن فتح الموضوع وأول درس وأول معادلة وفتح الاختبار/المختبر على هاتف واتصال بطيء؛ افصل زمن تحميل كل chunk عن زمن API.
 - اختبار Vite preload recovery وErrorBoundary على متصفحات وهواتف فعلية مع انقطاع/عودة الشبكة، والتحقق من التحديثات القديمة للـ chunks؛ لا يُعد نجاح اختبارات الوحدة اختباراً ميدانياً.
@@ -182,7 +189,7 @@
 
 ## 8. نقطة الاستئناف
 
-- آخر تغيير برمجي على `main`: `2453b9124fc4eaa617aa5bb5493ebc0cf1400c9a` بعد PR #67؛ PR CI #41876997024 ناجح بالكامل، وmain CI #41886648386 لم يكن قد اكتمل عند آخر تحقق.
+- آخر تغيير برمجي على `main`: `2453b9124fc4eaa617aa5bb5493ebc0cf1400c9a` بعد PR #67؛ PR CI #41876997024 ناجح، وmain CI بعد PR #67 #41886648386 اكتمل بنجاح. PR #68 التوثيقي دُمج عند `11d6695913bc0b6587225c95489c4abffd7ff9a0`؛ CI PR #41887034381 نجح، وmain CI بعد PR #68 #41903896915 كان عالقًا في `in_progress` عند آخر تحقق دون سجل متاح.
 
 1. P6.0 موثق، وP5.4 مكتملة ومدمجة.
 2. PR #49 أدخل Ruff؛ PR #52 و#53 أتما معالجة baseline، والنتيجة الحالية **0 diagnostic(s)**. تحقق ذلك في CI PR #53 #41757169187، ثم في main بعد PR #54 عبر CI #41759458975، وبعد PR #56 عبر CI #41763352189.
