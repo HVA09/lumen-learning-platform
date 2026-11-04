@@ -8,15 +8,15 @@
 
 - المستودع: [HVA09/lumen-learning-platform](https://github.com/HVA09/lumen-learning-platform) — عام.
 - الفرع الأساسي: `main`.
-- آخر commit متحقق على `main`: `42986e93060c09e00ffcf917a784390f35adb40f` بعد دمج PR #49.
-- PR #4 و#29–#46 و#48 و#49 مدمجة؛ تشمل المراحل الحديثة #39–#46 و#48 (تحديث نقطة الاستئناف بعد نقل الإشعارات) و#49 (إضافة Ruff كتقرير فقط). أُغلق PR #50 دون دمج لأن التغيير البرمجي نفسه كان قد وصل بالفعل إلى `main` عبر PR #49.
+- آخر commit متحقق على `main`: `4f70cb904e7f92283af8e16a738caf283e5ae494` بعد دمج PR #53.
+- PR #4 و#29–#46 و#48 و#49 و#51–#53 مدمجة. PR #51 حدّث سجلات الحالة بعد Ruff، وPR #52 جعل إعادة التصدير في واجهات التوافق صريحة، وPR #53 خفّض نتائج Ruff من 62 إلى صفر. أُغلق PR #50 دون دمج لأن التغيير كان قد وصل إلى `main` عبر PR #49.
 - PR #30 دُمج في 2026-11-03. بقي المسار القديم `app.services.quiz_logic` كواجهة توافق.
 - CI #526 نجح على رأس PR #30، وCI #532 على PR #31، وCI #534 على PR #32؛ جميع وظائف Backend وFrontend/build وFull Git history secret scan نجحت.
 - CI #537 نجح على main قبل PR #34: Backend **404 passed** وFrontend **51 passed**.
 - CI #539 نجح على main بعد PR #34: Backend **405 passed** وFrontend **51 passed**.
 - CI #541 نجح على main بعد PR #35: Backend **407 passed** وFrontend **51 passed**.
 - CI #543 نجح على main بعد PR #36: Backend **407 passed** وFrontend **51 passed**.
-- أحدث تشغيل CI ناجح على `main`: [#41754238271](https://github.com/HVA09/lumen-learning-platform/actions/runs/41754238271) على commit `42986e93060c09e00ffcf917a784390f35adb40f` بعد PR #49؛ نجحت وظائف Backend وFrontend/build وFull Git history secret scan. كما نجح CI على رأس PR #46 قبل الدمج في [#41744744642](https://github.com/HVA09/lumen-learning-platform/actions/runs/41744744642).
+- أحدث تشغيل CI بعد دمج PR #53: [#41757735260](https://github.com/HVA09/lumen-learning-platform/actions/runs/41757735260) على commit `4f70cb904e7f92283af8e16a738caf283e5ae494`؛ اكتمل Frontend وGitleaks بنجاح، وكان Backend قيد التنفيذ عند تحديث هذه الوثيقة. نجاح PR CI موثق في [#41757169187](https://github.com/HVA09/lumen-learning-platform/actions/runs/41757169187): Backend 423 passed و20 warnings، وFrontend 73 passed عبر 14 ملفًا مع production build وتدقيق الإنتاج دون ثغرات.
 - لا يوجد نشر إنتاجي مثبت.
 
 ## حالة المراحل
@@ -29,7 +29,7 @@
 | P3 — تجربة Backend ثانية صغيرة | مكتمل | PR #32 مدمج؛ CI #534 على PR وCI #535 على main نجحا |
 | P4 — فصل حدود خدمات Backend | منفذ جزئيًا | PR #34/#35 (Learning Progress)، و#37 (Review/SRS)، و#40 (Gamification scoring) مدمجة؛ تبقى فرص فصل أخرى حسب تحليل الاعتماديات |
 | P5 — تنظيم Frontend | P5.1–P5.4 مكتملة | PR #41 WebSocket، و#43 Session، و#44 Notifications state، و#46 نقلت ميزة الإشعارات إلى `features/notifications`؛ PR #42 وثّق الخريطة والخطة |
-| P6 — الجودة والأداء والمراقبة | P6.0 مكتملة؛ P6.1 بدأت بقياس Ruff | أُضيف Ruff 0.17.3 للخلفية بوضع report-only؛ أول خط أساس سجّل 62 ملاحظة (49 F401 و10 E741 و3 F841). لا توجد حتى الآن بوابة lint تمنع الدمج؛ ESLint وبقية أدوات P6 لاحقة |
+| P6 — الجودة والأداء والمراقبة | P6.0 مكتملة؛ P6.1 بدأت بقياس Ruff | P6.1 الخاصة بـ Ruff مكتملة: انخفض التقرير من 62 ملاحظة إلى 0 عبر PR #52 و#53؛ يظل Ruff report-only ولا يمنع الدمج. ESLint وcoverage وE2E والأداء لاحقة |
 | P7 — الإطلاق | غير جاهز | بوابات الاستضافة والتشغيل أدناه لم تُغلق |
 
 ## آخر نقاط التحقق
@@ -57,7 +57,10 @@
 - [CI #41744012439](https://github.com/HVA09/lumen-learning-platform/actions/runs/41744012439): نجح على `main` بعد PR #42.
 - [CI #41744744642](https://github.com/HVA09/lumen-learning-platform/actions/runs/41744744642): نجحت جميع وظائف Backend وFrontend/build وGitleaks على PR #46 قبل الدمج.
 - [PR #46](https://github.com/HVA09/lumen-learning-platform/pull/46) دُمج عبر squash commit `ee149a40b144883b0fea34232ae730574d5e5ed7`؛ [CI بعد الدمج #41745646366](https://github.com/HVA09/lumen-learning-platform/actions/runs/41745646366) نجح بالكامل على `main`.
-- [PR #49](https://github.com/HVA09/lumen-learning-platform/pull/49) أضاف Ruff 0.17.3 وإعداد القواعد وفحص report-only؛ [CI على PR #49](https://github.com/HVA09/lumen-learning-platform/actions/runs/41750390626) و[CI بعد الدمج #41754238271](https://github.com/HVA09/lumen-learning-platform/actions/runs/41754238271) نجحا بالكامل.
+- [PR #49](https://github.com/HVA09/lumen-learning-platform/pull/49) أضاف Ruff 0.17.3 بوضع report-only؛ [CI على PR #49](https://github.com/HVA09/lumen-learning-platform/actions/runs/41750390626) و[main #41754238271](https://github.com/HVA09/lumen-learning-platform/actions/runs/41754238271) نجحا.
+- [PR #51](https://github.com/HVA09/lumen-learning-platform/pull/51) حدّث سجلات المشروع بعد إضافة Ruff؛ PR CI #41755785196 وmain CI #41756353787 نجحا.
+- [PR #52](https://github.com/HVA09/lumen-learning-platform/pull/52) جعل إعادة التصدير في أربع واجهات توافق صريحة؛ PR CI #41756512842 وmain CI #41756990109 نجحا.
+- [PR #53](https://github.com/HVA09/lumen-learning-platform/pull/53) عالج بقية ملاحظات Ruff؛ CI #41757169187 نجح: Backend 423 passed و20 warnings، وFrontend 73 passed/14 files، وGitleaks ناجح. تقرير Ruff أصبح 0 diagnostic(s). تشغيل main بعد الدمج #41757735260 كان جارياً وقت التوثيق.
 
 ## ما تم إنجازه
 
@@ -119,6 +122,6 @@
 
 1. P0–P3 مكتملة. P4 منفذة جزئيًا عبر PR #34/#35/#37/#40؛ لا تنقل `achievements.py` ككتلة واحدة قبل تصميم عقود القراءة العابرة للمجالات.
 2. P5.1–P5.4 مكتملة ومدمجة: WebSocket (#41)، خريطة Frontend (#42)، Session (#43)، notification state (#44)، ونقل Notifications إلى `features/notifications` (#46). تحقّق CI #41745646366 بنجاح على `main` بعد الدمج.
-3. أُضيف Ruff للخلفية عبر PR #49 بإصدار مثبت `0.17.3` وقواعد `E4`, `E7`, `E9`, و`F` وطول سطر 100، ويعمل report-only على `app`, `tests`, `scripts`, و`migrations`. سجّل أول تقرير 62 ملاحظة: 49 `F401` و10 `E741` و3 `F841`. الخطوة التالية تصنيف إعادة التصدير المقصودة في واجهات التوافق ثم إصلاح الملاحظات الحقيقية على دفعات صغيرة، دون auto-fix شامل أو تحويل lint إلى شرط دمج الآن.
+3. أُضيف Ruff 0.17.3 عبر PR #49 بوضع report-only على `app`, `tests`, `scripts`, و`migrations`. عولجت إعادة التصدير المقصودة في PR #52، ثم الاستيرادات والتعيينات وأسماء المتغيرات في PR #53؛ انخفض التقرير من 62 إلى 0 diagnostic(s). لا تحوّل lint إلى شرط دمج إلزامي حتى يُعتمد قرار مستقل بعد استقرار الخط الأساس.
 4. تبقى سلسلة LTI/AGS #16–#23 بحاجة إلى إعادة تأسيس وتحليل تعارضات وترحيلات ثم اختبار Sandbox؛ لا تدمجها مباشرة.
 5. لا يوجد نشر إنتاجي مثبت. اختبار Restic الحالي يستخدم مستودعًا مؤقتًا في CI وليس وجهة تخزين خارجية حقيقية.
