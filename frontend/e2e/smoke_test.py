@@ -78,7 +78,18 @@ def run_smoke_test() -> None:
                 timeout=30_000
             )
 
-            page.get_by_role("button", name="خروج", exact=True).click()
+            with page.expect_response(
+                lambda response: response.url.endswith("/auth/logout")
+                and response.request.method == "POST",
+                timeout=30_000,
+            ) as logout_response_info:
+                page.get_by_role("button", name="خروج", exact=True).click()
+
+            logout_response = logout_response_info.value
+            assert logout_response.status == 200, (
+                f"Logout endpoint returned HTTP {logout_response.status}"
+            )
+            logout_response.finished()
             expect(page.get_by_placeholder("البريد الإلكتروني")).to_be_visible(
                 timeout=30_000
             )
