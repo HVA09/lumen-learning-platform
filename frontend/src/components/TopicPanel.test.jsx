@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -91,7 +91,7 @@ describe("TopicPanel — الدروس", () => {
     await user.click(await screen.findByText("كيف نحلّ المعادلة؟"));
     const body = await screen.findByText(/نحلّها هكذا/);
     expect(body.closest(".lesson-content")).not.toBeNull();
-    expect(body.closest(".lesson-content").querySelector(".katex")).not.toBeNull();
+    await waitFor(() => expect(body.closest(".lesson-content").querySelector(".katex")).not.toBeNull());
     expect(body.closest(".lesson-content")).not.toHaveTextContent("$");
   });
 
@@ -138,7 +138,7 @@ describe("TopicPanel — الاختبارات", () => {
     renderPanel();
     await takeQuiz(user);
     const explanation = await screen.findByText(/نقسم على 3 فيكون/);
-    expect(explanation.querySelector(".katex")).not.toBeNull();
+    await waitFor(() => expect(explanation.querySelector(".katex")).not.toBeNull());
     expect(explanation).not.toHaveTextContent("$");
   });
 
