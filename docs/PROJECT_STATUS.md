@@ -16,7 +16,7 @@
 - CI #539 نجح على main بعد PR #34: Backend **405 passed** وFrontend **51 passed**.
 - CI #541 نجح على main بعد PR #35: Backend **407 passed** وFrontend **51 passed**.
 - CI #543 نجح على main بعد PR #36: Backend **407 passed** وFrontend **51 passed**.
-- أحدث تشغيل CI بعد دمج PR #53: [#41757735260](https://github.com/HVA09/lumen-learning-platform/actions/runs/41757735260) على commit `4f70cb904e7f92283af8e16a738caf283e5ae494`؛ اكتمل Frontend وGitleaks بنجاح، وكان Backend قيد التنفيذ عند تحديث هذه الوثيقة. نجاح PR CI موثق في [#41757169187](https://github.com/HVA09/lumen-learning-platform/actions/runs/41757169187): Backend 423 passed و20 warnings، وFrontend 73 passed عبر 14 ملفًا مع production build وتدقيق الإنتاج دون ثغرات.
+- أحدث تشغيل CI بعد دمج PR #53: [#41757735260](https://github.com/HVA09/lumen-learning-platform/actions/runs/41757735260) نجح بالكامل على commit `4f70cb904e7f92283af8e16a738caf283e5ae494`؛ Backend 423 passed و20 warnings، وFrontend 73 passed عبر 14 ملفًا، وGitleaks وproduction build وتدقيق الإنتاج وmigrations وCompose وRestic وPostgreSQL backup/restore كلها نجحت. تقرير Ruff سجّل 0 diagnostics.
 - لا يوجد نشر إنتاجي مثبت.
 
 ## حالة المراحل
