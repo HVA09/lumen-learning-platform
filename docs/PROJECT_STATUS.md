@@ -8,8 +8,8 @@
 
 - المستودع: [HVA09/lumen-learning-platform](https://github.com/HVA09/lumen-learning-platform) — عام.
 - الفرع الأساسي: `main`.
-- آخر commit متحقق على `main`: `ee74aaa1136c471fb4b22b61247528e1ad7478c3` بعد دمج PR #65؛ PR CI #41860852718 وmain CI بعد الدمج #41861598602 نجحا بالكامل.
-- PR #4 و#29–#46 و#48 و#49 و#51–#54 و#56–#59 و#62 و#64 و#65 مدمجة. PR #51 حدّث سجلات الحالة بعد Ruff، وPR #52 جعل إعادة التصدير في واجهات التوافق صريحة، وPR #53 خفّض نتائج Ruff من 62 إلى صفر، وPR #54 و#57 و#58 و#63 حدّثت التوثيق الدائم، وPR #56 أزال ثلاثة findings مؤكدة في الواجهة، وPR #59 و#62 و#64 خفّضت التحميل الأولي، وPR #65 أضاف استرداداً آمناً لأخطاء تحميل الوحدات المؤجلة.
+- آخر commit برمجي على `main`: `2453b9124fc4eaa617aa5bb5493ebc0cf1400c9a` بعد دمج PR #67؛ PR CI #41876997024 نجح بالكامل، وCI ما بعد الدمج #41886648386 كان قيد التنفيذ عند آخر تحقق.
+- PR #4 و#29–#46 و#48 و#49 و#51–#54 و#56–#59 و#62 و#64–#67 مدمجة. PR #59/#62/#64 خفّضت التحميل الأولي، و#65 أضاف Vite preload recovery، و#66 حدّثت السجلات، و#67 خفّضت precache إلى 8 entries/378.63 KiB.
 - PR #30 دُمج في 2026-11-03. بقي المسار القديم `app.services.quiz_logic` كواجهة توافق.
 - CI #526 نجح على رأس PR #30، وCI #532 على PR #31، وCI #534 على PR #32؛ جميع وظائف Backend وFrontend/build وFull Git history secret scan نجحت.
 - CI #537 نجح على main قبل PR #34: Backend **404 passed** وFrontend **51 passed**.
@@ -23,6 +23,7 @@
 - PR #62 (تحميل MathText وKaTeX عند الحاجة) دُمج عند `6b53686ae3824d020243dd33115cc0bf81bd3c03`؛ PR CI [#41855423230](https://github.com/HVA09/lumen-learning-platform/actions/runs/41855423230) وmain CI بعد الدمج [#41856247148](https://github.com/HVA09/lumen-learning-platform/actions/runs/41856247148) نجحا بالكامل: Backend **423 passed, 20 warnings**، Ruff **0 diagnostics**، Frontend **73 passed عبر 14 ملفًا**، production build وGitleaks وفحوص PostgreSQL/backup/restore ناجحة.
 - PR #64 (تحميل الاختبارات والمختبر والمحاكاة عند الطلب) دُمج عند `09d2a706236b4f9be55f3d8c66d461fee34f70c1`؛ PR CI [#41857581931](https://github.com/HVA09/lumen-learning-platform/actions/runs/41857581931) وmain CI بعد الدمج [#41858290575](https://github.com/HVA09/lumen-learning-platform/actions/runs/41858290575) نجحا بالكامل: Backend **423 passed, 20 warnings**، Ruff **0 diagnostics**، Frontend **74 passed عبر 14 ملفًا**، production build وGitleaks وmigrations وPostgreSQL backup/restore ناجحة.
 - PR #65 (استعادة أخطاء تحميل الوحدات المؤجلة) دُمج عند `ee74aaa1136c471fb4b22b61247528e1ad7478c3`؛ PR CI [#41860852718](https://github.com/HVA09/lumen-learning-platform/actions/runs/41860852718) نجح بالكامل: Backend **423 passed, 20 warnings**، Ruff **0 diagnostics**، Frontend **80 passed عبر 16 ملفًا**، production build وGitleaks ناجحان. CI بعد الدمج على main [#41861598602](https://github.com/HVA09/lumen-learning-platform/actions/runs/41861598602) نجح بالكامل: Backend **423 passed, 20 warnings**، Ruff **0 diagnostics**، Frontend **80 passed عبر 16 ملفًا**، production build وGitleaks وmigrations وPostgreSQL backup/restore ناجحة.
+- PR #67 (تقليل PWA precache وتحميل feature chunks عند الطلب) دُمج عند `2453b9124fc4eaa617aa5bb5493ebc0cf1400c9a`؛ PR CI [#41876997024](https://github.com/HVA09/lumen-learning-platform/actions/runs/41876997024) نجح بالكامل: Backend **423 passed, 20 warnings**، Ruff **0 diagnostics**، Frontend **80 passed عبر 16 ملفًا**، production build وGitleaks ناجحان. Workbox precache أصبح **8 entries / 378.63 KiB** بدل **35 / 1328.16 KiB** (انخفاض 71.5%). CI بعد الدمج [#41886648386](https://github.com/HVA09/lumen-learning-platform/actions/runs/41886648386) بدأ لكنه لم يكن قد اكتمل عند آخر تحقق.
 - لا يوجد نشر إنتاجي مثبت.
 
 ## حالة المراحل
@@ -35,7 +36,7 @@
 | P3 — تجربة Backend ثانية صغيرة | مكتمل | PR #32 مدمج؛ CI #534 على PR وCI #535 على main نجحا |
 | P4 — فصل حدود خدمات Backend | منفذ جزئيًا | PR #34/#35 (Learning Progress)، و#37 (Review/SRS)، و#40 (Gamification scoring) مدمجة؛ تبقى فرص فصل أخرى حسب تحليل الاعتماديات |
 | P5 — تنظيم Frontend | P5.1–P5.4 مكتملة | PR #41 WebSocket، و#43 Session، و#44 Notifications state، و#46 نقلت ميزة الإشعارات إلى `features/notifications`؛ PR #42 وثّق الخريطة والخطة |
-| P6 — الجودة والأداء والمراقبة | P6.0 وRuff baseline مكتملان؛ P6.5 تحسن تدريجي مدمج عبر PR #59/#62/#64/#65 | entry الأولي 362.89 kB (116.82 gzip)، وTopicPanel 6.76 kB (2.47 gzip)، ومحرك الرياضيات والاختبار والمختبر تُحمّل عند الحاجة. PR #65 أضاف معالجة فشل الوحدات المؤجلة وإرشاد اتصال للطالب؛ لا تزال قياسات RUM وBrowser E2E غير مكتملة. |
+| P6 — الجودة والأداء والمراقبة | P6.0 وRuff baseline مكتملان؛ P6.5 تحسن تدريجي مدمج عبر PR #59/#62/#64/#65/#67 | entry الأولي 362.89 kB (116.82 gzip)، والوحدات الثقيلة مؤجلة؛ Workbox precache انخفض من 1328.16 KiB إلى 378.63 KiB (8 ملفات بدل 35). PR CI #41876997024 ناجح؛ CI بعد الدمج قيد التنفيذ، ولا تزال قياسات RUM وBrowser E2E غير مكتملة. |
 | P7 — الإطلاق | غير جاهز | بوابات الاستضافة والتشغيل أدناه لم تُغلق |
 
 ## آخر نقاط التحقق
@@ -131,4 +132,4 @@
 3. أُضيف Ruff 0.17.3 عبر PR #49 بوضع report-only على `app`, `tests`, `scripts`, و`migrations`. عولجت إعادة التصدير المقصودة في PR #52، ثم الاستيرادات والتعيينات وأسماء المتغيرات في PR #53؛ التقرير الحالي **0 diagnostic(s)**. يبقى Ruff report-only. ESLint للواجهة لم يُثبّت أو يُشغّل بعد؛ يجب أولًا توليد `package-lock.json` باستخدام npm والتحقق بـ `npm ci` قبل تسجيل أي baseline.
 4. تبقى سلسلة LTI/AGS #16–#23 بحاجة إلى إعادة تأسيس وتحليل تعارضات وترحيلات ثم اختبار Sandbox؛ لا تدمجها مباشرة.
 5. لا يوجد نشر إنتاجي مثبت. اختبار Restic الحالي يستخدم مستودعًا مؤقتًا في CI وليس وجهة تخزين خارجية حقيقية.
-6. آخر تحديث برمجي: PR #65 مدمج في `main` عند `ee74aaa1136c471fb4b22b61247528e1ad7478c3`. PR CI #41860852718 نجح: Backend 423 passed و20 warnings، Frontend 80 passed عبر 16 ملفاً، Ruff 0 diagnostics، production build وGitleaks ناجحان. أضيف Vite preload recovery مع حد إعادة تحميل تلقائي مرة واحدة خلال 60 ثانية عند توفر الاتصال والتخزين، ورسالة ErrorBoundary مخصصة لانقطاع الشبكة. main CI بعد الدمج #41861598602 نجح بالكامل: Backend 423 passed/20 warnings، Frontend 80 passed/16 files، Ruff 0 diagnostics، build وGitleaks وmigrations وbackup/restore ناجحة.
+6. آخر تحديث برمجي: PR #67 مدمج في `main` عند `2453b9124fc4eaa617aa5bb5493ebc0cf1400c9a`. PR CI #41876997024 نجح: Backend 423 passed/20 warnings، Frontend 80/16 files، Ruff 0 diagnostics، build وGitleaks ناجحة. خُفّض precache إلى 8 entries/378.63 KiB مقابل 35/1328.16 KiB قبل التغيير. CI ما بعد الدمج #41886648386 كان قيد التنفيذ عند آخر تحقق؛ لا نعده ناجحًا قبل اكتماله.
