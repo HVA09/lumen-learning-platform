@@ -5,7 +5,7 @@
 ## 1. المرجع وحدود هذا التقييم
 
 - المستودع: `HVA09/lumen-learning-platform`.
-- خط أساس `main` الحالي بعد دمج PR #59: `30d768932934fb7c57e5f18da673de169e1bb6f2`.
+- خط أساس `main` الحالي بعد دمج PR #64: `09d2a706236b4f9be55f3d8c66d461fee34f70c1`.
 - هذا الملف يوثق ما هو مفعّل فعليًا في المستودع وCI، ثم يقترح إدخال أدوات الجودة تدريجيًا.
 - هذا التقييم توثيقي فقط؛ لا يضيف اعتماديات أو يغيّر سلوك التطبيق أو شروط CI.
 
@@ -37,8 +37,12 @@
 - PR #57 حدّث السجلات بعد PR #54/#56، ودُمج عبر `96fff938fa5ec85b921de247bfe7a3dbe3300071`؛ CI PR #41766914355 وmain #41767787126 نجحا.
 - PR #58 تحديث توثيقي فقط؛ CI بعد دمجه #41850447579 نجح.
 - PR #59 نقل `TopicPanel` إلى تحميل React.lazy عند اختيار موضوع؛ CI PR #41850891816 وmain CI #41851527075 نجحا بالكامل: Backend **423 passed, 20 warnings**، Ruff **0 diagnostics**، Frontend **73 passed عبر 14 ملفًا**، production build، Gitleaks، migrations، Compose، Restic وPostgreSQL backup/restore.
+- PR #62 (تحميل MathText وKaTeX عند الحاجة) دُمج عند `6b53686ae3824d020243dd33115cc0bf81bd3c03`؛ PR CI [#41855423230](https://github.com/HVA09/lumen-learning-platform/actions/runs/41855423230) وmain CI بعد الدمج [#41856247148](https://github.com/HVA09/lumen-learning-platform/actions/runs/41856247148) نجحا بالكامل: Backend **423 passed, 20 warnings**، Ruff **0 diagnostics**، Frontend **73 passed عبر 14 ملفًا**، production build وGitleaks وفحوص PostgreSQL/backup/restore ناجحة.
+- PR #64 (تحميل الاختبارات والمختبر والمحاكاة عند الطلب) دُمج عند `09d2a706236b4f9be55f3d8c66d461fee34f70c1`؛ PR CI [#41857581931](https://github.com/HVA09/lumen-learning-platform/actions/runs/41857581931) وmain CI بعد الدمج [#41858290575](https://github.com/HVA09/lumen-learning-platform/actions/runs/41858290575) نجحا بالكامل: Backend **423 passed, 20 warnings**، Ruff **0 diagnostics**، Frontend **74 passed عبر 14 ملفًا**، production build وGitleaks وmigrations وPostgreSQL backup/restore ناجحة.
 - خط القياس قبل PR #59 في main CI #41767787126: `index-BJz-0WwU.js` **830.50 kB** قبل gzip و**258.06 kB** بعد gzip؛ `AdminDashboard` **401.91 kB** / **110.80 kB gzip**. كان تحذير Vite >500 kB ظاهرًا على entry.
 - بعد PR #59 في build ضمن CI #41850891816، وتأكد نفس القياس في main CI #41851527075: `index-CuMtssyR.js` **362.86 kB** / **116.80 kB gzip**؛ `TopicPanel` **23.28 kB** / **6.90 kB gzip**؛ `MathText` **442.53 kB** / **133.49 kB gzip**؛ `AdminDashboard` **401.91 kB** / **110.80 kB gzip**. انخفض entry الأولي بنحو **56.3%** (minified) و**54.7%** (gzip). لم يظهر تحذير Vite لتجاوز chunk حد 500 kB في هذا البناء. هذا قياس build، وليس قياس RUM أو تجربة مستخدم فعلية.
+- بعد PR #62 في main CI #41856247148: entry `index-TNoNppgD.js` **362.87 kB / 116.81 kB gzip**؛ wrapper `MathText` **0.70 kB / 0.41 kB gzip**؛ renderer المؤجل `MathTextRenderer` **442.53 kB / 133.49 kB gzip**؛ CSS المؤجل **30.20 kB / 8.08 kB gzip**؛ `TopicPanel` **23.28 kB / 6.91 kB gzip**؛ و`AdminDashboard` **401.91 kB / 110.79 kB gzip**. لا يظهر تحذير Vite >500 kB. الـ renderer وCSS لا يدخلان في التنزيل الأولي، لكنهما يُنزّلان عندما يظهر MathText فعليًا.
+- بعد PR #64 في main CI #41858290575: entry `index-BM88lNV5.js` **362.89 kB / 116.82 kB gzip**؛ `TopicPanel` **6.76 kB / 2.47 kB gzip**؛ `QuizPanel` **4.88 kB / 1.96 kB gzip**؛ `LabPanel` **1.80 kB / 0.86 kB gzip**. ملفات المحاكاة المؤجلة: LinearFunctionSim **1.92 / 1.05**، DerivativeSim **1.82 / 1.04**، ProjectileSim **2.47 / 1.29**، PythonLabSim **2.71 / 1.44**، CircuitSim **3.23 / 1.34** kB/gzip. بقي MathTextRenderer **442.53 / 133.49 kB gzip** وAdminDashboard **401.91 / 110.80 kB gzip** كملفات منفصلة غير أولية. نجاح build لا يقيس زمن التنزيل على جهاز فعلي.
 - تدقيق الاعتماديات الإنتاجية في CI #41767787126 وجد **0 vulnerabilities** عند المستوى الذي يفحصه الأمر الحالي (`--omit=dev --audit-level=high`).
 - نتيجة npm production audit في CI #570: **0 vulnerabilities** عند مستوى High/Critical المشمول بالأمر الحالي. أما التقرير الكامل لكل شجرة الاعتماديات فسجّل **10 تنبيهات غير عالية: 2 Low و8 Moderate**؛ أغلبها في سلسلة `vite-plugin-pwa` والاعتماديات التابعة لها. لا تُحدّث السلسلة عشوائيًا؛ افحص الشجرة والتوافق وPWA قبل أي ترقية.
 - يظهر تحذير حجم Chunk في بناء Vite، ولا يوجد حتى الآن حد أداء رقمي معتمد.
@@ -149,18 +153,19 @@
 
 ### P6.5 — ميزانية الأداء والمراقبة
 
-**تقدم جزئي — PR #59:**
-- نُقلت `TopicPanel` إلى `React.lazy` مع fallback modal موجود؛ لا تُحمّل لوحة الدرس والاختبار ومحرك عرض Markdown/الرياضيات قبل اختيار موضوع.
-- انخفض حجم entry من **830.50 kB / 258.06 kB gzip** إلى **362.86 kB / 116.80 kB gzip** (تحسن تقريبي 56.3% في الحجم قبل الضغط و54.7% بعده).
-- أصبحت ملفات TopicPanel وMathText وAdminDashboard منفصلة. ما زال MathText **442.53 kB** وAdminDashboard **401.91 kB**؛ لا يوجد تحذير >500 kB في build بعد التغيير.
-- لا يُعد هذا اختبار أداء ميدانيًا؛ لا توجد ميزانية زمن تحميل أو Core Web Vitals أو RUM معتمدة بعد.
+**تقدم جزئي — PR #59 و#62 و#64 مدمجة:**
+- PR #59 نقل `TopicPanel` إلى `React.lazy`، فهبط entry الأولي من **830.50 kB / 258.06 kB gzip** إلى نحو **362.86 kB / 116.80 kB gzip**.
+- PR #62 أجّل Markdown/KaTeX renderer وCSS الخاص بهما إلى لحظة عرض MathText؛ حجم renderer **442.53 kB / 133.49 kB gzip** وCSS **30.20 kB / 8.08 kB gzip**، بينما wrapper لا يتجاوز **0.70 kB / 0.42 kB gzip**.
+- PR #64 أجّل `QuizPanel` و`LabPanel` وكل محاكاة إلى أن يطلبها المتعلم. في main CI #41858290575: entry **362.89 kB / 116.82 kB gzip**، و`TopicPanel` **6.76 kB / 2.47 kB gzip** بدل 23.28/6.91، و`QuizPanel` **4.88/1.96**، و`LabPanel` **1.80/0.86**. ملفات المحاكاة الفردية تتراوح بين 1.82 و3.23 kB قبل الضغط.
+- بقي `AdminDashboard` **401.91 kB / 110.80 kB gzip** و`MathTextRenderer` **442.53 kB / 133.49 kB gzip** كـ chunks مستقلة غير موجودة في entry الأولي.
+- CI بعد PR #64: Backend **423 passed, 20 warnings**، Ruff **0 diagnostics**، Frontend **74 passed عبر 14 ملفًا**، build وGitleaks وmigrations وPostgreSQL backup/restore نجحت.
+- هذه أرقام build فقط؛ لا تثبت زمن تنزيل فعلي أو Core Web Vitals أو تجربة شبكة بطيئة. أول استخدام للاختبار أو المختبر أو الرياضيات يحتاج تنزيل الجزء المقابل.
 
 **الخطوات التالية:**
-- قِس أثر تحميل `MathText` عند فتح الدرس أو الاختبار، ووازن بين حجم التنزيل وزمن ظهور المحتوى في الاتصالات البطيئة.
-- ضع ميزانيات رقمية على أساس القياس، لا أرقام تقديرية.
-- لا تدّعِ اختبار الأداء الإنتاجي أو observability الحية قبل وجود بيئة تشغيل فعلية.
+- قياس زمن فتح الموضوع وأول درس وأول معادلة وفتح الاختبار/المختبر على هاتف واتصال بطيء؛ افصل زمن تحميل كل chunk عن زمن API.
+- التحقق من سلوك فشل تحميل chunk عند انقطاع الاتصال؛ ErrorBoundary الحالي يعرض تحديث الصفحة فقط، ولا يوفر إعادة محاولة موجهة للجزء المحمّل.
+- اعتماد ميزانيات أداء رقمية بناءً على القياسات، وإضافة Browser E2E منفصل بعد توافر بيئة اختبار موثوقة.
 - حافظ على شرط الميزانية صفر، ولا تضف خدمة مدفوعة أو تتطلب بطاقة.
-
 ## 7. بوابات لا يجوز تخفيفها
 
 - Backend tests وFrontend tests/build وGitleaks تظل شروطًا أساسية.
@@ -172,10 +177,10 @@
 
 ## 8. نقطة الاستئناف
 
-- آخر `main` متحقق: `30d768932934fb7c57e5f18da673de169e1bb6f2` بعد PR #59؛ PR CI #41850891816 وmain CI #41851527075 نجحا بالكامل.
+- آخر `main` متحقق: `09d2a706236b4f9be55f3d8c66d461fee34f70c1` بعد PR #64؛ PR CI #41857581931 وmain CI #41858290575 نجحا بالكامل.
 
 1. P6.0 موثق، وP5.4 مكتملة ومدمجة.
 2. PR #49 أدخل Ruff؛ PR #52 و#53 أتما معالجة baseline، والنتيجة الحالية **0 diagnostic(s)**. تحقق ذلك في CI PR #53 #41757169187، ثم في main بعد PR #54 عبر CI #41759458975، وبعد PR #56 عبر CI #41763352189.
 3. Ruff يبقى report-only عند 0 diagnostics. ESLint لم يُعتمد في main؛ PR #55 كان تجربة مؤقتة مغلقة، وPR #56 دمج الإصلاحات المؤكدة، وPR #57 وثّق حالة الجودة. لا يوجد اتصال npm registry في بيئة التنفيذ الحالية (فشل DNS إلى `registry.npmjs.org`) ولا حزم ESLint في cache؛ لا تُحرر lockfile يدويًا. عند توفر registry، ثبّت الإصدارات وولّد lockfile عبر npm ثم أثبت نجاح `npm ci`.
-4. أُنجز أول تحسين P6.5 عبر PR #59: entry 362.86 kB (116.80 kB gzip) بدل 830.50 kB (258.06 kB gzip). تحقق ذلك في PR CI #41850891816 وبعد الدمج في main CI #41851527075. يجب قياس تجربة فتح الدرس وتحميل MathText على أجهزة واتصالات أبطأ قبل وضع ميزانية أداء نهائية.
+4. أُنجز تحسين P6.5 عبر PR #59/#62/#64: entry الأولي بقي حول 362.89 kB (116.82 gzip)، لكن TopicPanel أصبح 6.76 kB، وQuizPanel 4.88، وLabPanel 1.80، وكل محاكاة ملف منفصل، وMathTextRenderer/CSS مؤجلان. main CI #41858290575 نجح: Backend 423/20 warnings، Frontend 74/14 files، Ruff 0، build وGitleaks وmigrations وbackup/restore ناجحة. القياسات أحجام build فقط؛ يلزم قياس أول درس/معادلة/اختبار على هاتف واتصال بطيء قبل تحديد budgets.
 5. لا يوجد نشر إنتاجي مثبت. اختبار Restic الحالي يستخدم مستودعًا مؤقتًا في CI وليس وجهة تخزين خارجية حقيقية.

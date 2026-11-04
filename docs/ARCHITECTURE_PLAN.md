@@ -1,8 +1,8 @@
 # الخطة المعمارية الحالية والمراحل التنفيذية لمنصة Lumen
 
 آخر تحديث: **2026-11-04**  
-مرجع `main` بعد PR #59: `30d768932934fb7c57e5f18da673de169e1bb6f2`  
-PR #39–#46 و#48 و#49 و#51–#59 مدمجة (باستثناء PR #55 المغلق دون دمج). P5.1–P5.4 مستقرة، وRuff report-only baseline يساوي صفرًا. PR #59 أضاف lazy loading للوحة الدرس وحقق خفضًا كبيرًا في الحزمة الأولية؛ CI PR #41850891816 وCI بعد الدمج #41851527075 نجحا بالكامل.
+مرجع `main` بعد PR #64: `09d2a706236b4f9be55f3d8c66d461fee34f70c1`
+PR #39–#46 و#48 و#49 و#51–#59 و#62 و#64 مدمجة (باستثناء PR #55 المغلق دون دمج). P5.1–P5.4 مستقرة، وRuff report-only baseline يساوي صفرًا. PR #59 خفّض الحزمة الأولية بتحميل TopicPanel عند اختيار موضوع، وPR #62 أجّل Markdown/KaTeX renderer وCSS حتى عرض MathText، وPR #64 أجّل QuizPanel وLabPanel والمحاكاة حتى يطلبها المتعلم؛ main CI #41858290575 نجح بالكامل.
 
 > الغرض هو تنظيم النظام تدريجيًا دون إعادة كتابة، أو تغيير سلوك الميزات، أو تعريض بيانات المستخدمين والترحيلات للخطر.
 
@@ -138,7 +138,7 @@ PR #39–#46 و#48 و#49 و#51–#59 مدمجة (باستثناء PR #55 الم�
 | P3 | استخراج وحدة نقية ثانية صغيرة | مكتمل — PR #32 مدمج؛ CI #534 على PR وCI #535 على main ناجحان |
 | P4 | فصل حدود خدمات Learning/Progress/SRS/Gamification | منفذ جزئيًا: Progress عبر PR #34/#35، وReview/SRS عبر PR #37، وGamification scoring عبر PR #40؛ تبقى الحدود الأخرى وفق الأولوية والتحليل |
 | P5 | تنظيم Frontend تدريجيًا | P5.1–P5.4 مكتملة ومدمجة؛ PR #46 نقل الإشعارات إلى `features/notifications` واختُبر قبل الدمج وبعده |
-| P6 | الجودة والأداء والمراقبة | Ruff 0 diagnostics report-only؛ ESLint لم يبدأ بسبب قيد npm registry؛ P6.5 بدأ: PR #59 نقل TopicPanel إلى lazy loading وخفّض entry من 830.50 إلى 362.86 kB (gzip من 258.06 إلى 116.80 kB). ما زال Typecheck وCoverage وBrowser E2E وقياس RUM والميزانية النهائية لاحقًا |
+| P6 | الجودة والأداء والمراقبة | Ruff 0 diagnostics report-only؛ ESLint لم يبدأ بسبب قيد npm registry؛ P6.5: PR #59/#62/#64 خفضت التحميل الأولي وفصلت TopicPanel وQuizPanel وLabPanel والمحاكاة وMathTextRenderer إلى chunks عند الحاجة. entry 362.89 kB (116.82 gzip)، TopicPanel 6.76 kB (2.47 gzip)، ولا تزال قياسات RUM وCore Web Vitals وTypecheck وCoverage وBrowser E2E لاحقة |
 | P7 | الإطلاق | بعد إغلاق متطلبات الاستضافة والأمن والتشغيل |
 
 ## 6. بوابات القبول لكل تغيير
@@ -162,10 +162,10 @@ PR #39–#46 و#48 و#49 و#51–#59 مدمجة (باستثناء PR #55 الم�
 
 ## 8. نقطة الاستئناف
 
-- آخر `main` متحقق: `30d768932934fb7c57e5f18da673de169e1bb6f2` بعد PR #59؛ PR CI #41850891816 وmain CI #41851527075 نجحا بالكامل.
+- آخر `main` متحقق: `09d2a706236b4f9be55f3d8c66d461fee34f70c1` بعد PR #64؛ PR CI #41857581931 وmain CI #41858290575 نجحا بالكامل.
 - P4: فواصل Progress وReview وGamification scoring منفذة عبر PR #34/#35/#37/#40.
 - P5.1–P5.4 مدمجة: WebSocket (#41)، خريطة Frontend (#42)، session (#43)، notification state (#44)، ثم نقل Notifications إلى `features/notifications` (#46). CI #41745646366 نجح بعد الدمج.
 - P6.1: Ruff 0.17.3 مفعّل للخلفية كتقرير فقط والنتيجة الحالية 0 diagnostic(s). PR #52 و#53 أتما معالجة Ruff، وPR #55 تجربة ESLint جزئية أُغلقت دون دمج، وPR #56 أزال ثلاثة findings مؤكدة، وPR #57/#58 حدّثا السجلات. لا يوجد ESLint معتمد في `main`؛ بيئة التنفيذ الحالية لا تصل إلى npm registry ولا تحتوي cache للحزم، لذلك لا يُنشأ lockfile يدويًا.
-- P6.5: PR #59 مدمج، ونقل `TopicPanel` إلى lazy loading عند اختيار موضوع. خفّض ذلك entry الأولي من 830.50 kB (258.06 gzip) إلى 362.86 kB (116.80 gzip). ملفات TopicPanel (23.28 kB) وMathText (442.53 kB) وAdminDashboard (401.91 kB) منفصلة؛ لم يظهر تحذير >500 kB في build الجديد. لم يُقَس بعد زمن تحميل ميداني ولا Core Web Vitals.
+- P6.5: PR #59/#62/#64 مدمجة: PR #59 نقل TopicPanel إلى lazy loading، وPR #62 أجّل MathTextRenderer/CSS، وPR #64 أجّل QuizPanel وLabPanel والمحاكاة. main build: entry 362.89 kB/116.82 gzip؛ TopicPanel 6.76/2.47؛ QuizPanel 4.88/1.96؛ LabPanel 1.80/0.86؛ المحاكاة الفردية 1.82–3.23 kB قبل الضغط؛ MathTextRenderer 442.53/133.49 gzip. CI #41858290575 نجح: Backend 423/20 warnings، Frontend 74/14 files، Ruff 0، build وGitleaks وmigrations وbackup/restore ناجحة. هذه أحجام build وليست زمن تحميل ميداني؛ يلزم قياس على الهاتف والشبكات البطيئة.
 - سلسلة LTI #16–#23 تحتاج إعادة تأسيس وخطة migration/integration مستقلة؛ لا تدمج مباشرة.
 - لا يوجد نشر إنتاجي مثبت.

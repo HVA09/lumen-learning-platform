@@ -347,3 +347,32 @@
 - الضمانات: لم تتغير API أو DB أو migrations أو dependencies أو lockfile؛ استخدم التغيير `Suspense` fallback موجودًا. PR CI #41850891816 وmain CI #41851527075 نجحا: Backend **423 passed, 20 warnings**، Ruff **0 diagnostics**، Frontend **73 passed عبر 14 ملفًا**، build وGitleaks وفحوص PostgreSQL/backup/restore نجحت.
 - القيد: نتائج build تقيس حجم الملفات فقط؛ لا تثبت زمن تحميل ميداني أو Core Web Vitals. أول فتح لمحتوى الدرس ما زال يتطلب تنزيل `TopicPanel` و`MathText`، ويجب قياس التجربة على اتصالات أبطأ قبل ميزانية أداء نهائية.
 - التراجع: إعادة الاستيراد الساكن لـ `TopicPanel` في `App.jsx` وإزالة `Suspense` المحيط بها؛ لا migration ولا تعديل بيانات.
+
+
+## ADR-029 — تحميل Markdown وKaTeX عند ظهور محتوى MathText فقط
+
+- التاريخ: 2026-11-04
+- الحالة: **منفذ ومُدمج — PR #62**
+- الجهة: توصية هندسية ضمن P6.5 لتحسين التحميل التدريجي للواجهة على الاتصالات البطيئة.
+- القرار: إبقاء `MathText.jsx` wrapper خفيفًا، ونقل التنفيذ الفعلي لعرض Markdown/KaTeX إلى `MathTextRenderer.jsx` محمّل عبر حد lazy، مع نقل استيراد CSS الخاص بـ KaTeX من entry التطبيق إلى renderer المؤجل.
+- السبب: بعد PR #59 أصبحت `TopicPanel` نفسها تُحمّل عند اختيار موضوع، لكن تنزيل مكتبات Markdown/KaTeX لم يكن لازمًا في اللحظة التي يفتح فيها المتعلم لوحة الموضوع؛ يجب طلبها فقط عندما يُعرض محتوى MathText.
+- النطاق: `MathText.jsx` و`MathTextRenderer.jsx` واختبارات MathText وQuizPanel وموضع استيراد KaTeX CSS. لا تغيير في API أو DB أو migrations أو dependencies أو lockfile.
+- الضمانات: الحفاظ على عرض Markdown وGFM وLaTeX، المعادلات inline/block، classes الحالية، والتعامل المتسامح مع الصيغ غير الصالحة ومدخلات non-string. اختبارات المكونات تنتظر renderer غير المتزامن.
+- التحقق: PR CI [#41855423230](https://github.com/HVA09/lumen-learning-platform/actions/runs/41855423230) وmain CI بعد الدمج [#41856247148](https://github.com/HVA09/lumen-learning-platform/actions/runs/41856247148) نجحا بالكامل. على main: Backend **423 passed, 20 warnings**، Ruff **0 diagnostics**، Frontend **73 passed عبر 14 ملفًا**، production build وGitleaks full-history وCompose وmigrations وPostgreSQL backup/restore وRestic smoke نجحت.
+- قياس build على main: entry **362.87 kB / 116.81 kB gzip**؛ wrapper **0.70 kB / 0.41 kB gzip**؛ renderer المؤجل **442.53 kB / 133.49 kB gzip**؛ CSS المؤجل **30.20 kB / 8.08 kB gzip**. لا يظهر تحذير Vite >500 kB. هذا قياس أحجام build فقط، ولا يثبت زمن التنزيل أو Core Web Vitals.
+- القيد: أول ظهور لمحتوى MathText يحتاج تنزيل renderer وCSS. لا تجرِ split إضافيًا أو تغيّر مكتبات العرض قبل قياس فتح الدرس والمعادلة على اتصال بطيء.
+- التراجع: إعادة استيراد renderer وCSS مباشرة في wrapper/entry وإزالة lazy boundary، ثم إعادة تشغيل اختبارات MathText وQuizPanel وCI؛ لا migration أو تعديل بيانات.
+
+
+## ADR-030 — تحميل الاختبارات والمختبر والمحاكاة عند طلب المتعلم
+
+- التاريخ: 2026-11-04
+- الحالة: **منفذ ومُدمج — PR #64**
+- الجهة: توصية هندسية ضمن P6.5 لتحسين التجربة على الهواتف والاتصالات المحدودة.
+- القرار: تحميل `QuizPanel` فقط عند بدء اختبار تدريبي أو اختبار بوابة، وتحميل `LabPanel` فقط عند فتح المختبر، وتحميل مكوّن المحاكاة المطلوب فقط بحسب `simulation_type` داخل المختبر.
+- النطاق: `frontend/src/components/TopicPanel.jsx` و`LabPanel.jsx` و`TopicPanel.test.jsx`. استخدم التغيير `React.lazy` و`Suspense` دون تغيير عقود API أو سلوك الخادم.
+- الضمانات: لم تتغير dependencies أو manifests أو lockfiles أو Backend أو API أو DB أو migrations. أضيف اختبار regression يثبت عدم ظهور LabPanel قبل طلب الطالب ثم ظهوره بعد النقر. اختبارات quiz الحالية تستمر في التحقق من بدء الاختبار والتسليم والنتائج.
+- التحقق: PR CI [#41857581931](https://github.com/HVA09/lumen-learning-platform/actions/runs/41857581931) وmain CI بعد الدمج [#41858290575](https://github.com/HVA09/lumen-learning-platform/actions/runs/41858290575) نجحا بالكامل. Backend **423 passed, 20 warnings**، Ruff **0 diagnostics**، Frontend **74 passed عبر 14 ملفًا**، production build، Gitleaks full-history، migrations، Compose، Restic smoke وPostgreSQL backup/restore ناجحة.
+- قياس main build: entry **362.89 kB / 116.82 kB gzip**؛ `TopicPanel` **6.76 / 2.47**؛ `QuizPanel` **4.88 / 1.96**؛ `LabPanel` **1.80 / 0.86**. المحاكاة الفردية منفصلة: LinearFunctionSim **1.92 / 1.05**، DerivativeSim **1.82 / 1.04**، ProjectileSim **2.47 / 1.29**، PythonLabSim **2.71 / 1.44**، CircuitSim **3.23 / 1.34** kB/gzip.
+- القيد: هذه أحجام ملفات build وليست قياسًا ميدانيًا للزمن. أول طلب لاختبار أو مختبر أو محاكاة ينزّل الجزء الخاص به. لا توجد حتى الآن قياسات RUM أو Core Web Vitals على هاتف واتصال بطيء.
+- التراجع: إعادة الاستيرادات الساكنة في TopicPanel وLabPanel وإزالة Suspense wrappers واختبار التحميل عند الحاجة؛ لا migration أو تعديل بيانات.
