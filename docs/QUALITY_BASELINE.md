@@ -5,7 +5,7 @@
 ## 1. المرجع وحدود هذا التقييم
 
 - المستودع: `HVA09/lumen-learning-platform`.
-- خط أساس `main` الحالي بعد دمج PR #65: `ee74aaa1136c471fb4b22b61247528e1ad7478c3` (PR CI #41860852718 ناجح؛ main CI بعد الدمج #41861598602 جارٍ).
+- خط أساس `main` الحالي بعد دمج PR #65: `ee74aaa1136c471fb4b22b61247528e1ad7478c3` (PR CI #41860852718 وmain CI بعد الدمج #41861598602 ناجحان بالكامل).
 - هذا الملف يوثق ما هو مفعّل فعليًا في المستودع وCI، ثم يقترح إدخال أدوات الجودة تدريجيًا.
 - هذا التقييم توثيقي فقط؛ لا يضيف اعتماديات أو يغيّر سلوك التطبيق أو شروط CI.
 
@@ -39,7 +39,7 @@
 - PR #59 نقل `TopicPanel` إلى تحميل React.lazy عند اختيار موضوع؛ CI PR #41850891816 وmain CI #41851527075 نجحا بالكامل: Backend **423 passed, 20 warnings**، Ruff **0 diagnostics**، Frontend **73 passed عبر 14 ملفًا**، production build، Gitleaks، migrations، Compose، Restic وPostgreSQL backup/restore.
 - PR #62 (تحميل MathText وKaTeX عند الحاجة) دُمج عند `6b53686ae3824d020243dd33115cc0bf81bd3c03`؛ PR CI [#41855423230](https://github.com/HVA09/lumen-learning-platform/actions/runs/41855423230) وmain CI بعد الدمج [#41856247148](https://github.com/HVA09/lumen-learning-platform/actions/runs/41856247148) نجحا بالكامل: Backend **423 passed, 20 warnings**، Ruff **0 diagnostics**، Frontend **73 passed عبر 14 ملفًا**، production build وGitleaks وفحوص PostgreSQL/backup/restore ناجحة.
 - PR #64 (تحميل الاختبارات والمختبر والمحاكاة عند الطلب) دُمج عند `09d2a706236b4f9be55f3d8c66d461fee34f70c1`؛ PR CI [#41857581931](https://github.com/HVA09/lumen-learning-platform/actions/runs/41857581931) وmain CI بعد الدمج [#41858290575](https://github.com/HVA09/lumen-learning-platform/actions/runs/41858290575) نجحا بالكامل: Backend **423 passed, 20 warnings**، Ruff **0 diagnostics**، Frontend **74 passed عبر 14 ملفًا**، production build وGitleaks وmigrations وPostgreSQL backup/restore ناجحة.
-- PR #65 (استعادة أخطاء تحميل الوحدات المؤجلة) دُمج عند `ee74aaa1136c471fb4b22b61247528e1ad7478c3`؛ PR CI [#41860852718](https://github.com/HVA09/lumen-learning-platform/actions/runs/41860852718) نجح بالكامل: Backend **423 passed, 20 warnings**، Ruff **0 diagnostics**، Frontend **80 passed عبر 16 ملفًا**، production build وGitleaks ناجحان. CI بعد الدمج على main [#41861598602](https://github.com/HVA09/lumen-learning-platform/actions/runs/41861598602) لا يزال قيد التنفيذ وقت هذا التحديث.
+- PR #65 (استعادة أخطاء تحميل الوحدات المؤجلة) دُمج عند `ee74aaa1136c471fb4b22b61247528e1ad7478c3`؛ PR CI [#41860852718](https://github.com/HVA09/lumen-learning-platform/actions/runs/41860852718) نجح بالكامل: Backend **423 passed, 20 warnings**، Ruff **0 diagnostics**، Frontend **80 passed عبر 16 ملفًا**، production build وGitleaks ناجحان. CI بعد الدمج على main [#41861598602](https://github.com/HVA09/lumen-learning-platform/actions/runs/41861598602) نجح بالكامل: Backend **423 passed, 20 warnings**، Ruff **0 diagnostics**، Frontend **80 passed عبر 16 ملفًا**، production build وGitleaks وmigrations وPostgreSQL backup/restore ناجحة.
 - خط القياس قبل PR #59 في main CI #41767787126: `index-BJz-0WwU.js` **830.50 kB** قبل gzip و**258.06 kB** بعد gzip؛ `AdminDashboard` **401.91 kB** / **110.80 kB gzip**. كان تحذير Vite >500 kB ظاهرًا على entry.
 - بعد PR #59 في build ضمن CI #41850891816، وتأكد نفس القياس في main CI #41851527075: `index-CuMtssyR.js` **362.86 kB** / **116.80 kB gzip**؛ `TopicPanel` **23.28 kB** / **6.90 kB gzip**؛ `MathText` **442.53 kB** / **133.49 kB gzip**؛ `AdminDashboard` **401.91 kB** / **110.80 kB gzip**. انخفض entry الأولي بنحو **56.3%** (minified) و**54.7%** (gzip). لم يظهر تحذير Vite لتجاوز chunk حد 500 kB في هذا البناء. هذا قياس build، وليس قياس RUM أو تجربة مستخدم فعلية.
 - بعد PR #62 في main CI #41856247148: entry `index-TNoNppgD.js` **362.87 kB / 116.81 kB gzip**؛ wrapper `MathText` **0.70 kB / 0.41 kB gzip**؛ renderer المؤجل `MathTextRenderer` **442.53 kB / 133.49 kB gzip**؛ CSS المؤجل **30.20 kB / 8.08 kB gzip**؛ `TopicPanel` **23.28 kB / 6.91 kB gzip**؛ و`AdminDashboard` **401.91 kB / 110.79 kB gzip**. لا يظهر تحذير Vite >500 kB. الـ renderer وCSS لا يدخلان في التنزيل الأولي، لكنهما يُنزّلان عندما يظهر MathText فعليًا.
@@ -162,7 +162,7 @@
 - CI بعد PR #64: Backend **423 passed, 20 warnings**، Ruff **0 diagnostics**، Frontend **74 passed عبر 14 ملفًا**، build وGitleaks وmigrations وPostgreSQL backup/restore نجحت.
 - هذه أرقام build فقط؛ لا تثبت زمن تنزيل فعلي أو Core Web Vitals أو تجربة شبكة بطيئة. أول استخدام للاختبار أو المختبر أو الرياضيات يحتاج تنزيل الجزء المقابل.
 
-- PR #65 سجّل الاستماع إلى `vite:preloadError`، ويعيد تحميل الصفحة مرة واحدة كحد أقصى خلال 60 ثانية عندما يكون المتصفح متصلاً و`sessionStorage` متاحاً؛ إذا كان المتصفح offline أو التخزين محجوباً لا يُخفى الخطأ، بل يصل إلى ErrorBoundary. يعرض ErrorBoundary رسالة عربية خاصة بتحميل chunk، ويعطّل زر إعادة المحاولة حتى حدث `online`. اختبارات PR #65: **80 Frontend passed عبر 16 ملفاً**؛ Backend **423 passed, 20 warnings**؛ Ruff **0 diagnostics**. CI بعد الدمج #41861598602 ما زال قيد التنفيذ وقت التوثيق.
+- PR #65 سجّل الاستماع إلى `vite:preloadError`، ويعيد تحميل الصفحة مرة واحدة كحد أقصى خلال 60 ثانية عندما يكون المتصفح متصلاً و`sessionStorage` متاحاً؛ إذا كان المتصفح offline أو التخزين محجوباً لا يُخفى الخطأ، بل يصل إلى ErrorBoundary. يعرض ErrorBoundary رسالة عربية خاصة بتحميل chunk، ويعطّل زر إعادة المحاولة حتى حدث `online`. اختبارات PR #65: **80 Frontend passed عبر 16 ملفاً**؛ Backend **423 passed, 20 warnings**؛ Ruff **0 diagnostics**. CI بعد الدمج #41861598602 نجح بالكامل: Backend **423 passed, 20 warnings**، Ruff **0 diagnostics**، Frontend **80 passed عبر 16 ملفًا**، build وGitleaks وmigrations وPostgreSQL backup/restore ناجحة.
 
 **الخطوات التالية:**
 - قياس زمن فتح الموضوع وأول درس وأول معادلة وفتح الاختبار/المختبر على هاتف واتصال بطيء؛ افصل زمن تحميل كل chunk عن زمن API.
@@ -180,7 +180,7 @@
 
 ## 8. نقطة الاستئناف
 
-- آخر `main` commit: `ee74aaa1136c471fb4b22b61247528e1ad7478c3` بعد PR #65؛ PR CI #41860852718 ناجح، وmain CI #41861598602 جارٍ.
+- آخر `main` commit: `ee74aaa1136c471fb4b22b61247528e1ad7478c3` بعد PR #65؛ PR CI #41860852718 وmain CI #41861598602 ناجحان بالكامل.
 
 1. P6.0 موثق، وP5.4 مكتملة ومدمجة.
 2. PR #49 أدخل Ruff؛ PR #52 و#53 أتما معالجة baseline، والنتيجة الحالية **0 diagnostic(s)**. تحقق ذلك في CI PR #53 #41757169187، ثم في main بعد PR #54 عبر CI #41759458975، وبعد PR #56 عبر CI #41763352189.
