@@ -422,3 +422,17 @@
 - أحدث قائمة خرجت من CI #419047: تنبيهان Low (`@rollup/plugin-node-resolve`, `deepmerge`) وأربعة Moderate (`glob`, `minimatch`, `vite-plugin-pwa`, `workbox-build`). أظهر تشغيل #418769 السابق أيضاً تنبيهات `@trickfilm400/rollup-plugin-off-main-thread` و`ejs` و`filelist` و`jake` ضمن عدده الأعلى؛ لا نمحو الدليل السابق ولا نفترض أن كل تنبيه سابق ما زال يظهر في أحدث لقطة.
 - النطاق الحالي: **لا تغييرات على package.json أو package-lock أو كود التطبيق في PR #69**. لا تُعدّ التنبيهات الحالية عالية أو حرجة؛ لكنها لا تُغلق حتى تُعالج أو يوثّق سبب عدم قابلية التحديث مع مراجعة دورية.
 - التراجع عن تجربة مستقبلية: إزالة override والعودة إلى lockfile السابق المعروف، ثم `npm ci` والاختبارات والبناء. لا تغيّر API أو DB أو migrations أو إعدادات الاستضافة.
+
+
+## ADR-034 — إدخال Browser E2E حقيقي تدريجيًا باستخدام Playwright
+
+- التاريخ: 2026-11-04
+- الحالة: **منفذ على فرع PR #70؛ بانتظار الدمج**
+- الجهة: توصية هندسية ضمن P6.6 للتحقق من تدفقات المستخدم الفعلية بعد أن كانت الاختبارات تعتمد أساسًا على Vitest/jsdom.
+- القرار: إضافة وظيفة CI مستقلة باسم `Browser E2E (registration and browser session)` تستخدم Playwright for Python **1.64.1** مع Chromium، وتشغّل نسخة Vite production preview متصلة بخادم FastAPI حقيقي وقاعدة PostgreSQL وRedis مؤقتتين في GitHub Actions.
+- النطاق: `frontend/e2e/smoke_test.py` و`frontend/e2e/requirements.txt` وملف `.github/workflows/ci.yml`. تثبيت Playwright منفصل عن npm manifest و`package-lock.json` حتى لا يغيّر اعتماديات الواجهة أو lockfile.
+- السيناريو المثبت: إنشاء حساب من واجهة الهاتف بعرض 390px، الدخول، التأكد من Cookies `lumen_access` و`lumen_refresh` كـ HttpOnly وعدم ظهورها في `document.cookie` أو `localStorage`، ظهور لوحة ومسار التعلّم والمحتوى المزروع، إعادة تحميل الصفحة واستعادة الجلسة من cookies، ثم تسجيل الخروج وانتظار استجابة `POST /auth/logout` بحالة HTTP 200 والتحقق من إزالة cookies.
+- التحقق: [CI #41909053692](https://github.com/HVA09/lumen-learning-platform/actions/runs/41909053692) على رأس فرع PR #70 `7b7e8c76b40c6da6cc1cacb94c676682a3a67462` نجح في الوظائف الأربع: Browser E2E وBackend وFrontend/build وFull Git history Gitleaks. Backend **423 passed, 20 warnings**؛ Frontend **80 passed عبر 16 ملفًا**؛ Ruff **0 diagnostics**؛ production dependency audit **0 vulnerabilities**؛ full dependency tree audit **2 Low و4 Moderate**.
+- قيد التغطية: هذه أول شريحة smoke وليست تغطية كاملة للمنتج. لا تختبر بعد إكمال درس أو تسليم quiz، أدوار teacher/admin، رفع الملفات، الإشعارات/WebSocket، RTL/LTR عبر جميع الصفحات، أو الانقطاع/العودة والعمل دون اتصال. يجب إضافة هذه السيناريوهات تدريجيًا دون استخدام بيانات طلاب حقيقية.
+- قيد التشغيل: جميع الخدمات والبيانات وبيانات الاعتماد داخل CI مؤقتة، ولا يوجد نشر أو مزود خدمة مدفوع أو سر إنتاجي أو تفعيل دفع. PR #70 ما زال مفتوحًا وغير مدمج عند هذا التوثيق.
+- التراجع: إزالة وظيفة `browser-e2e` من workflow وحذف ملفات `frontend/e2e/`؛ لا يتطلب ذلك تغيير API أو قاعدة البيانات أو migrations أو سلوك التطبيق.
