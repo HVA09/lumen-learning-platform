@@ -30,6 +30,7 @@
 - PR #46 نقل الإشعارات إلى `features/notifications`؛ كل وظائف CI على رأس PR #46 نجحت في #41744744642، ثم نجحت جميع وظائف CI على `main` بعد الدمج في #41745646366.
 - PR #49 أضاف Ruff 0.17.3 كتقرير فقط؛ PR #52 جعل إعادة التصدير المقصودة صريحة، وPR #53 عالج الاستيرادات والتعيينات والمتغيرات المتبقية. CI #41757169187 على PR #53 نجح بالكامل: Backend **423 passed, 20 warnings**، وFrontend **73 passed عبر 14 ملفًا**، production build، Gitleaks، Compose، migrations وbackup/restore.
 - تقرير Ruff بعد المعالجة: **0 diagnostic(s)**. لا توجد حتى الآن بوابة lint تمنع الدمج.
+- تشغيل main بعد دمج PR #53: [CI #41757735260](https://github.com/HVA09/lumen-learning-platform/actions/runs/41757735260) نجح بالكامل على commit `4f70cb904e7f92283af8e16a738caf283e5ae494`؛ Backend 423 passed و20 warnings، Frontend 73 passed عبر 14 ملفًا، Gitleaks وmigrations وCompose وRestic وPostgreSQL backup/restore نجحت.
 - بناء الواجهة في CI #41757169187 أظهر `index-DoXdqRsw.js` بحجم 830.50 kB قبل gzip و258.09 kB بعد gzip، كما ظهر `AdminDashboard` بحجم 401.91 kB قبل gzip؛ ما زال تحذير Vite بشأن حجم chunk قائمًا ولا توجد ميزانية أداء معتمدة.
 - تدقيق الاعتماديات الإنتاجية في CI #41757169187: **0 vulnerabilities** عند المستوى الذي يفحصه الأمر الحالي.
 - نتيجة npm production audit في CI #570: **0 vulnerabilities** عند مستوى High/Critical المشمول بالأمر الحالي. أما التقرير الكامل لكل شجرة الاعتماديات فسجّل **10 تنبيهات غير عالية: 2 Low و8 Moderate**؛ أغلبها في سلسلة `vite-plugin-pwa` والاعتماديات التابعة لها. لا تُحدّث السلسلة عشوائيًا؛ افحص الشجرة والتوافق وPWA قبل أي ترقية.
@@ -47,6 +48,7 @@
 - [CI #41745646366 — main بعد دمج PR #46](https://github.com/HVA09/lumen-learning-platform/actions/runs/41745646366)
 - [CI #41750390626 — PR #49 Ruff report-only](https://github.com/HVA09/lumen-learning-platform/actions/runs/41750390626)
 - [CI #41754238271 — main بعد دمج Ruff](https://github.com/HVA09/lumen-learning-platform/actions/runs/41754238271)
+- [CI #41757735260 — main بعد PR #53 وإغلاق Ruff baseline](https://github.com/HVA09/lumen-learning-platform/actions/runs/41757735260)
 
 مهم: تغييرات P5.1–P5.3 أصبحت جزءًا من `main` بعد دمج PR #41 ثم #43 ثم #44 بالترتيب. نجاح CI لا يثبت تشغيلًا إنتاجيًا أو اختبار متصفح حي.
 
