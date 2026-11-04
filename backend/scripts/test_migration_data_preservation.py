@@ -123,10 +123,6 @@ def seed_legacy_rows(database_url: str) -> tuple[int, int, int, int]:
             {"user_id": user_id},
         ).scalar_one()
 
-        plan_id = connection.execute(
-            text("SELECT id FROM plans WHERE name = 'Pro' ORDER BY id LIMIT 1")
-        ).scalar_one()
-
         assignment_id = connection.execute(
             text(
                 """
