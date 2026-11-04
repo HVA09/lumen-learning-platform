@@ -5,9 +5,10 @@
 
 ## 1. الحالة الحالية
 
-- HEAD الحالي لـ `main`: `ee149a40b144883b0fea34232ae730574d5e5ed7` بعد دمج PR #46.
+- HEAD الحالي لـ `main`: `462dcc3c0386afc42ead51225ccf7c3d28ca21f9` بعد PR #48.
 - لا نعدّ أي PR مدمجًا إلا بعد التحقق من حالة GitHub والـ merge commit.
-- [CI #41745646366](https://github.com/HVA09/lumen-learning-platform/actions/runs/41745646366) نجح بالكامل على `main` بعد PR #46؛ الوظائف الثلاث Backend وFrontend/build وGitleaks ناجحة.
+- [CI #41745646366](https://github.com/HVA09/lumen-learning-platform/actions/runs/41745646366) نجح بالكامل على `main` بعد PR #46.
+- [CI #41750270590](https://github.com/HVA09/lumen-learning-platform/actions/runs/41750270590) نجح بالكامل على `main` بعد PR #48؛ الوظائف الثلاث Backend وFrontend/build وGitleaks ناجحة.
 - [CI #41744744642](https://github.com/HVA09/lumen-learning-platform/actions/runs/41744744642) نجح على رأس PR #46 قبل الدمج.
 - لا يوجد نشر إنتاجي مثبت.
 
@@ -22,6 +23,7 @@
 | #44 | Hook لحالة الإشعارات والقراءة الآمنة عبر تبدل الجلسة | `aec9584df78009b07c8bed35b48742d7b7a60ede` | مدمج |
 | #45 | خط أساس الجودة وتحديث سجلات الحالة والقرارات | `4445ddaf347bf97ae3e89450d7dce01a7bb65eb6` | مدمج |
 | #46 | نقل الإشعارات إلى `features/notifications` | `ee149a40b144883b0fea34232ae730574d5e5ed7` | مدمج |
+| #48 | تحديث نقطة الاستئناف وسجلات المشروع بعد PR #46 | `462dcc3c0386afc42ead51225ccf7c3d28ca21f9` | مدمج؛ CI #41750270590 ناجح |
 
 P5.1–P5.3 دخلت `main` بالترتيب #41 → #43 → #44. PR #39 أعيد تأسيسه على أحدث main بعد هذه السلسلة، وأُدخل بعد نجاح CI على رأسه.
 
@@ -33,7 +35,7 @@ P5.1–P5.3 دخلت `main` بالترتيب #41 → #43 → #44. PR #39 أعي�
 | #45 | خط أساس الجودة وخطة P6 وتحديث السجلات | `4445ddaf347bf97ae3e89450d7dce01a7bb65eb6` | مدمج؛ CI على `main` #41744675433 ناجح |
 | #46 | P5.4 نقل Notifications إلى `features/notifications` | `ee149a40b144883b0fea34232ae730574d5e5ed7` | مدمج؛ PR CI #41744744642 وmain CI #41745646366 ناجحان |
 
-لا يوجد ضمن سلسلة P5/P6 PR مفتوح عند آخر تحقق. سلسلة LTI #16–#23 تظل منفصلة ومتراكبة على فروع قديمة وتحتاج خطة تكامل مستقلة.
+تعمل P6.1 الآن على فرع مستقل لتأسيس Ruff كتقرير فقط؛ لا تُعتبر ESLint أو بقية P6 منجزة بعد. سلسلة LTI #16–#23 تظل منفصلة ومتراكبة على فروع قديمة وتحتاج خطة تكامل مستقلة.
 
 ## 4. سلسلة LTI/AGS — PR #16 إلى #23
 
