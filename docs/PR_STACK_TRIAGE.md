@@ -42,8 +42,6 @@ P5.1–P5.4 دخلت `main`: WebSocket (#41)، Session (#43)، notification stat
 | #48 | تحديث نقطة الاستئناف بعد PR #46 | `462dcc3c0386afc42ead51225ccf7c3d28ca21f9` | مدمج؛ main CI #41750270590 ناجح |
 | #49 | تثبيت Ruff report-only baseline | `42986e93060c09e00ffcf917a784390f35adb40f` | مدمج؛ PR CI #41750390626 وmain CI #41754238271 ناجحان |
 | #51 | تحديث سجلات المشروع بعد baseline | `f8c3e9653028cc169c95c8dedcc23c364a315e4f` | مدمج؛ PR/main CI ناجحان |
-| #52 | explicit re-exports لواجهات التوافق | `9b04b4e2154192a0214fe1b5024ae3cdf3dac792` | مدمج؛ PR/main CI ناجحان |
-| #53 | Ruff cleanup حتى 0 diagnostics | `4f70cb904e7f92283af8e16a738caf283e5ae494` | مدمج؛ PR CI #41757169187 ناجح بالكامل |
 
 أُغلق PR #50 دون دمج؛ كان يكرر تغيير Ruff الذي وصل إلى `main` عبر PR #49. أُغلقت دفعتا P6.1 عبر PR #52 و#53 وأصبح Ruff baseline صفرًا. الخطوة التالية ESLint كتقرير فقط مع تحديث lockfile عبر npm. سلسلة LTI #16–#23 ما زالت منفصلة ومتراكبة على فروع قديمة.
 
