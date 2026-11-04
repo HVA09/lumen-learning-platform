@@ -20,11 +20,12 @@ describe("MathText", () => {
   });
 
   it("المعادلة المنفصلة تحتاج $$ على أسطر مستقلة، وبسطر واحد تُعرض داخل السطر", async () => {
-    const fenced = render(<MathText>{"$\n\\frac{a}{b}\n$"}</MathText>);
+    const delimiter = String.fromCharCode(36, 36);
+    const fenced = render(<MathText>{delimiter + "\n\\frac{a}{b}\n" + delimiter}</MathText>);
     await waitForMathRenderer(fenced.container);
     expect(fenced.container.querySelector(".katex-display")).not.toBeNull();
 
-    const oneLine = render(<MathText>{"$\\frac{a}{b}$"}</MathText>);
+    const oneLine = render(<MathText>{delimiter + "\\frac{a}{b}" + delimiter}</MathText>);
     await waitForMathRenderer(oneLine.container);
     expect(oneLine.container.querySelector(".katex")).not.toBeNull();
     expect(oneLine.container.querySelector(".katex-display")).toBeNull();
