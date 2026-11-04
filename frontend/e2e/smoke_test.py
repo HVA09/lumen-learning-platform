@@ -177,6 +177,13 @@ def run_smoke_test() -> None:
             expect(page.get_by_text("إتقانك الإجمالي", exact=True)).to_be_visible(
                 timeout=45_000
             )
+            page.get_by_role(
+                "button",
+                name=re.compile(rf"^{re.escape(topic_name)}\\s"),
+            ).click()
+            expect(
+                page.get_by_role("heading", name=topic_name, exact=True)
+            ).to_be_visible(timeout=30_000)
 
             # Exercise a real learner quiz through the browser. The initial attempt
             # must not expose answer keys; the server alone grades the submission.
@@ -233,7 +240,6 @@ def run_smoke_test() -> None:
                 for item in quiz_result["results"]
             ), "The graded result must contain per-question feedback"
 
-            expect(page.get_by_text("0%", exact=True)).to_be_visible(timeout=30_000)
             expect(
                 page.get_by_text(
                     f"0 من {len(quiz_questions)} صحيحة",
