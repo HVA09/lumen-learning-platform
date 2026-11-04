@@ -101,7 +101,7 @@
 | Type checking | لا يوجد TypeScript أو typecheck job | لا يوجد فحص أنواع آلي للواجهة |
 | Lint للخلفية | Ruff 0.17.3 report-only | 0 diagnostics بعد PR #52 و#53؛ لا توجد بوابة منع، ولا حاجة لإعادة تصنيف F401 في baseline الحالي |
 | تغطية الاختبارات | مجموعات اختبارات ناجحة | لا يوجد coverage baseline أو تقرير اتجاهات |
-| Browser E2E | Vitest/jsdom | لا يوجد اختبار متصفح حقيقي لتدفقات الدخول والتعلم والإشعارات |
+| Browser E2E | Vitest/jsdom + تجربة Playwright/Chromium أولية في PR #70 | على فرع PR #70 نجح CI #41909053692 في رحلة تسجيل حساب/دخول، إثبات Cookies HttpOnly وعدم وجود tokens في localStorage/document.cookie، تحميل لوحة ومسار التعلّم، استعادة الجلسة بعد reload، ثم logout مع انتظار رد `/auth/logout` 200 والتحقق من إزالة access/refresh cookies. PR #70 مفتوح وغير مدمج. التغطية التالية: درس وإكماله، quiz، أدوار teacher/admin، الملفات، الإشعارات/WebSocket، RTL/LTR، وانقطاع/عودة الشبكة |
 | الأداء | PR #59/#62/#64/#65 فصلت الميزات الثقيلة؛ PR #67 خفّض Workbox precache من 35/1328.16 KiB إلى 8/378.63 KiB | لا توجد ميزانية أداء رقمية أو RUM/قياسات Core Web Vitals ميدانية؛ CacheFirst لا يجعل API/WebSocket تعمل دون اتصال |
 | أمن اعتماديات التطوير | الإنتاج: 0 vulnerabilities؛ أحدث تدقيق كامل: 2 Low و4 Moderate؛ تشغيل سابق سجّل 2 Low و8 Moderate | التنبيهات تخص أدوات بناء PWA/Workbox والاعتماديات الانتقالية؛ اختلاف العدد بين التشغيلات موثق في ADR-033؛ المعالجة تتطلب تحديثًا متوافقًا وإعادة توليد lockfile واختبارات كاملة |
 | المراقبة | إعدادات تشغيل موجودة جزئيًا | لا يوجد تحقق حي من telemetry على استضافة إنتاجية |
@@ -177,7 +177,8 @@
 **الخطوات التالية:**
 - قياس زمن فتح الموضوع وأول درس وأول معادلة وفتح الاختبار/المختبر على هاتف واتصال بطيء؛ افصل زمن تحميل كل chunk عن زمن API.
 - اختبار Vite preload recovery وErrorBoundary على متصفحات وهواتف فعلية مع انقطاع/عودة الشبكة، والتحقق من التحديثات القديمة للـ chunks؛ لا يُعد نجاح اختبارات الوحدة اختباراً ميدانياً.
-- اعتماد ميزانيات أداء رقمية بناءً على القياسات، وإضافة Browser E2E منفصل بعد توافر بيئة اختبار موثوقة.
+- توسيع Playwright E2E تدريجيًا بعد أول smoke ناجح في PR #70: إكمال درس واختبار quiz، ثم مسارات teacher/admin، الملفات والإشعارات، RTL/LTR، وقطع الاتصال/عودته. لا تعتبر تغطية المصادقة وحدها تغطية شاملة للمنصة.
+- قياس فتح الموضوع وأول درس وأول معادلة على هاتف واتصال بطيء، ثم اعتماد ميزانيات أداء رقمية من القياس لا من أحجام build وحدها.
 - حافظ على شرط الميزانية صفر، ولا تضف خدمة مدفوعة أو تتطلب بطاقة.
 ## 7. بوابات لا يجوز تخفيفها
 
@@ -190,7 +191,7 @@
 
 ## 8. نقطة الاستئناف
 
-- آخر تغيير برمجي على `main`: `2453b9124fc4eaa617aa5bb5493ebc0cf1400c9a` بعد PR #67؛ CI بعد الدمج #41886648386 نجح بالكامل. PR #68 التوثيقي دُمج عند `11d6695913bc0b6587225c95489c4abffd7ff9a0`؛ PR CI #41887034381 وmain CI بعد الدمج #41903896915 نجحا بالكامل: Backend **423 passed, 20 warnings**، Ruff **0 diagnostics**، Frontend **80 passed عبر 16 ملفًا**، production build precache **8 entries / 378.63 KiB**، production dependency audit **0 vulnerabilities**، وGitleaks ناجح.
+- آخر تغيير برمجي على `main`: PR #67 عند `2453b9124fc4eaa617aa5bb5493ebc0cf1400c9a`. PR #69 التوثيقي دُمج في `main` عند `de1197927ab5321b739206ce09770499ccb55ebe`، وCI بعد الدمج #41907780368 نجح. PR #70 يضيف أول Playwright browser smoke على فرع مستقل، ولم يُدمج بعد. CI [#41909053692](https://github.com/HVA09/lumen-learning-platform/actions/runs/41909053692) نجح على رأس PR #70 `7b7e8c76b40c6da6cc1cacb94c676682a3a67462`: Backend **423 passed, 20 warnings**، Ruff **0 diagnostics**، Frontend **80 passed عبر 16 ملفًا**، production build، production audit **0 vulnerabilities**، full-history Gitleaks، وBrowser E2E jobs الأربع كلها ناجحة.
 
 1. P6.0 موثق، وP5.4 مكتملة ومدمجة.
 2. PR #49 أدخل Ruff؛ PR #52 و#53 أتما معالجة baseline، والنتيجة الحالية **0 diagnostic(s)**. تحقق ذلك في CI PR #53 #41757169187، ثم في main بعد PR #54 عبر CI #41759458975، وبعد PR #56 عبر CI #41763352189.
