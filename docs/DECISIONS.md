@@ -388,7 +388,7 @@
 - النطاق: `frontend/src/lib/vitePreloadRecovery.js` واختباراته، و`frontend/src/main.jsx`، و`frontend/src/components/ErrorBoundary.jsx` واختباراته.
 - الضمانات: لا اعتماديات جديدة ولا تغيير API أو DB أو migrations أو إعدادات الاستضافة. تخزين مهلة إعادة التحميل في sessionStorage فقط؛ عند فشل التخزين يُسمح للخطأ بالظهور للمستخدم بدلاً من كتمه.
 - التحقق على PR #65: [CI #41860852718](https://github.com/HVA09/lumen-learning-platform/actions/runs/41860852718) نجح بالكامل؛ Backend **423 passed, 20 warnings**، Ruff **0 diagnostics**، Frontend **80 passed عبر 16 ملفاً**، production build وGitleaks ناجحان.
-- تحقق ما بعد الدمج: [CI #41861598602](https://github.com/HVA09/lumen-learning-platform/actions/runs/41861598602) كان قيد التنفيذ وقت آخر تحديث لهذه الوثيقة؛ لا يُسجل نجاحه قبل ظهور النتيجة النهائية.
+- تحقق ما بعد الدمج: [CI #41861598602](https://github.com/HVA09/lumen-learning-platform/actions/runs/41861598602) نجح بالكامل. Backend **423 passed, 20 warnings**، Ruff **0 diagnostics**، Frontend **80 passed عبر 16 ملفاً**، production build وGitleaks وmigrations وPostgreSQL backup/restore ناجحة.
 - المرجع التقني: [Vite Load Error Handling](https://vite.dev/guide/build#load-error-handling) و[Vite Troubleshooting](https://vite.dev/guide/troubleshooting#failed-to-fetch-dynamically-imported-module).
 - القيد: إعادة التحميل تستعيد chunk قديم/مفقود عند وجود اتصال؛ لا تضمن نجاح التنزيل عند استمرار ضعف الشبكة، ولا تحل محل اختبار متصفح حقيقي.
 - التراجع: إزالة استدعاء `registerVitePreloadRecovery` من `main.jsx` وإعادة fallback القديم في ErrorBoundary؛ لا migration أو تعديل بيانات.
