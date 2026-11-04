@@ -24,8 +24,34 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // ما نخزّن ردود /ws — تفاعلية وتحتاج اتصال حي دائمًا.
-        // الهدف هنا تحميل أسرع للواجهة الثابتة فقط (JS/CSS)، مو استخدام offline كامل
+        // Cache only the app shell at install time. Vite's default Workbox
+        // patterns include every JS/CSS chunk, defeating lazy loading on slow links.
+        globPatterns: [
+          "**/*.html",
+          "**/assets/index-*.js",
+          "**/assets/index-*.css",
+          "**/registerSW.js",
+        ],
+        // Hashed lazy chunks are cached only after the learner requests them.
+        // This preserves repeat/offline access to previously visited features
+        // without downloading every feature during service-worker installation.
+        runtimeCaching: [
+          {
+            urlPattern: /\/assets\/(?!index-[^/]+\.(?:js|css)$)[^/]+\.(?:js|css)$/i,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "lumen-versioned-assets",
+              expiration: {
+                maxEntries: 60,
+                maxAgeSeconds: 30 * 24 * 60 * 60,
+              },
+              cacheableResponse: {
+                statuses: [200],
+              },
+            },
+          },
+        ],
+        // WebSocket routes are interactive and must always use a live connection.
         navigateFallbackDenylist: [/^\/ws/],
       },
     }),
