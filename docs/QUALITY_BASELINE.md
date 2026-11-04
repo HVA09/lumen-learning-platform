@@ -36,9 +36,9 @@
 - PR #56 أزال الحالات الثلاث المؤكدة (استيراد App غير المستخدم، معاملا الرسم غير المستخدمين، وتعليق التعطيل القديم)؛ PR CI #41760360217 وmain CI #41763352189 نجحا.
 - PR #57 حدّث السجلات بعد PR #54/#56، ودُمج عبر `96fff938fa5ec85b921de247bfe7a3dbe3300071`؛ CI PR #41766914355 وmain #41767787126 نجحا.
 - PR #58 تحديث توثيقي فقط؛ CI بعد دمجه #41850447579 نجح.
-- PR #59 نقل `TopicPanel` إلى تحميل React.lazy عند اختيار موضوع؛ CI PR #41850891816 نجح بالكامل: Backend **423 passed, 20 warnings**، Ruff **0 diagnostics**، Frontend **73 passed عبر 14 ملفًا**، production build، Gitleaks، migrations، Compose، Restic وPostgreSQL backup/restore.
+- PR #59 نقل `TopicPanel` إلى تحميل React.lazy عند اختيار موضوع؛ CI PR #41850891816 وmain CI #41851527075 نجحا بالكامل: Backend **423 passed, 20 warnings**، Ruff **0 diagnostics**، Frontend **73 passed عبر 14 ملفًا**، production build، Gitleaks، migrations، Compose، Restic وPostgreSQL backup/restore.
 - خط القياس قبل PR #59 في main CI #41767787126: `index-BJz-0WwU.js` **830.50 kB** قبل gzip و**258.06 kB** بعد gzip؛ `AdminDashboard` **401.91 kB** / **110.80 kB gzip**. كان تحذير Vite >500 kB ظاهرًا على entry.
-- بعد PR #59 في build ضمن CI #41850891816: `index-CuMtssyR.js` **362.86 kB** / **116.80 kB gzip**؛ `TopicPanel` **23.28 kB** / **6.90 kB gzip**؛ `MathText` **442.53 kB** / **133.49 kB gzip**؛ `AdminDashboard` **401.91 kB** / **110.80 kB gzip**. انخفض entry الأولي بنحو **56.3%** (minified) و**54.7%** (gzip). لم يظهر تحذير Vite لتجاوز chunk حد 500 kB في هذا البناء. هذا قياس build، وليس قياس RUM أو تجربة مستخدم فعلية.
+- بعد PR #59 في build ضمن CI #41850891816، وتأكد نفس القياس في main CI #41851527075: `index-CuMtssyR.js` **362.86 kB** / **116.80 kB gzip**؛ `TopicPanel` **23.28 kB** / **6.90 kB gzip**؛ `MathText` **442.53 kB** / **133.49 kB gzip**؛ `AdminDashboard` **401.91 kB** / **110.80 kB gzip**. انخفض entry الأولي بنحو **56.3%** (minified) و**54.7%** (gzip). لم يظهر تحذير Vite لتجاوز chunk حد 500 kB في هذا البناء. هذا قياس build، وليس قياس RUM أو تجربة مستخدم فعلية.
 - تدقيق الاعتماديات الإنتاجية في CI #41767787126 وجد **0 vulnerabilities** عند المستوى الذي يفحصه الأمر الحالي (`--omit=dev --audit-level=high`).
 - نتيجة npm production audit في CI #570: **0 vulnerabilities** عند مستوى High/Critical المشمول بالأمر الحالي. أما التقرير الكامل لكل شجرة الاعتماديات فسجّل **10 تنبيهات غير عالية: 2 Low و8 Moderate**؛ أغلبها في سلسلة `vite-plugin-pwa` والاعتماديات التابعة لها. لا تُحدّث السلسلة عشوائيًا؛ افحص الشجرة والتوافق وPWA قبل أي ترقية.
 - يظهر تحذير حجم Chunk في بناء Vite، ولا يوجد حتى الآن حد أداء رقمي معتمد.
@@ -172,10 +172,10 @@
 
 ## 8. نقطة الاستئناف
 
-- آخر `main` متحقق: `30d768932934fb7c57e5f18da673de169e1bb6f2` بعد PR #59؛ PR CI #41850891816 نجح. CI بعد الدمج #41851527075 كان قيد التنفيذ وقت التحديث.
+- آخر `main` متحقق: `30d768932934fb7c57e5f18da673de169e1bb6f2` بعد PR #59؛ PR CI #41850891816 وmain CI #41851527075 نجحا بالكامل.
 
 1. P6.0 موثق، وP5.4 مكتملة ومدمجة.
 2. PR #49 أدخل Ruff؛ PR #52 و#53 أتما معالجة baseline، والنتيجة الحالية **0 diagnostic(s)**. تحقق ذلك في CI PR #53 #41757169187، ثم في main بعد PR #54 عبر CI #41759458975، وبعد PR #56 عبر CI #41763352189.
 3. Ruff يبقى report-only عند 0 diagnostics. ESLint لم يُعتمد في main؛ PR #55 كان تجربة مؤقتة مغلقة، وPR #56 دمج الإصلاحات المؤكدة، وPR #57 وثّق حالة الجودة. لا يوجد اتصال npm registry في بيئة التنفيذ الحالية (فشل DNS إلى `registry.npmjs.org`) ولا حزم ESLint في cache؛ لا تُحرر lockfile يدويًا. عند توفر registry، ثبّت الإصدارات وولّد lockfile عبر npm ثم أثبت نجاح `npm ci`.
-4. أُنجز أول تحسين P6.5 عبر PR #59: entry 362.86 kB (116.80 kB gzip) بدل 830.50 kB (258.06 kB gzip). يجب قياس تجربة فتح الدرس وتحميل MathText قبل وضع ميزانية أداء نهائية.
+4. أُنجز أول تحسين P6.5 عبر PR #59: entry 362.86 kB (116.80 kB gzip) بدل 830.50 kB (258.06 kB gzip). تحقق ذلك في PR CI #41850891816 وبعد الدمج في main CI #41851527075. يجب قياس تجربة فتح الدرس وتحميل MathText على أجهزة واتصالات أبطأ قبل وضع ميزانية أداء نهائية.
 5. لا يوجد نشر إنتاجي مثبت. اختبار Restic الحالي يستخدم مستودعًا مؤقتًا في CI وليس وجهة تخزين خارجية حقيقية.
