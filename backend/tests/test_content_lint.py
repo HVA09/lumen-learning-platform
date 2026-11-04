@@ -111,7 +111,7 @@ def test_legacy_snapshot_is_a_subset_of_current_content():
     legacy = _legacy()
     assert {q["key"] for qs in legacy["questions"].values() for q in qs} <= {q["key"] for qs in QUESTIONS.values() for q in qs}
     assert {c["key"] for cs in legacy["cards"].values() for c in cs} <= {c["key"] for cs in CARDS.values() for c in cs}
-    assert {l["slug"] for ls in legacy["lessons"].values() for l in ls} <= {l["slug"] for ls in LESSONS.values() for l in ls}
+    assert {lesson["slug"] for lessons in legacy["lessons"].values() for lesson in lessons} <= {lesson["slug"] for lessons in LESSONS.values() for lesson in lessons}
 
 
 def test_question_meaning_never_changed_between_versions():
