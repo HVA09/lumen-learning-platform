@@ -5,10 +5,11 @@
 
 ## 1. الحالة الحالية
 
-- HEAD الحالي لـ `main`: `ee149a40b144883b0fea34232ae730574d5e5ed7` بعد دمج PR #46.
+- HEAD الحالي لـ `main`: `42986e93060c09e00ffcf917a784390f35adb40f` بعد دمج PR #49.
 - لا نعدّ أي PR مدمجًا إلا بعد التحقق من حالة GitHub والـ merge commit.
-- [CI #41745646366](https://github.com/HVA09/lumen-learning-platform/actions/runs/41745646366) نجح بالكامل على `main` بعد PR #46؛ الوظائف الثلاث Backend وFrontend/build وGitleaks ناجحة.
-- [CI #41744744642](https://github.com/HVA09/lumen-learning-platform/actions/runs/41744744642) نجح على رأس PR #46 قبل الدمج.
+- [CI #41745646366](https://github.com/HVA09/lumen-learning-platform/actions/runs/41745646366) نجح بالكامل على `main` بعد PR #46.
+- [CI #41754238271](https://github.com/HVA09/lumen-learning-platform/actions/runs/41754238271) نجح بالكامل على `main` بعد PR #49؛ Backend وFrontend/build وGitleaks كلها ناجحة.
+- [CI #41750390626](https://github.com/HVA09/lumen-learning-platform/actions/runs/41750390626) نجح على PR #49 قبل دمجه.
 - لا يوجد نشر إنتاجي مثبت.
 
 ## 2. PRs المدمجة حديثًا
@@ -22,8 +23,10 @@
 | #44 | Hook لحالة الإشعارات والقراءة الآمنة عبر تبدل الجلسة | `aec9584df78009b07c8bed35b48742d7b7a60ede` | مدمج |
 | #45 | خط أساس الجودة وتحديث سجلات الحالة والقرارات | `4445ddaf347bf97ae3e89450d7dce01a7bb65eb6` | مدمج |
 | #46 | نقل الإشعارات إلى `features/notifications` | `ee149a40b144883b0fea34232ae730574d5e5ed7` | مدمج |
+| #48 | تحديث نقطة الاستئناف بعد P5.4 | `462dcc3c0386afc42ead51225ccf7c3d28ca21f9` | مدمج |
+| #49 | إضافة Ruff report-only baseline | `42986e93060c09e00ffcf917a784390f35adb40f` | مدمج؛ CI #41750390626 و#41754238271 ناجحان |
 
-P5.1–P5.3 دخلت `main` بالترتيب #41 → #43 → #44. PR #39 أعيد تأسيسه على أحدث main بعد هذه السلسلة، وأُدخل بعد نجاح CI على رأسه.
+P5.1–P5.4 دخلت `main`: WebSocket (#41)، Session (#43)، notification state (#44)، ثم نقل notifications (#46). PR #39 أصلح Compose، و#42 و#45 وثّقا الخطة والجودة، و#48 حدّث السجلات، و#49 أدخل Ruff report-only.
 
 ## 3. طلبات التوثيق والهيكلة المدمجة
 
@@ -32,8 +35,10 @@ P5.1–P5.3 دخلت `main` بالترتيب #41 → #43 → #44. PR #39 أعي�
 | #42 | خريطة بنية Frontend وخطة Features/Shared | `aaeeb38e0b16c0ee2d2cea3664a6a3b6b00e1eac` | مدمج؛ CI #41743356088 ناجح |
 | #45 | خط أساس الجودة وخطة P6 وتحديث السجلات | `4445ddaf347bf97ae3e89450d7dce01a7bb65eb6` | مدمج؛ CI على `main` #41744675433 ناجح |
 | #46 | P5.4 نقل Notifications إلى `features/notifications` | `ee149a40b144883b0fea34232ae730574d5e5ed7` | مدمج؛ PR CI #41744744642 وmain CI #41745646366 ناجحان |
+| #48 | تحديث نقطة الاستئناف بعد PR #46 | `462dcc3c0386afc42ead51225ccf7c3d28ca21f9` | مدمج؛ main CI #41750270590 ناجح |
+| #49 | تثبيت Ruff report-only baseline | `42986e93060c09e00ffcf917a784390f35adb40f` | مدمج؛ PR CI #41750390626 وmain CI #41754238271 ناجحان |
 
-لا يوجد ضمن سلسلة P5/P6 PR مفتوح عند آخر تحقق. سلسلة LTI #16–#23 تظل منفصلة ومتراكبة على فروع قديمة وتحتاج خطة تكامل مستقلة.
+أُغلق PR #50 دون دمج؛ كان يحتوي تغيير Ruff نفسه بعد أن وصل التغيير إلى `main` عبر PR #49، ولذلك لم يُكرر إدخاله. لا يوجد طلب P6.1 مفتوح آخر في لحظة تحديث هذا السجل؛ العمل التالي هو معالجة baseline على دفعات. سلسلة LTI #16–#23 ما زالت منفصلة ومتراكبة على فروع قديمة.
 
 ## 4. سلسلة LTI/AGS — PR #16 إلى #23
 
