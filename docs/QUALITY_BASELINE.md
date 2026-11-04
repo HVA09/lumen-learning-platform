@@ -5,7 +5,7 @@
 ## 1. المرجع وحدود هذا التقييم
 
 - المستودع: `HVA09/lumen-learning-platform`.
-- آخر تغيير برمجي مدمج على `main`: PR #70 عند commit `32fa6675c3a090b4085e24efee4aeaa8cb839e68`. أحدث CI بعد الدمج: [#41914599965](https://github.com/HVA09/lumen-learning-platform/actions/runs/41914599965)؛ جميع الوظائف الأربع نجحت: Backend **423 passed, 20 warnings**، Frontend **80 passed عبر 16 ملفًا**، Browser E2E، وGitleaks full-history. Ruff **0 diagnostics**؛ production audit **0 vulnerabilities**؛ full dependency audit **2 Low و4 Moderate**.
+- آخر تغيير برمجي مدمج على `main`: PR #73 عند commit `2d8721efbd581952cb16c3b6d64904a6ef5f6256`. CI على رأس PR #73 [#41919944969](https://github.com/HVA09/lumen-learning-platform/actions/runs/41919944969) نجح بجميع الوظائف الأربع: Backend **423 passed, 20 warnings**، Frontend **80 passed عبر 16 ملفًا**، Browser E2E لإكمال الدرس واسترجاع تقدمه بعد reload، وGitleaks full-history. CI بعد الدمج على `main` [#41920779594](https://github.com/HVA09/lumen-learning-platform/actions/runs/41920779594) جارٍ عند هذا التحديث؛ لا يُسجل كنجاح بعد.
 - هذا الملف يوثق ما هو مفعّل فعليًا في المستودع وCI، ثم يقترح إدخال أدوات الجودة تدريجيًا.
 - هذا التقييم توثيقي فقط؛ لا يضيف اعتماديات أو يغيّر سلوك التطبيق أو شروط CI.
 
@@ -18,11 +18,13 @@
 | Frontend tests and production build | تثبيت الاعتماديات بواسطة `npm ci`، اختبارات Vitest، بناء Vite الإنتاجي، تدقيق الاعتماديات الإنتاجية |
 | Backend tests | Python 3.12، Ruff 0.17.3 report-only، PostgreSQL 16 وRedis، اختبار pytest الكامل، migrations، Compose، Restic smoke، وPostgreSQL backup/restore |
 | Full Git history secret scan | Gitleaks على نطاق PR، وفحص كل refs والتاريخ الكامل والأرشيفات |
-| Browser E2E (registration and browser session) | Playwright + Chromium على نسخة Vite production preview مع FastAPI وPostgreSQL وRedis مؤقتة؛ رحلة تسجيل/جلسة/استعادة/خروج |
+| Browser E2E (registration and browser session) | Playwright + Chromium على نسخة Vite production preview مع FastAPI وPostgreSQL وRedis مؤقتة؛ التسجيل والجلسة واستعادتها والخروج، ثم فتح درس وإكماله والتحقق من بقاء التقدم بعد reload |
 
-نتيجة التحقق بعد دمج P6.6:
+نتيجة التحقق لـ P6.6:
 
-- [CI #41914599965](https://github.com/HVA09/lumen-learning-platform/actions/runs/41914599965) على commit الدمج `32fa6675c3a090b4085e24efee4aeaa8cb839e68` نجح بجميع الوظائف الأربع. Backend **423 passed, 20 warnings**؛ Ruff **0 diagnostic(s)**؛ Frontend **80 passed عبر 16 ملفًا**؛ Browser E2E passed؛ production audit وجد **0 vulnerabilities**؛ full dependency audit سجّل **2 Low و4 Moderate، وصفر High/Critical**؛ Gitleaks full-history نجح.
+- PR #70 (CI ما بعد الدمج #41914599965) أثبت التسجيل والجلسة الآمنة واستعادتها والخروج.
+- PR #73 (CI #41919944969 على رأس `1f929c6403a59cc4154999f42d4c9f784124b963`) وسّع السيناريو إلى إكمال درس والتحقق من حفظ التقدم في الخادم واستعادته بعد reload. الوظائف الأربع نجحت: Backend **423 passed, 20 warnings**؛ Ruff **0 diagnostic(s)**؛ Frontend **80 passed عبر 16 ملفًا**؛ Browser E2E passed؛ production audit **0 vulnerabilities**؛ full dependency audit **2 Low و4 Moderate، وصفر High/Critical**؛ Gitleaks full-history نجح.
+- CI ما بعد دمج PR #73 على `main` هو [#41920779594](https://github.com/HVA09/lumen-learning-platform/actions/runs/41920779594) وما زال جارياً عند إعداد هذا التحديث؛ لا يُستخدم كدليل نجاح حتى ينتهي.
 
 نتيجة خط الأساس المدمج:
 
@@ -106,7 +108,7 @@
 | Type checking | لا يوجد TypeScript أو typecheck job | لا يوجد فحص أنواع آلي للواجهة |
 | Lint للخلفية | Ruff 0.17.3 report-only | 0 diagnostics بعد PR #52 و#53؛ لا توجد بوابة منع، ولا حاجة لإعادة تصنيف F401 في baseline الحالي |
 | تغطية الاختبارات | مجموعات اختبارات ناجحة | لا يوجد coverage baseline أو تقرير اتجاهات |
-| Browser E2E | أول شريحة Playwright/Chromium مدمجة عبر PR #70 | تحقق CI بعد الدمج #41914599965 على `main` من التسجيل، HttpOnly cookies، عدم كشف tokens في `document.cookie` أو localStorage، لوحة التعلم، استعادة الجلسة بعد reload، والخروج بعد استجابة `/auth/logout` 200. التغطية التالية: درس وإكماله، quiz، أدوار teacher/admin، الملفات، الإشعارات/WebSocket، RTL/LTR، وانقطاع/عودة الشبكة |
+| Browser E2E | Playwright/Chromium مدمج عبر PR #70 و#73 | تحقق السيناريو من التسجيل وHttpOnly cookies وعدم كشف tokens في `document.cookie` أو localStorage، لوحة التعلم، استعادة الجلسة، logout، ثم فتح درس وإكماله، تحديث `1/2` في مسار التعلم، وإعادة التحميل والتأكد من أن API يعيد الدرس بحالة `completed: true`. CI #41919944969 نجح على PR #73. التغطية التالية: quiz، teacher/admin، الملفات، الإشعارات/WebSocket، RTL/LTR، وانقطاع/عودة الشبكة. CI بعد الدمج على main #41920779594 جارٍ حتى الآن. |
 | الأداء | PR #59/#62/#64/#65 فصلت الميزات الثقيلة؛ PR #67 خفّض Workbox precache من 35/1328.16 KiB إلى 8/378.63 KiB | لا توجد ميزانية أداء رقمية أو RUM/قياسات Core Web Vitals ميدانية؛ CacheFirst لا يجعل API/WebSocket تعمل دون اتصال |
 | أمن اعتماديات التطوير | الإنتاج: 0 vulnerabilities؛ أحدث تدقيق كامل: 2 Low و4 Moderate؛ تشغيل سابق سجّل 2 Low و8 Moderate | التنبيهات تخص أدوات بناء PWA/Workbox والاعتماديات الانتقالية؛ اختلاف العدد بين التشغيلات موثق في ADR-033؛ المعالجة تتطلب تحديثًا متوافقًا وإعادة توليد lockfile واختبارات كاملة |
 | المراقبة | إعدادات تشغيل موجودة جزئيًا | لا يوجد تحقق حي من telemetry على استضافة إنتاجية |
