@@ -89,10 +89,13 @@ describe("TopicPanel — الدروس", () => {
     expect(await screen.findByText("يحل معادلة خطية بمتغيّر واحد")).toBeInTheDocument();
 
     await user.click(await screen.findByText("كيف نحلّ المعادلة؟"));
-    const body = await screen.findByText(/نحلّها هكذا/);
-    expect(body.closest(".lesson-content")).not.toBeNull();
-    await waitFor(() => expect(body.closest(".lesson-content").querySelector(".katex")).not.toBeNull());
-    expect(body.closest(".lesson-content")).not.toHaveTextContent("$");
+    await screen.findByText(/نحلّها هكذا/);
+    await waitFor(() =>
+      expect(document.querySelector(".lesson-content .katex")).not.toBeNull()
+    );
+    const lessonContent = document.querySelector(".lesson-content");
+    expect(lessonContent).not.toBeNull();
+    expect(lessonContent).not.toHaveTextContent("$");
   });
 
   it("إنهاء الدرس ينادي completeLesson ويبلّغ عن الإنجازات الجديدة", async () => {
