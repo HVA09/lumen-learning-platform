@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 const VOLTAGE = 12; // فولت — ثابتة
 const TARGET_CURRENT = 2; // أمبير — هدف: اضبط التيار الكلي ليساوي هذي القيمة تقريبًا
 
-function drawCircuit(canvas, mode, r1, r2) {
+function drawCircuit(canvas, mode) {
   const ctx = canvas.getContext("2d");
   const w = canvas.width;
   const h = canvas.height;
@@ -80,7 +80,7 @@ export default function CircuitSim() {
   const [result, setResult] = useState(null);
 
   useEffect(() => {
-    if (canvasRef.current) drawCircuit(canvasRef.current, mode, r1, r2);
+    if (canvasRef.current) drawCircuit(canvasRef.current, mode);
   }, [mode, r1, r2]);
 
   const { rEq, totalCurrent } = compute(mode, r1, r2);
