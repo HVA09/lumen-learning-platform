@@ -5,7 +5,7 @@
 ## 1. المرجع وحدود هذا التقييم
 
 - المستودع: `HVA09/lumen-learning-platform`.
-- خط أساس `main` الحالي بعد دمج PR #59: `30d768932934fb7c57e5f18da673de169e1bb6f2`.
+- خط أساس `main` الحالي بعد دمج PR #62: `6b53686ae3824d020243dd33115cc0bf81bd3c03`.
 - هذا الملف يوثق ما هو مفعّل فعليًا في المستودع وCI، ثم يقترح إدخال أدوات الجودة تدريجيًا.
 - هذا التقييم توثيقي فقط؛ لا يضيف اعتماديات أو يغيّر سلوك التطبيق أو شروط CI.
 
@@ -36,9 +36,11 @@
 - PR #56 أزال الحالات الثلاث المؤكدة (استيراد App غير المستخدم، معاملا الرسم غير المستخدمين، وتعليق التعطيل القديم)؛ PR CI #41760360217 وmain CI #41763352189 نجحا.
 - PR #57 حدّث السجلات بعد PR #54/#56، ودُمج عبر `96fff938fa5ec85b921de247bfe7a3dbe3300071`؛ CI PR #41766914355 وmain #41767787126 نجحا.
 - PR #58 تحديث توثيقي فقط؛ CI بعد دمجه #41850447579 نجح.
-- PR #59 نقل `TopicPanel` إلى تحميل React.lazy عند اختيار موضوع؛ CI PR #41850891816 وmain CI #41851527075 نجحا بالكامل: Backend **423 passed, 20 warnings**، Ruff **0 diagnostics**، Frontend **73 passed عبر 14 ملفًا**، production build، Gitleaks، migrations، Compose، Restic وPostgreSQL backup/restore.
+- PR #59 نقل `TopicPanel` إلى تحميل React.lazy عند اختيار موضوع؛ CI PR #41850891816 وmain CI #41851527075 نجحا بالكامل.
+- PR #62 أجّل `ReactMarkdown`/`KaTeX` داخل `MathTextRenderer` بتحميل React.lazy، ونقل `katex.min.css` من `main.jsx` إلى renderer. CI PR #41855423230 وmain CI #41856247148 نجحا بالكامل: Backend **423 passed, 20 warnings**، Ruff **0 diagnostics**، Frontend **73 passed عبر 14 ملفًا**، production build، Gitleaks، migrations، Compose، Restic وPostgreSQL backup/restore.
 - خط القياس قبل PR #59 في main CI #41767787126: `index-BJz-0WwU.js` **830.50 kB** قبل gzip و**258.06 kB** بعد gzip؛ `AdminDashboard` **401.91 kB** / **110.80 kB gzip**. كان تحذير Vite >500 kB ظاهرًا على entry.
-- بعد PR #59 في build ضمن CI #41850891816، وتأكد نفس القياس في main CI #41851527075: `index-CuMtssyR.js` **362.86 kB** / **116.80 kB gzip**؛ `TopicPanel` **23.28 kB** / **6.90 kB gzip**؛ `MathText` **442.53 kB** / **133.49 kB gzip**؛ `AdminDashboard` **401.91 kB** / **110.80 kB gzip**. انخفض entry الأولي بنحو **56.3%** (minified) و**54.7%** (gzip). لم يظهر تحذير Vite لتجاوز chunk حد 500 kB في هذا البناء. هذا قياس build، وليس قياس RUM أو تجربة مستخدم فعلية.
+- بعد PR #59 في main CI #41851527075: `index-CuMtssyR.js` **362.86 kB / 116.80 kB gzip**؛ `TopicPanel` **23.28 kB / 6.90 kB gzip**؛ `MathText` **442.53 kB / 133.49 kB gzip**؛ `AdminDashboard` **401.91 kB / 110.80 kB gzip**. انخفض entry الأولي من 830.50 kB بنحو **56.3%** قبل الضغط و**54.7%** بعد gzip.
+- بعد PR #62 في PR CI #41855423230، وأعيد التحقق على main CI #41856247148: entry JS **362.87 kB / 116.81 kB gzip**؛ wrapper `MathText` **0.70 kB / 0.41 kB gzip**؛ `MathTextRenderer` JS **442.53 kB / 133.49 kB gzip**؛ CSS الأولي `index` **21.17 kB / 4.67 kB gzip**، بينما CSS الخاص بـ KaTeX في chunk منفصل **30.20 kB / 8.08 kB gzip**. بهذا لا يُحمّل محرك Markdown/KaTeX وCSS الخاص به إلا عند عرض MathText. هذه قياسات build ولا تثبت زمن تحميل ميدانيًا أو RUM.
 - تدقيق الاعتماديات الإنتاجية في CI #41767787126 وجد **0 vulnerabilities** عند المستوى الذي يفحصه الأمر الحالي (`--omit=dev --audit-level=high`).
 - نتيجة npm production audit في CI #570: **0 vulnerabilities** عند مستوى High/Critical المشمول بالأمر الحالي. أما التقرير الكامل لكل شجرة الاعتماديات فسجّل **10 تنبيهات غير عالية: 2 Low و8 Moderate**؛ أغلبها في سلسلة `vite-plugin-pwa` والاعتماديات التابعة لها. لا تُحدّث السلسلة عشوائيًا؛ افحص الشجرة والتوافق وPWA قبل أي ترقية.
 - يظهر تحذير حجم Chunk في بناء Vite، ولا يوجد حتى الآن حد أداء رقمي معتمد.
@@ -93,7 +95,7 @@
 | Lint للخلفية | Ruff 0.17.3 report-only | 0 diagnostics بعد PR #52 و#53؛ لا توجد بوابة منع، ولا حاجة لإعادة تصنيف F401 في baseline الحالي |
 | تغطية الاختبارات | مجموعات اختبارات ناجحة | لا يوجد coverage baseline أو تقرير اتجاهات |
 | Browser E2E | Vitest/jsdom | لا يوجد اختبار متصفح حقيقي لتدفقات الدخول والتعلم والإشعارات |
-| الأداء | PR #59 خفّض initial entry إلى 362.86 kB (116.80 kB gzip)، وأزال تحذير entry >500 kB | لا توجد ميزانية أداء رقمية أو قياسات RUM؛ MathText 442.53 kB وAdminDashboard 401.91 kB بقيا chunks منفصلين دون تحذير الحجم |
+| الأداء | PR #59 و#62 حسّنا code splitting؛ entry JS 362.87 kB (116.81 kB gzip)، وCSS الأولي 21.17 kB (4.67 kB gzip) | لا توجد ميزانية أداء رقمية أو قياسات RUM؛ MathTextRenderer JS 442.53 kB وAdminDashboard 401.91 kB chunks منفصلة؛ CSS الرياضيات مؤجل عند الاستخدام |
 | المراقبة | إعدادات تشغيل موجودة جزئيًا | لا يوجد تحقق حي من telemetry على استضافة إنتاجية |
 
 ## 6. ترتيب التنفيذ المقترح
@@ -149,15 +151,15 @@
 
 ### P6.5 — ميزانية الأداء والمراقبة
 
-**تقدم جزئي — PR #59:**
-- نُقلت `TopicPanel` إلى `React.lazy` مع fallback modal موجود؛ لا تُحمّل لوحة الدرس والاختبار ومحرك عرض Markdown/الرياضيات قبل اختيار موضوع.
-- انخفض حجم entry من **830.50 kB / 258.06 kB gzip** إلى **362.86 kB / 116.80 kB gzip** (تحسن تقريبي 56.3% في الحجم قبل الضغط و54.7% بعده).
-- أصبحت ملفات TopicPanel وMathText وAdminDashboard منفصلة. ما زال MathText **442.53 kB** وAdminDashboard **401.91 kB**؛ لا يوجد تحذير >500 kB في build بعد التغيير.
+**تقدم جزئي — PR #59 و#62:**
+- PR #59 نقل `TopicPanel` إلى `React.lazy`؛ خفّض entry الأولي من **830.50 kB / 258.06 kB gzip** إلى **362.86 kB / 116.80 kB gzip**.
+- PR #62 جعل `MathText` غلافًا خفيفًا يستخدم `React.lazy` لـ `MathTextRenderer`، ونقل `katex.min.css` إلى الوحدة المؤجلة. لم يتغير entry JS بصورة جوهرية (**362.87 kB / 116.81 kB gzip**)، لكن CSS الأولي انخفض من **51.37 kB / 12.77 kB gzip** إلى **21.17 kB / 4.67 kB gzip**؛ CSS الخاص بمحرك الرياضيات (**30.20 kB / 8.08 kB gzip**) ومحرك JS (**442.53 kB / 133.49 kB gzip**) يُحمّلان عند ظهور MathText.
+- حافظ PR #62 على عرض Markdown/LaTeX/GFM؛ اختبارات MathText وQuizPanel نجحت بعد انتظار التحميل الكسول. PR CI #41855423230 وmain CI #41856247148 نجحا بالكامل.
 - لا يُعد هذا اختبار أداء ميدانيًا؛ لا توجد ميزانية زمن تحميل أو Core Web Vitals أو RUM معتمدة بعد.
 
 **الخطوات التالية:**
-- قِس أثر تحميل `MathText` عند فتح الدرس أو الاختبار، ووازن بين حجم التنزيل وزمن ظهور المحتوى في الاتصالات البطيئة.
-- ضع ميزانيات رقمية على أساس القياس، لا أرقام تقديرية.
+- قياس زمن فتح الدرس وظهور المعادلات على هاتف واتصال بطيء، مع فحص ما إذا كان تأخير MathText يسبب تأخرًا محسوسًا.
+- وضع ميزانيات رقمية على أساس قياس متصفح فعلي، لا أحجام build فقط.
 - لا تدّعِ اختبار الأداء الإنتاجي أو observability الحية قبل وجود بيئة تشغيل فعلية.
 - حافظ على شرط الميزانية صفر، ولا تضف خدمة مدفوعة أو تتطلب بطاقة.
 
@@ -172,10 +174,10 @@
 
 ## 8. نقطة الاستئناف
 
-- آخر `main` متحقق: `30d768932934fb7c57e5f18da673de169e1bb6f2` بعد PR #59؛ PR CI #41850891816 وmain CI #41851527075 نجحا بالكامل.
+- آخر `main` متحقق: `6b53686ae3824d020243dd33115cc0bf81bd3c03` بعد PR #62؛ PR CI #41855423230 وmain CI #41856247148 نجحا بالكامل.
 
 1. P6.0 موثق، وP5.4 مكتملة ومدمجة.
 2. PR #49 أدخل Ruff؛ PR #52 و#53 أتما معالجة baseline، والنتيجة الحالية **0 diagnostic(s)**. تحقق ذلك في CI PR #53 #41757169187، ثم في main بعد PR #54 عبر CI #41759458975، وبعد PR #56 عبر CI #41763352189.
 3. Ruff يبقى report-only عند 0 diagnostics. ESLint لم يُعتمد في main؛ PR #55 كان تجربة مؤقتة مغلقة، وPR #56 دمج الإصلاحات المؤكدة، وPR #57 وثّق حالة الجودة. لا يوجد اتصال npm registry في بيئة التنفيذ الحالية (فشل DNS إلى `registry.npmjs.org`) ولا حزم ESLint في cache؛ لا تُحرر lockfile يدويًا. عند توفر registry، ثبّت الإصدارات وولّد lockfile عبر npm ثم أثبت نجاح `npm ci`.
-4. أُنجز أول تحسين P6.5 عبر PR #59: entry 362.86 kB (116.80 kB gzip) بدل 830.50 kB (258.06 kB gzip). تحقق ذلك في PR CI #41850891816 وبعد الدمج في main CI #41851527075. يجب قياس تجربة فتح الدرس وتحميل MathText على أجهزة واتصالات أبطأ قبل وضع ميزانية أداء نهائية.
+4. تقدّم P6.5 عبر PR #59 و#62: entry JS **362.87 kB / 116.81 kB gzip**، وCSS الأولي **21.17 kB / 4.67 kB gzip** بعد تأجيل KaTeX CSS؛ محرك MathText JS **442.53 kB / 133.49 kB gzip** وCSS **30.20 kB / 8.08 kB gzip** ديناميكيان. PR CI #41855423230 وmain CI #41856247148 نجحا. لم تُقَس تجربة هاتف أو RUM بعد.
 5. لا يوجد نشر إنتاجي مثبت. اختبار Restic الحالي يستخدم مستودعًا مؤقتًا في CI وليس وجهة تخزين خارجية حقيقية.
