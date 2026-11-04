@@ -5,7 +5,7 @@
 
 ## 1. الحالة الحالية
 
-- HEAD الحالي المتحقق لـ `main`: `30d768932934fb7c57e5f18da673de169e1bb6f2` بعد دمج PR #59.
+- HEAD الحالي المتحقق لـ `main`: `6b53686ae3824d020243dd33115cc0bf81bd3c03` بعد دمج PR #62.
 - لا نعدّ أي PR مدمجًا إلا بعد التحقق من حالة GitHub والـ merge commit.
 - [CI #41745646366](https://github.com/HVA09/lumen-learning-platform/actions/runs/41745646366) نجح بالكامل على `main` بعد PR #46.
 - [CI #41754238271](https://github.com/HVA09/lumen-learning-platform/actions/runs/41754238271) نجح بالكامل على `main` بعد PR #49.
@@ -15,6 +15,7 @@
 - PR #57 دُمج توثيقيًا عند `96fff938fa5ec85b921de247bfe7a3dbe3300071`؛ PR CI #41766914355 وmain CI #41767787126 نجحا بالكامل.
 - PR #58 دُمج توثيقيًا عند `92315de7ee18acdd2b44f5d473b9c1eef0ff7683`؛ main CI #41850447579 نجح.
 - PR #59 دُمج عند `30d768932934fb7c57e5f18da673de169e1bb6f2`؛ PR CI #41850891816 وCI بعد الدمج #41851527075 نجحا بالكامل.
+- PR #62 (تحميل MathText وKaTeX عند الحاجة) دُمج عند `6b53686ae3824d020243dd33115cc0bf81bd3c03`؛ PR CI [#41855423230](https://github.com/HVA09/lumen-learning-platform/actions/runs/41855423230) وmain CI بعد الدمج [#41856247148](https://github.com/HVA09/lumen-learning-platform/actions/runs/41856247148) نجحا بالكامل: Backend **423 passed, 20 warnings**، Ruff **0 diagnostics**، Frontend **73 passed عبر 14 ملفًا**، production build وGitleaks وفحوص PostgreSQL/backup/restore ناجحة.
 - [CI #41750390626](https://github.com/HVA09/lumen-learning-platform/actions/runs/41750390626) نجح على PR #49 قبل دمجه.
 - لا يوجد نشر إنتاجي مثبت.
 
@@ -39,8 +40,9 @@
 | #57 | مزامنة الحالة وخط أساس الجودة وتوثيق ESLint blocker | `96fff938fa5ec85b921de247bfe7a3dbe3300071` | مدمج؛ PR CI #41766914355 وmain CI #41767787126 ناجحان |
 | #58 | مزامنة الحالة وخط الأساس بعد PR #57 | `92315de7ee18acdd2b44f5d473b9c1eef0ff7683` | مدمج؛ main CI #41850447579 ناجح |
 | #59 | تحميل TopicPanel عند اختيار موضوع لخفض حجم entry الأولي | `30d768932934fb7c57e5f18da673de169e1bb6f2` | مدمج؛ PR CI #41850891816 وmain CI #41851527075 ناجحان: Backend 423/20 warnings، Frontend 73، Ruff 0 |
+| #62 | تحميل Markdown/KaTeX renderer وCSS عند ظهور MathText فقط | `6b53686ae3824d020243dd33115cc0bf81bd3c03` | مدمج؛ PR CI #41855423230 وmain CI #41856247148 ناجحان: Backend 423/20 warnings، Frontend 73/14 files، Ruff 0 |
 
-P5.1–P5.4 دخلت `main`: WebSocket (#41)، Session (#43)، notification state (#44)، ثم نقل notifications (#46). PR #39 أصلح Compose، و#42 و#45 و#48 وثّقت مراحل الواجهة والجودة، و#49 أدخل Ruff، و#51 حدّث السجلات، و#52 صرّح بإعادة التصدير المتوافقة، و#53 خفّض Ruff baseline إلى صفر. PR #55 أُغلق دون دمج؛ كان تقرير npx التجريبي جزئيًا، ولا يُعد baseline رسميًا. PR #56 دمج الإصلاحات المؤكدة التي ظهرت بالتجربة.
+P5.1–P5.4 دخلت `main`: WebSocket (#41)، Session (#43)، notification state (#44)، ثم نقل notifications (#46). PR #39 أصلح Compose، و#42 و#45 و#48 وثّقت مراحل الواجهة والجودة، و#49 أدخل Ruff، و#51 حدّث السجلات، و#52 صرّح بإعادة التصدير المتوافقة، و#53 خفّض Ruff baseline إلى صفر. PR #55 أُغلق دون دمج كتجربة جزئية، و#56 دمج الإصلاحات المؤكدة. PR #59 خفّض entry الأولي بـ lazy loading للوحة الدرس، ثم PR #62 أجّل MathTextRenderer/CSS حتى عرض MathText. CI بعد دمج #62 (#41856247148) ناجح؛ لا يوجد نشر إنتاجي مثبت.
 
 ## 3. طلبات التوثيق والهيكلة المدمجة
 
