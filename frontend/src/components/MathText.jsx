@@ -9,7 +9,6 @@ const REMARK_PLUGINS = [remarkGfm, remarkMath];
 const REHYPE_PLUGINS = [[rehypeKatex, { throwOnError: false, strict: "ignore" }]];
 // الفقرة تصير <span> عشان النص القصير (سؤال، خيار) يبقى داخل السطر بدون هوامش فقرة
 const INLINE_COMPONENTS = {
-  // eslint-disable-next-line no-unused-vars
   p: ({ node, ...props }) => <span {...props} />,
 };
 
