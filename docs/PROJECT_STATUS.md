@@ -8,15 +8,15 @@
 
 - المستودع: [HVA09/lumen-learning-platform](https://github.com/HVA09/lumen-learning-platform) — عام.
 - الفرع الأساسي: `main`.
-- آخر commit متحقق على `main`: `aaeeb38e0b16c0ee2d2cea3664a6a3b6b00e1eac` بعد دمج PR #42.
-- PR #4 و#29–#38 مدمجة. كما دُمجت PR #39 (إصلاح Compose للنسخ الخارجي)، و#40 (Gamification scoring)، و#41 (WebSocket lifecycle)، و#43 (Session Hook)، و#44 (Notifications state hook)، و#42 (خريطة معمارية الواجهة والخطة المرحلية).
+- آخر commit متحقق على `main`: `ee149a40b144883b0fea34232ae730574d5e5ed7` بعد دمج PR #46.
+- PR #4 و#29–#46 مدمجة. شملت الدفعة الأخيرة PR #39 (إصلاح Compose للنسخ الخارجي)، و#40 (Gamification scoring)، و#41 (WebSocket lifecycle)، و#42 (خريطة معمارية الواجهة)، و#43 (Session Hook)، و#44 (Notifications state hook)، و#45 (خط أساس الجودة)، و#46 (نقل الإشعارات إلى Feature مستقلة).
 - PR #30 دُمج في 2026-11-03. بقي المسار القديم `app.services.quiz_logic` كواجهة توافق.
 - CI #526 نجح على رأس PR #30، وCI #532 على PR #31، وCI #534 على PR #32؛ جميع وظائف Backend وFrontend/build وFull Git history secret scan نجحت.
 - CI #537 نجح على main قبل PR #34: Backend **404 passed** وFrontend **51 passed**.
 - CI #539 نجح على main بعد PR #34: Backend **405 passed** وFrontend **51 passed**.
 - CI #541 نجح على main بعد PR #35: Backend **407 passed** وFrontend **51 passed**.
 - CI #543 نجح على main بعد PR #36: Backend **407 passed** وFrontend **51 passed**.
-- CI #545 على `de79d3e4` نجاح تاريخي على خط أساس أقدم. أحدث تشغيل ناجح كامل على `main` قبل PR #39 هو CI #41738385373 على `aec9584df78009b07c8bed35b48742d7b7a60ede`. أحدث رأس `main` بعد PR #42 هو `aaeeb38e0b16c0ee2d2cea3664a6a3b6b00e1eac`. CI #41742892283 نجح على الرأس السابق بعد PR #39، وCI #41744012439 على رأس PR #42 المدمج كان جاريًا عند آخر تحقق.
+- CI #545 على `de79d3e4` نجاح تاريخي على خط أساس أقدم. بعد PR #46، نجحت جميع وظائف CI على رأس PR نفسه `959ab53f21f51d76eec02ddab1542333384fec32` في التشغيل [#41744744642](https://github.com/HVA09/lumen-learning-platform/actions/runs/41744744642). بدأ CI بعد الدمج على `main` عند `ee149a40b144883b0fea34232ae730574d5e5ed7` في التشغيل [#41745646366](https://github.com/HVA09/lumen-learning-platform/actions/runs/41745646366)، وكان جاريًا عند آخر تحقق؛ لا نسجل نجاحه قبل اكتماله.
 - لا يوجد نشر إنتاجي مثبت.
 
 ## حالة المراحل
@@ -28,7 +28,7 @@
 | P2 — خريطة حدود المجالات والاعتماديات | مكتمل توثيقيًا | توثيق الاعتماديات والملكية الأولية في `ARCHITECTURE_PLAN.md` وADR-017؛ لا نقل إضافي قبل قرار مستقل |
 | P3 — تجربة Backend ثانية صغيرة | مكتمل | PR #32 مدمج؛ CI #534 على PR وCI #535 على main نجحا |
 | P4 — فصل حدود خدمات Backend | منفذ جزئيًا | PR #34/#35 (Learning Progress)، و#37 (Review/SRS)، و#40 (Gamification scoring) مدمجة؛ تبقى فرص فصل أخرى حسب تحليل الاعتماديات |
-| P5 — تنظيم Frontend | P5.1–P5.3 مكتملة | PR #41 WebSocket، و#43 Session، و#44 Notifications state مدمجة؛ PR #42 وثّق الخريطة والخطة. التالية P5.4 نقل Feature واحدة إلى `features/` |
+| P5 — تنظيم Frontend | P5.1–P5.4 مكتملة | PR #41 WebSocket، و#43 Session، و#44 Notifications state، و#46 نقل الإشعارات إلى `features/notifications` مدمجة؛ PR #42 وثّق الخريطة والخطة |
 | P6 — الجودة والأداء والمراقبة | خط الأساس موثق؛ التنفيذ لم يبدأ | ESLint/Ruff وtypecheck وcoverage وBrowser E2E وميزانية الأداء ليست بوابات CI بعد؛ أولوية P6.1 تشغيل lint كتقرير فقط |
 | P7 — الإطلاق | غير جاهز | بوابات الاستضافة والتشغيل أدناه لم تُغلق |
 
@@ -53,7 +53,9 @@
 - [CI #41738681026](https://github.com/HVA09/lumen-learning-platform/actions/runs/41738681026): نجح على رأس PR #39 بعد إعادة تأسيسه؛ إصلاح Compose اجتاز فحصًا مخصصًا.
 - [CI #41743356088](https://github.com/HVA09/lumen-learning-platform/actions/runs/41743356088): نجح على PR #42 بعد تحديث وثائق معمارية الواجهة والخطة.
 - [PR #42](https://github.com/HVA09/lumen-learning-platform/pull/42) دُمج في `main` بالـ commit `aaeeb38e0b16c0ee2d2cea3664a6a3b6b00e1eac`؛ [CI بعد الدمج #41744012439](https://github.com/HVA09/lumen-learning-platform/actions/runs/41744012439) كان جاريًا عند آخر تحقق.
-- [CI #41742892283](https://github.com/HVA09/lumen-learning-platform/actions/runs/41742892283): تشغيل `main` على commit `b63574af` بعد PR #39؛ كان جاريًا عند آخر تحقق.
+- [CI #41742892283](https://github.com/HVA09/lumen-learning-platform/actions/runs/41742892283): تشغيل `main` على commit `b63574af` بعد PR #39 (تاريخي).
+- [CI #41744744642](https://github.com/HVA09/lumen-learning-platform/actions/runs/41744744642): نجح بالكامل على رأس PR #46؛ Backend وFrontend/build وdependency audit وGitleaks وفحوصات Compose وmigrations وbackup/restore كلها ناجحة.
+- [PR #46](https://github.com/HVA09/lumen-learning-platform/pull/46) دُمج بالـ commit `ee149a40b144883b0fea34232ae730574d5e5ed7`؛ [CI بعد الدمج #41745646366](https://github.com/HVA09/lumen-learning-platform/actions/runs/41745646366) كان جاريًا عند آخر تحقق.
 
 ## ما تم إنجازه
 
@@ -113,7 +115,7 @@
 
 ## الخطوة التالية
 
-1. P0–P3 مكتملة. P4 نُفذت جزئيًا عبر PR #34/#35/#37/#40. P5.1–P5.3 مدمجة عبر PR #41/#43/#44.
+1. P0–P3 مكتملة. P4 نُفذت جزئيًا عبر PR #34/#35/#37/#40. P5.1–P5.4 مدمجة عبر PR #41/#43/#44/#46.
 2. P4 أضافت `app/modules/gamification/domain/scoring.py` عبر PR #40؛ تبقى الاستعلامات المجمعة server-side في `app/services/achievements.py`.
 3. لا تنقل `achievements.py` ككتلة واحدة؛ شروط الإنجازات تستعلم عبر مجالات عدة، ويجب تحديد عقود قراءة مستقلة قبل فصلها. لا تنقل كل الواجهة دفعة واحدة.
-4. P5.1–P5.3 مكتملة ومدمجة؛ P5.4 التالية هي نقل الإشعارات كميزة واحدة بعد مراجعة الاعتماديات وكتابة خطة import/test واضحة. خريطة Frontend موجودة في `docs/FRONTEND_ARCHITECTURE.md` بعد دمج PR #42.
+4. P5.1–P5.4 مكتملة ومدمجة؛ نُقلت الإشعارات واختباراتها وطبقة API إلى `frontend/src/features/notifications/` مع الإبقاء على عميل HTTP المشترك وعقود API وCSRF وسلوك RTL/LTR. الخطوة الهندسية التالية P6.1: تشغيل ESLint وRuff كتقرير أولي دون فرض بوابات جديدة قبل تحليل النتائج.
