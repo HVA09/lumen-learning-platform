@@ -1,9 +1,20 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { completeLesson, getTopic, getTopicLessons, getTopicMastery } from "../lib/curriculumApi";
 import { getQuizHistory } from "../lib/quizApi";
-import LabPanel from "./LabPanel";
 import MathText from "./MathText";
-import QuizPanel from "./QuizPanel";
+
+const LabPanel = lazy(() => import("./LabPanel"));
+const QuizPanel = lazy(() => import("./QuizPanel"));
+
+function DeferredPanelFallback() {
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/30 p-4">
+      <div className="rounded-2xl border border-slate-200 bg-white px-6 py-4 text-sm text-slate-500 shadow-lg">
+        جاري تحميل اللوحة...
+      </div>
+    </div>
+  );
+}
 
 function LessonReader({ lesson, onBack, onCompleted }) {
   const [completing, setCompleting] = useState(false);
@@ -215,20 +226,24 @@ export default function TopicPanel({ topicId, onClose, isTeacher, onManageConten
       </div>
 
       {showLab && (
-        <LabPanel
-          simulationType={topic.simulation_type}
-          topicName={topic.name_ar}
-          onClose={() => setShowLab(false)}
-        />
+        <Suspense fallback={<DeferredPanelFallback />}>
+          <LabPanel
+            simulationType={topic.simulation_type}
+            topicName={topic.name_ar}
+            onClose={() => setShowLab(false)}
+          />
+        </Suspense>
       )}
 
       {quizMode && (
-        <QuizPanel
-          topicId={topicId}
-          mode={quizMode}
-          onClose={() => setQuizMode(null)}
-          onFinished={handleQuizFinished}
-        />
+        <Suspense fallback={<DeferredPanelFallback />}>
+          <QuizPanel
+            topicId={topicId}
+            mode={quizMode}
+            onClose={() => setQuizMode(null)}
+            onFinished={handleQuizFinished}
+          />
+        </Suspense>
       )}
     </div>
   );
