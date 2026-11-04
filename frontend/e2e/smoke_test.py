@@ -179,7 +179,7 @@ def run_smoke_test() -> None:
             )
             page.get_by_role(
                 "button",
-                name=re.compile(rf"^{re.escape(topic_name)}\\s"),
+                name=re.compile(rf"^{re.escape(topic_name)}\s"),
             ).click()
             expect(
                 page.get_by_role("heading", name=topic_name, exact=True)
