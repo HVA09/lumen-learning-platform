@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../lib/quizApi", () => ({ startQuiz: vi.fn(), submitQuiz: vi.fn() }));
@@ -36,7 +36,7 @@ describe("QuizPanel", () => {
     render(<QuizPanel topicId={1} mode="practice" onClose={vi.fn()} onFinished={vi.fn()} />);
     const radios = await screen.findAllByRole("radio");
     expect(radios).toHaveLength(2);
-    expect(radios[1].closest("label").querySelector(".katex")).not.toBeNull();
+    await waitFor(() => expect(radios[1].closest("label").querySelector(".katex")).not.toBeNull());
     expect(radios[1].closest("label")).not.toHaveTextContent("$");
   });
 
