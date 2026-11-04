@@ -8,8 +8,8 @@
 
 - المستودع: [HVA09/lumen-learning-platform](https://github.com/HVA09/lumen-learning-platform) — عام.
 - الفرع الأساسي: `main`.
-- آخر commit على `main`: `de1197927ab5321b739206ce09770499ccb55ebe` (دمج PR #69 التوثيقي). آخر commit برمجي على `main` ما زال `2453b9124fc4eaa617aa5bb5493ebc0cf1400c9a` بعد PR #67. CI بعد دمج PR #69 على `main` [#41907780368](https://github.com/HVA09/lumen-learning-platform/actions/runs/41907780368) نجح بالكامل. كما نجح CI الخاص بفرع PR #70 على commit `7b7e8c76b40c6da6cc1cacb94c676682a3a67462` في [#41909053692](https://github.com/HVA09/lumen-learning-platform/actions/runs/41909053692): Backend **423 passed, 20 warnings**، Frontend **80 passed عبر 16 ملفًا**، Ruff **0 diagnostics**، production build وnpm production audit وGitleaks full-history ناجحة، وفحص Browser E2E نجح. PR #70 مفتوح ولم يُدمج بعد.
-- PR #4 و#29–#46 و#48 و#49 و#51–#54 و#56–#59 و#62 و#64–#69 مدمجة، بما فيها PR #68 و#69 التوثيقيتان. PR #70 مفتوح وغير مدمج ويضيف أول Browser E2E smoke. PR #59/#62/#64 خفّضت التحميل الأولي، و#65 أضاف Vite preload recovery، و#66 حدّثت السجلات، و#67 خفّضت precache إلى 8 entries/378.63 KiB.
+- آخر تغيير برمجي مدمج على `main`: PR #70 عند commit `32fa6675c3a090b4085e24efee4aeaa8cb839e68` (Squash Merge). أحدث CI بعد الدمج [#41914599965](https://github.com/HVA09/lumen-learning-platform/actions/runs/41914599965) نجح على commit الدمج في الوظائف الأربع: Backend **423 passed, 20 warnings**، Frontend **80 passed عبر 16 ملفًا**، Browser E2E، وGitleaks full-history. Ruff **0 diagnostics**؛ production dependency audit **0 vulnerabilities**؛ التدقيق الكامل لشجرة الاعتماديات **2 Low و4 Moderate، وصفر High/Critical**.
+- PR #4 و#29–#46 و#48 و#49 و#51–#54 و#56–#59 و#62 و#64–#70 مدمجة، بما فيها PR #68 و#69 التوثيقيتان وPR #70 لاختبار Browser E2E. PR #55 مغلق دون دمج. PR #59/#62/#64 خفّضت التحميل الأولي، و#65 أضاف Vite preload recovery، و#67 خفّض precache إلى 8 entries/378.63 KiB.
 - PR #30 دُمج في 2026-11-03. بقي المسار القديم `app.services.quiz_logic` كواجهة توافق.
 - CI #526 نجح على رأس PR #30، وCI #532 على PR #31، وCI #534 على PR #32؛ جميع وظائف Backend وFrontend/build وFull Git history secret scan نجحت.
 - CI #537 نجح على main قبل PR #34: Backend **404 passed** وFrontend **51 passed**.
@@ -36,10 +36,12 @@
 | P3 — تجربة Backend ثانية صغيرة | مكتمل | PR #32 مدمج؛ CI #534 على PR وCI #535 على main نجحا |
 | P4 — فصل حدود خدمات Backend | منفذ جزئيًا | PR #34/#35 (Learning Progress)، و#37 (Review/SRS)، و#40 (Gamification scoring) مدمجة؛ تبقى فرص فصل أخرى حسب تحليل الاعتماديات |
 | P5 — تنظيم Frontend | P5.1–P5.4 مكتملة | PR #41 WebSocket، و#43 Session، و#44 Notifications state، و#46 نقلت ميزة الإشعارات إلى `features/notifications`؛ PR #42 وثّق الخريطة والخطة |
-| P6 — الجودة والأداء والمراقبة | P6.0 وP6.1 الخلفية مكتملان؛ P6.5 تحسين الأداء مدمج؛ P6.6 بدأ باختبار Browser E2E أولي | PR #70 على الفرع `test/p6-6-browser-e2e-auth-smoke` اجتاز CI #41909053692: Chromium اختبر التسجيل، Cookies HttpOnly، لوحة التعلّم، استعادة الجلسة بعد reload، وlogout مع تحقق من رد الخادم وإزالة الكوكيين. PR ما زال مفتوحًا وغير مدمج؛ تغطية المعلم/admin والدروس والاختبارات والملفات والإشعارات وoffline لم تُضف بعد. لا تزال قياسات RUM وCore Web Vitals الميدانية غير مكتملة. |
+| P6 — الجودة والأداء والمراقبة | P6.0 وP6.1 الخلفية مكتملان؛ P6.5 تحسين الأداء مدمج؛ P6.6 بدأ واختبار Browser E2E الأولي مدمج | PR #70 مدمج. CI بعد الدمج #41914599965 نجح على `main`: اختبار Chromium لتسجيل المستخدم والجلسة والـ HttpOnly cookies ولوحة التعلّم وإعادة التحميل واستعادة الجلسة والخروج. لا تزال تغطية إكمال الدروس والاختبارات وأدوار teacher/admin ورفع الملفات والإشعارات/WebSocket وRTL/LTR والعمل دون اتصال مطلوبة. لا تزال قياسات RUM وCore Web Vitals الميدانية غير مكتملة. |
 | P7 — الإطلاق | غير جاهز | بوابات الاستضافة والتشغيل أدناه لم تُغلق |
 
 ## آخر نقاط التحقق
+
+- [CI #41914599965](https://github.com/HVA09/lumen-learning-platform/actions/runs/41914599965): تحقق ما بعد دمج PR #70 على `main` عند commit `32fa6675c3a090b4085e24efee4aeaa8cb839e68`؛ الوظائف الأربع نجحت. Backend **423 passed, 20 warnings**، Frontend **80 passed عبر 16 ملفًا**، Browser E2E نجح في التسجيل والجلسة وإعادة التحميل والخروج، Ruff **0 diagnostics**، production audit **0 vulnerabilities**، والتدقيق الكامل **2 Low و4 Moderate**، وGitleaks full-history نجح.
 
 - [CI #525](https://github.com/HVA09/lumen-learning-platform/actions/runs/41648785991): نجح على خط الأساس `44308dfbc01e1c9a85a8cb5b77c3d18ecdebd78a` قبل PR #30؛ شمل 402 اختبار Backend، و51 اختبار Frontend، وبناء الإنتاج، وفحص Git history الكامل، وفحوصات Compose وmigrations وbackup/restore.
 - [CI #526](https://github.com/HVA09/lumen-learning-platform/actions/runs/41651497742): نجح على رأس PR #30 `7e87b7f5fb64be38d45402d47b9efd2196a66bc0`؛ جميع الوظائف الثلاث نجحت.
@@ -127,10 +129,11 @@
 
 ## الخطوة التالية
 
-1. PR #69 مدمج في `main` عند `de1197927ab5321b739206ce09770499ccb55ebe`. المرحلة التالية P6.6 بدأت عبر PR #70؛ جميع وظائف CI نجحت على commit `7b7e8c7` في #41909053692، لكن PR #70 ما زال مفتوحًا وغير مدمج.
-2. P0–P3 مكتملة. P4 منفذة جزئيًا عبر PR #34/#35/#37/#40؛ لا تنقل `achievements.py` ككتلة واحدة قبل تصميم عقود القراءة العابرة للمجالات.
-3. P5.1–P5.4 مكتملة ومدمجة: WebSocket (#41)، خريطة Frontend (#42)، Session (#43)، notification state (#44)، ونقل Notifications إلى `features/notifications` (#46). تحقّق CI #41745646366 بنجاح على `main` بعد الدمج.
-4. أُضيف Ruff 0.17.3 عبر PR #49 بوضع report-only على `app`, `tests`, `scripts`, و`migrations`. عولجت إعادة التصدير المقصودة في PR #52، ثم الاستيرادات والتعيينات وأسماء المتغيرات في PR #53؛ التقرير الحالي **0 diagnostic(s)**. يبقى Ruff report-only. ESLint للواجهة لم يُثبّت أو يُشغّل بعد؛ يجب أولًا توليد `package-lock.json` باستخدام npm والتحقق بـ `npm ci` قبل تسجيل أي baseline.
-5. تبقى سلسلة LTI/AGS #16–#23 بحاجة إلى إعادة تأسيس وتحليل تعارضات وترحيلات ثم اختبار Sandbox؛ لا تدمجها مباشرة.
-6. لا يوجد نشر إنتاجي مثبت. اختبار Restic الحالي يستخدم مستودعًا مؤقتًا في CI وليس وجهة تخزين خارجية حقيقية.
-7. آخر تغيير برمجي على `main` ما زال PR #67 عند `2453b9124fc4eaa617aa5bb5493ebc0cf1400c9a`؛ آخر commit على `main` هو دمج التوثيق PR #69 عند `de1197927ab5321b739206ce09770499ccb55ebe`، وCI #41907780368 نجح. PR #70 يضيف بنية Browser E2E فقط، ولم يُدمج؛ CI #41909053692 نجح على رأسه `7b7e8c76b40c6da6cc1cacb94c676682a3a67462` بجميع الوظائف الأربع. لا يوجد نشر إنتاجي مثبت.
+1. PR #70 مدمج في `main` عند `32fa6675c3a090b4085e24efee4aeaa8cb839e68`. CI بعد الدمج [#41914599965](https://github.com/HVA09/lumen-learning-platform/actions/runs/41914599965) نجح بجميع الوظائف الأربع؛ لا توجد خطوة دمج معلقة لهذا العمل.
+2. P6.6 ما زالت جزئية: الاختبار الحالي يغطي تسجيل الطالب والجلسة الآمنة واستعادتها والخروج فقط. التوسعة التالية المقترحة هي رحلة درس: فتح محتوى درس، ثم إكماله، والتحقق من حفظ التقدم بعد إعادة تحميل الصفحة.
+3. بعد رحلة الدرس، أضف Browser E2E لتسليم Quiz والتحقق من النتيجة، ثم اختبر أدوار teacher/admin ورفع الملفات والإشعارات/WebSocket على بيانات اختبار مؤقتة.
+4. اختبر RTL/LTR وحالات الانقطاع والعودة على نطاق تدفقات المتعلم الأساسية؛ لا تدّعِ أن PWA تعمل دون اتصال بالخادم أو WebSocket.
+5. P4 منفذة جزئيًا عبر PR #34/#35/#37/#40؛ لا تنقل `achievements.py` ككتلة واحدة قبل تصميم عقود قراءة واضحة عبر المجالات.
+6. Ruff 0.17.3 ما زال report-only بنتيجة **0 diagnostic(s)**. تنبيهات أدوات التطوير تستلزم متابعة مستقلة؛ آخر تدقيق كامل في CI #41914599965 سجل 2 Low و4 Moderate، بينما تدقيق الإنتاج سجل صفرًا.
+7. تبقى سلسلة LTI/AGS #16–#23 بحاجة إلى إعادة تأسيس وتحليل تعارضات وترحيلات ثم اختبار Sandbox؛ لا تدمجها مباشرة.
+8. لا يوجد نشر إنتاجي مثبت. ما زالت بوابات P7 تشمل مضيفًا مجانيًا لا يتطلب بطاقة/فاتورة، HTTPS فعليًا، SMTP، تقييم ClamAV على موارد المضيف، أسرار إنتاج خارج Git، ووجهة Restic خارجية مع اختبار استعادة حقيقي.

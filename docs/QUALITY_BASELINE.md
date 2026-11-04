@@ -5,19 +5,24 @@
 ## 1. المرجع وحدود هذا التقييم
 
 - المستودع: `HVA09/lumen-learning-platform`.
-- آخر تغيير برمجي مدمج على `main`: `2453b9124fc4eaa617aa5bb5493ebc0cf1400c9a` (PR #67). أحدث CI مكتمل على `main`: [#41903896915](https://github.com/HVA09/lumen-learning-platform/actions/runs/41903896915) على commit `11d6695913bc0b6587225c95489c4abffd7ff9a0`؛ وظائف Backend وFrontend/build وGitleaks الثلاث نجحت.
+- آخر تغيير برمجي مدمج على `main`: PR #70 عند commit `32fa6675c3a090b4085e24efee4aeaa8cb839e68`. أحدث CI بعد الدمج: [#41914599965](https://github.com/HVA09/lumen-learning-platform/actions/runs/41914599965)؛ جميع الوظائف الأربع نجحت: Backend **423 passed, 20 warnings**، Frontend **80 passed عبر 16 ملفًا**، Browser E2E، وGitleaks full-history. Ruff **0 diagnostics**؛ production audit **0 vulnerabilities**؛ full dependency audit **2 Low و4 Moderate**.
 - هذا الملف يوثق ما هو مفعّل فعليًا في المستودع وCI، ثم يقترح إدخال أدوات الجودة تدريجيًا.
 - هذا التقييم توثيقي فقط؛ لا يضيف اعتماديات أو يغيّر سلوك التطبيق أو شروط CI.
 
 ## 2. ما يفعله CI الآن
 
-ملف `.github/workflows/ci.yml` يشغّل ثلاثة Jobs عند Pull Request والتغييرات على `main`:
+ملف `.github/workflows/ci.yml` يشغّل أربعة Jobs عند Pull Request والتغييرات على `main`:
 
 | Job | التحقق الحالي |
 |---|---|
 | Frontend tests and production build | تثبيت الاعتماديات بواسطة `npm ci`، اختبارات Vitest، بناء Vite الإنتاجي، تدقيق الاعتماديات الإنتاجية |
 | Backend tests | Python 3.12، Ruff 0.17.3 report-only، PostgreSQL 16 وRedis، اختبار pytest الكامل، migrations، Compose، Restic smoke، وPostgreSQL backup/restore |
 | Full Git history secret scan | Gitleaks على نطاق PR، وفحص كل refs والتاريخ الكامل والأرشيفات |
+| Browser E2E (registration and browser session) | Playwright + Chromium على نسخة Vite production preview مع FastAPI وPostgreSQL وRedis مؤقتة؛ رحلة تسجيل/جلسة/استعادة/خروج |
+
+نتيجة التحقق بعد دمج P6.6:
+
+- [CI #41914599965](https://github.com/HVA09/lumen-learning-platform/actions/runs/41914599965) على commit الدمج `32fa6675c3a090b4085e24efee4aeaa8cb839e68` نجح بجميع الوظائف الأربع. Backend **423 passed, 20 warnings**؛ Ruff **0 diagnostic(s)**؛ Frontend **80 passed عبر 16 ملفًا**؛ Browser E2E passed؛ production audit وجد **0 vulnerabilities**؛ full dependency audit سجّل **2 Low و4 Moderate، وصفر High/Critical**؛ Gitleaks full-history نجح.
 
 نتيجة خط الأساس المدمج:
 
@@ -101,7 +106,7 @@
 | Type checking | لا يوجد TypeScript أو typecheck job | لا يوجد فحص أنواع آلي للواجهة |
 | Lint للخلفية | Ruff 0.17.3 report-only | 0 diagnostics بعد PR #52 و#53؛ لا توجد بوابة منع، ولا حاجة لإعادة تصنيف F401 في baseline الحالي |
 | تغطية الاختبارات | مجموعات اختبارات ناجحة | لا يوجد coverage baseline أو تقرير اتجاهات |
-| Browser E2E | Vitest/jsdom + تجربة Playwright/Chromium أولية في PR #70 | على فرع PR #70 نجح CI #41909053692 في رحلة تسجيل حساب/دخول، إثبات Cookies HttpOnly وعدم وجود tokens في localStorage/document.cookie، تحميل لوحة ومسار التعلّم، استعادة الجلسة بعد reload، ثم logout مع انتظار رد `/auth/logout` 200 والتحقق من إزالة access/refresh cookies. PR #70 مفتوح وغير مدمج. التغطية التالية: درس وإكماله، quiz، أدوار teacher/admin، الملفات، الإشعارات/WebSocket، RTL/LTR، وانقطاع/عودة الشبكة |
+| Browser E2E | أول شريحة Playwright/Chromium مدمجة عبر PR #70 | تحقق CI بعد الدمج #41914599965 على `main` من التسجيل، HttpOnly cookies، عدم كشف tokens في `document.cookie` أو localStorage، لوحة التعلم، استعادة الجلسة بعد reload، والخروج بعد استجابة `/auth/logout` 200. التغطية التالية: درس وإكماله، quiz، أدوار teacher/admin، الملفات، الإشعارات/WebSocket، RTL/LTR، وانقطاع/عودة الشبكة |
 | الأداء | PR #59/#62/#64/#65 فصلت الميزات الثقيلة؛ PR #67 خفّض Workbox precache من 35/1328.16 KiB إلى 8/378.63 KiB | لا توجد ميزانية أداء رقمية أو RUM/قياسات Core Web Vitals ميدانية؛ CacheFirst لا يجعل API/WebSocket تعمل دون اتصال |
 | أمن اعتماديات التطوير | الإنتاج: 0 vulnerabilities؛ أحدث تدقيق كامل: 2 Low و4 Moderate؛ تشغيل سابق سجّل 2 Low و8 Moderate | التنبيهات تخص أدوات بناء PWA/Workbox والاعتماديات الانتقالية؛ اختلاف العدد بين التشغيلات موثق في ADR-033؛ المعالجة تتطلب تحديثًا متوافقًا وإعادة توليد lockfile واختبارات كاملة |
 | المراقبة | إعدادات تشغيل موجودة جزئيًا | لا يوجد تحقق حي من telemetry على استضافة إنتاجية |
