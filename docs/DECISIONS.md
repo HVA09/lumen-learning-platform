@@ -376,3 +376,19 @@
 - قياس main build: entry **362.89 kB / 116.82 kB gzip**؛ `TopicPanel` **6.76 / 2.47**؛ `QuizPanel` **4.88 / 1.96**؛ `LabPanel` **1.80 / 0.86**. المحاكاة الفردية منفصلة: LinearFunctionSim **1.92 / 1.05**، DerivativeSim **1.82 / 1.04**، ProjectileSim **2.47 / 1.29**، PythonLabSim **2.71 / 1.44**، CircuitSim **3.23 / 1.34** kB/gzip.
 - القيد: هذه أحجام ملفات build وليست قياسًا ميدانيًا للزمن. أول طلب لاختبار أو مختبر أو محاكاة ينزّل الجزء الخاص به. لا توجد حتى الآن قياسات RUM أو Core Web Vitals على هاتف واتصال بطيء.
 - التراجع: إعادة الاستيرادات الساكنة في TopicPanel وLabPanel وإزالة Suspense wrappers واختبار التحميل عند الحاجة؛ لا migration أو تعديل بيانات.
+
+
+## ADR-031 — استعادة أخطاء تحميل الوحدات المؤجلة في الواجهة
+
+- التاريخ: 2026-11-04
+- الحالة: **منفذ ومُدمج — PR #65**
+- الجهة: توصية هندسية ضمن P6.5 لتحسين تجربة المتعلم عند ضعف الاتصال أو تغيّر ملفات البناء بين الإصدارات.
+- القرار: تسجيل معالج لحدث Vite `vite:preloadError` قبل تركيب React. عند توفر الاتصال و`sessionStorage`، يسمح بإعادة تحميل تلقائية واحدة فقط خلال 60 ثانية، ثم يترك أي فشل جديد يصل إلى ErrorBoundary لمنع حلقات reload.
+- عند عدم الاتصال أو تعذر الوصول إلى `sessionStorage`، لا يمنع المعالج الخطأ ولا يحاول إعادة تحميل الصفحة تلقائياً؛ يعرض ErrorBoundary رسالة عربية مخصصة، ويعطّل إعادة المحاولة حتى حدث المتصفح `online`.
+- النطاق: `frontend/src/lib/vitePreloadRecovery.js` واختباراته، و`frontend/src/main.jsx`، و`frontend/src/components/ErrorBoundary.jsx` واختباراته.
+- الضمانات: لا اعتماديات جديدة ولا تغيير API أو DB أو migrations أو إعدادات الاستضافة. تخزين مهلة إعادة التحميل في sessionStorage فقط؛ عند فشل التخزين يُسمح للخطأ بالظهور للمستخدم بدلاً من كتمه.
+- التحقق على PR #65: [CI #41860852718](https://github.com/HVA09/lumen-learning-platform/actions/runs/41860852718) نجح بالكامل؛ Backend **423 passed, 20 warnings**، Ruff **0 diagnostics**، Frontend **80 passed عبر 16 ملفاً**، production build وGitleaks ناجحان.
+- تحقق ما بعد الدمج: [CI #41861598602](https://github.com/HVA09/lumen-learning-platform/actions/runs/41861598602) نجح بالكامل. Backend **423 passed, 20 warnings**، Ruff **0 diagnostics**، Frontend **80 passed عبر 16 ملفاً**، production build وGitleaks وmigrations وPostgreSQL backup/restore ناجحة.
+- المرجع التقني: [Vite Load Error Handling](https://vite.dev/guide/build#load-error-handling) و[Vite Troubleshooting](https://vite.dev/guide/troubleshooting#failed-to-fetch-dynamically-imported-module).
+- القيد: إعادة التحميل تستعيد chunk قديم/مفقود عند وجود اتصال؛ لا تضمن نجاح التنزيل عند استمرار ضعف الشبكة، ولا تحل محل اختبار متصفح حقيقي.
+- التراجع: إزالة استدعاء `registerVitePreloadRecovery` من `main.jsx` وإعادة fallback القديم في ErrorBoundary؛ لا migration أو تعديل بيانات.

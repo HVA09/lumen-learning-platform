@@ -5,7 +5,7 @@
 
 ## 1. الحالة الحالية
 
-- HEAD الحالي المتحقق لـ `main`: `09d2a706236b4f9be55f3d8c66d461fee34f70c1` بعد دمج PR #64.
+- HEAD الحالي لـ `main`: `ee74aaa1136c471fb4b22b61247528e1ad7478c3` بعد PR #65؛ PR CI #41860852718 وmain CI #41861598602 نجحا بالكامل.
 - لا نعدّ أي PR مدمجًا إلا بعد التحقق من حالة GitHub والـ merge commit.
 - [CI #41745646366](https://github.com/HVA09/lumen-learning-platform/actions/runs/41745646366) نجح بالكامل على `main` بعد PR #46.
 - [CI #41754238271](https://github.com/HVA09/lumen-learning-platform/actions/runs/41754238271) نجح بالكامل على `main` بعد PR #49.
@@ -43,6 +43,7 @@
 | #59 | تحميل TopicPanel عند اختيار موضوع لخفض حجم entry الأولي | `30d768932934fb7c57e5f18da673de169e1bb6f2` | مدمج؛ PR CI #41850891816 وmain CI #41851527075 ناجحان: Backend 423/20 warnings، Frontend 73، Ruff 0 |
 | #62 | تحميل Markdown/KaTeX renderer وCSS عند ظهور MathText فقط | `6b53686ae3824d020243dd33115cc0bf81bd3c03` | مدمج؛ PR CI #41855423230 وmain CI #41856247148 ناجحان: Backend 423/20 warnings، Frontend 73/14 files، Ruff 0 |
 | #64 | تحميل QuizPanel وLabPanel وكل محاكاة عند الحاجة | `09d2a706236b4f9be55f3d8c66d461fee34f70c1` | مدمج؛ PR CI #41857581931 وmain CI #41858290575 ناجحان: Backend 423/20 warnings، Frontend 74/14 files، Ruff 0 |
+| #65 | استعادة أخطاء تحميل الوحدات المؤجلة وعرض حالة اتصال مفهومة | `ee74aaa1136c471fb4b22b61247528e1ad7478c3` | مدمج؛ PR CI #41860852718 ناجح: Backend 423/20 warnings، Frontend 80/16 files، Ruff 0؛ main CI #41861598602 ناجح بالكامل |
 
 P5.1–P5.4 دخلت `main`: WebSocket (#41)، Session (#43)، notification state (#44)، ثم نقل notifications (#46). PR #39 أصلح Compose، و#42 و#45 و#48 وثّقت مراحل الواجهة والجودة، و#49 أدخل Ruff، و#51 حدّث السجلات، و#52 صرّح بإعادة التصدير المتوافقة، و#53 خفّض Ruff baseline إلى صفر. PR #55 أُغلق دون دمج كتجربة جزئية، و#56 دمج الإصلاحات المؤكدة. PR #59 خفّض entry الأولي بتحميل لوحة الدرس عند الطلب، وPR #62 أجّل MathTextRenderer/CSS، وPR #64 أجّل الاختبارات والمختبر والمحاكاة. CI بعد #64 (#41858290575) نجح بالكامل؛ لا يوجد نشر إنتاجي مثبت.
 
