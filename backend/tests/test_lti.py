@@ -3,13 +3,12 @@
 id_token فعلي فيه، ونموّه جلب JWKS المنصة يرجّع مفتاحنا التجريبي. هذا يتحقق
 فعليًا إن منطق التحقق من التوقيع يشتغل صح، مو بس شكل الاستجابة.
 """
-from unittest.mock import AsyncMock
 import time
 
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-from jose import jwk, jwt
+from jose import jwt
 
 from app.models.user import UserRole
 from tests.quiz_helpers import set_role
