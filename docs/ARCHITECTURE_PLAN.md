@@ -1,7 +1,7 @@
 # الخطة المعمارية الحالية والمراحل التنفيذية لمنصة Lumen
 
 آخر تحديث: **2026-11-04**  
-مرجع `main` بعد دمج تحسين PWA في PR #67: `2453b9124fc4eaa617aa5bb5493ebc0cf1400c9a`؛ PR CI #41876997024 نجح بالكامل، وCI بعد الدمج #41886648386 كان قيد التنفيذ عند آخر تحقق.
+آخر تغيير برمجي على `main` هو PR #67 عند `2453b9124fc4eaa617aa5bb5493ebc0cf1400c9a`. آخر commit على `main` وقت هذا التحديث هو `11d6695913bc0b6587225c95489c4abffd7ff9a0` (توثيق PR #67)، وCI بعد الدمج [#41903896915](https://github.com/HVA09/lumen-learning-platform/actions/runs/41903896915) نجح بالكامل: Backend 423 passed/20 warnings، Frontend 80 passed/16 files، Ruff 0 diagnostics، production build وGitleaks وفحوص migrations وbackup/restore ناجحة.
 PR #39–#46 و#48 و#49 و#51–#59 و#62 و#64–#67 مدمجة (باستثناء PR #55 المغلق دون دمج). PR #59/#62/#64 حسّنت code splitting، وPR #65 أضاف Vite preload recovery، وPR #67 قلّص precache من 35 ملفًا/1328.16 KiB إلى 8 ملفات/378.63 KiB.
 
 > الغرض هو تنظيم النظام تدريجيًا دون إعادة كتابة، أو تغيير سلوك الميزات، أو تعريض بيانات المستخدمين والترحيلات للخطر.
@@ -138,7 +138,7 @@ PR #39–#46 و#48 و#49 و#51–#59 و#62 و#64–#67 مدمجة (باستثن�
 | P3 | استخراج وحدة نقية ثانية صغيرة | مكتمل — PR #32 مدمج؛ CI #534 على PR وCI #535 على main ناجحان |
 | P4 | فصل حدود خدمات Learning/Progress/SRS/Gamification | منفذ جزئيًا: Progress عبر PR #34/#35، وReview/SRS عبر PR #37، وGamification scoring عبر PR #40؛ تبقى الحدود الأخرى وفق الأولوية والتحليل |
 | P5 | تنظيم Frontend تدريجيًا | P5.1–P5.4 مكتملة ومدمجة؛ PR #46 نقل الإشعارات إلى `features/notifications` واختُبر قبل الدمج وبعده |
-| P6 | الجودة والأداء والمراقبة | Ruff 0 diagnostics report-only؛ ESLint لم يبدأ بسبب قيد npm registry؛ code splitting في #59/#62/#64، وpreload recovery في #65، وسياسة PWA في #67 خفّضت precache 71.5% إلى 8 entries/378.63 KiB. PR CI #41876997024 ناجح؛ CI بعد الدمج قيد التنفيذ عند آخر تحقق. ما زالت قياسات RUM وBrowser E2E وTypecheck وCoverage لاحقة |
+| P6 | الجودة والأداء والمراقبة | Ruff 0 diagnostics report-only؛ ESLint لم يبدأ بسبب قيد npm registry؛ code splitting في #59/#62/#64، وpreload recovery في #65، وسياسة PWA في #67 خفّضت precache 71.5% إلى 8 entries/378.63 KiB. CI ما بعد الدمج #41903896915 ناجح بالكامل؛ ما زالت قياسات RUM وBrowser E2E وTypecheck وCoverage لاحقة، وتوجد تنبيهات اعتماديات تطوير منخفضة/متوسطة موثقة في ADR-033 |
 | P7 | الإطلاق | بعد إغلاق متطلبات الاستضافة والأمن والتشغيل |
 
 ## 6. بوابات القبول لكل تغيير
@@ -162,10 +162,10 @@ PR #39–#46 و#48 و#49 و#51–#59 و#62 و#64–#67 مدمجة (باستثن�
 
 ## 8. نقطة الاستئناف
 
-- آخر تغيير برمجي على `main`: `2453b9124fc4eaa617aa5bb5493ebc0cf1400c9a` بعد PR #67؛ PR CI #41876997024 ناجح بالكامل، وmain CI #41886648386 بعد الدمج كان قيد التنفيذ عند آخر تحقق.
+- آخر تغيير برمجي على `main`: `2453b9124fc4eaa617aa5bb5493ebc0cf1400c9a` بعد PR #67؛ CI بعد الدمج والتوثيق [#41903896915](https://github.com/HVA09/lumen-learning-platform/actions/runs/41903896915) نجح بالكامل على `11d6695913bc0b6587225c95489c4abffd7ff9a0`.
 - P4: فواصل Progress وReview وGamification scoring منفذة عبر PR #34/#35/#37/#40.
 - P5.1–P5.4 مدمجة: WebSocket (#41)، خريطة Frontend (#42)، session (#43)، notification state (#44)، ثم نقل Notifications إلى `features/notifications` (#46). CI #41745646366 نجح بعد الدمج.
 - P6.1: Ruff 0.17.3 مفعّل للخلفية كتقرير فقط والنتيجة الحالية 0 diagnostic(s). PR #52 و#53 أتما معالجة Ruff، وPR #55 تجربة ESLint جزئية أُغلقت دون دمج، وPR #56 أزال ثلاثة findings مؤكدة، وPR #57/#58 حدّثا السجلات. لا يوجد ESLint معتمد في `main`؛ بيئة التنفيذ الحالية لا تصل إلى npm registry ولا تحتوي cache للحزم، لذلك لا يُنشأ lockfile يدويًا.
-- P6.5: PR #59/#62/#64/#65/#67 مدمجة: code splitting للوحدات التعليمية، واسترداد Vite preload، وتقليل precache في #67 من 35 entries/1328.16 KiB إلى 8/378.63 KiB (نحو 71.5%). في PR CI #41876997024: Backend 423/20 warnings، Ruff 0، Frontend 80/16 files، build وGitleaks ناجحة. main CI #41886648386 بعد الدمج لم يكن قد اكتمل بعد؛ لا يوجد قياس أداء ميداني أو Browser E2E حتى الآن.
+- P6.5: PR #59/#62/#64/#65/#67 مدمجة: code splitting للوحدات التعليمية، واسترداد Vite preload، وتقليل precache في #67 من 35 entries/1328.16 KiB إلى 8/378.63 KiB (نحو 71.5%). في PR CI #41876997024: Backend 423/20 warnings، Ruff 0، Frontend 80/16 files، build وGitleaks ناجحة. CI بعد الدمج [#41903896915](https://github.com/HVA09/lumen-learning-platform/actions/runs/41903896915) نجح على main. لا يوجد قياس أداء ميداني أو Browser E2E حتى الآن.
 - سلسلة LTI #16–#23 تحتاج إعادة تأسيس وخطة migration/integration مستقلة؛ لا تدمج مباشرة.
 - لا يوجد نشر إنتاجي مثبت.
