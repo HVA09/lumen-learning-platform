@@ -6,9 +6,9 @@ import TopicPanel from "./components/TopicPanel";
 import AuthForm from "./components/AuthForm";
 import Toast from "./components/Toast";
 import useDirection from "./hooks/useDirection";
-import useNotificationsSocket from "./hooks/useNotificationsSocket";
+import { useNotifications, useNotificationsSocket } from "./features/notifications";
 import useSession from "./hooks/useSession";
-import useNotifications from "./hooks/useNotifications";
+
 
 // مُحمَّلة عند الحاجة فقط (lazy) — كل وحدة تصير ملف منفصل (code splitting)،
 // يقلّل حجم الحزمة الأولى اللي يحمّلها أي زائر

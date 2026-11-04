@@ -5,9 +5,9 @@ import {
   listNotifications,
   markAllNotificationsRead,
   markNotificationRead,
-} from "../lib/notificationsApi";
+} from "../api/notificationsApi";
 
-vi.mock("../lib/notificationsApi", () => ({
+vi.mock("../api/notificationsApi", () => ({
   listNotifications: vi.fn(),
   markNotificationRead: vi.fn(),
   markAllNotificationsRead: vi.fn(),
