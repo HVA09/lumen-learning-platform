@@ -329,7 +329,7 @@
 - الجهة: توصية هندسية ضمن P6.1.
 - القرار: لا نضيف إعداد ESLint أو خطوة CI تعتمد على npx بإصدار عائم، ولا نحرر `frontend/package-lock.json` يدويًا. يجب اختيار إصدار ESLint والإضافات المتوافقة مع React/Vite، ثم تحديث `frontend/package.json` وتوليد lockfile باستخدام npm، والتحقق من نجاح `npm ci` قبل اعتماد الفحص.
 - السبب: الواجهة تعتمد تثبيتًا حتميًا عبر `npm ci` في CI. عدم تطابق manifest وlockfile يكسر التثبيت، والتنزيل المؤقت بإصدار غير مثبت لا يعطي baseline قابلاً لإعادة الإنتاج.
-- النطاق: لا توجد حاليًا حزم ESLint أو إعداد ESLint أو script lint في `frontend/package.json`؛ لذلك لا يوجد ESLint baseline بعد ولا يجوز إعلان عدد findings قبل تشغيل الأداة.
+- النطاق: لا توجد حاليًا حزم ESLint أو إعداد ESLint أو script lint معتمد في `frontend/package.json` على main. PR #55 جرّب npx ESLint مؤقتًا على 70 ملفًا، وأظهر 3 تحذيرات no-unused-vars وتوجيهين غير معروفين من react-hooks/exhaustive-deps وتعليق تعطيل قديمًا؛ أُغلق دون دمج لأن React Hooks plugin لم يكن محملًا ولأن الاعتماد المؤقت لا يعطي lockfile حتميًا. PR #56 أزال 3 حالات مؤكدة (استيراد App ومعاملا drawCircuit وتعليق MathText القديم) ودُمج عند `dc2f2267851837e724b015d9d4b8a710fd3b29cf` بعد نجاح CI #41760360217. لذلك لا يزال baseline الرسمي غير موجود.
 - الأثر: يبقى ESLint report-only في أول مرحلة. تظل اختبارات Vitest وبناء Vite وتدقيق الاعتماديات وفحوص Backend وGitleaks الحالية إلزامية دون تغيير.
-- معيار التنفيذ: تثبيت الإصدارات، توليد lockfile باستخدام npm، نجاح `npm ci`، تشغيل lint على ملفات المصدر والاختبارات، حفظ التقرير وتصنيف النتائج قبل اتخاذ قرار بشأن أي required check.
+- معيار التنفيذ: تثبيت ESLint وReact Hooks plugin والإعدادات المتوافقة بإصدارات محددة، توليد lockfile باستخدام npm، نجاح `npm ci`، تشغيل lint على ملفات المصدر والاختبارات، التحقق من قواعد React Hooks، حفظ التقرير وتصنيف النتائج قبل اتخاذ قرار بشأن أي required check.
 - التراجع: إزالة script وإعداد ESLint واعتمادياته من `package.json` وإعادة توليد lockfile باستخدام npm؛ لا تتطلب الخطوة تغيير API أو DB أو migrations.
