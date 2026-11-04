@@ -392,3 +392,17 @@
 - المرجع التقني: [Vite Load Error Handling](https://vite.dev/guide/build#load-error-handling) و[Vite Troubleshooting](https://vite.dev/guide/troubleshooting#failed-to-fetch-dynamically-imported-module).
 - القيد: إعادة التحميل تستعيد chunk قديم/مفقود عند وجود اتصال؛ لا تضمن نجاح التنزيل عند استمرار ضعف الشبكة، ولا تحل محل اختبار متصفح حقيقي.
 - التراجع: إزالة استدعاء `registerVitePreloadRecovery` من `main.jsx` وإعادة fallback القديم في ErrorBoundary؛ لا migration أو تعديل بيانات.
+
+## ADR-032 — تقليل ملفات PWA المسبقة وتحميل الوحدات المؤجلة عند الطلب
+
+- التاريخ: 2026-11-04
+- الحالة: **منفذ ومُدمج — PR #67**
+- الجهة: توصية هندسية ضمن P6.5 لمعالجة تعارض عملي بين React lazy loading وسياسة Workbox الافتراضية على الاتصالات البطيئة.
+- المشكلة: إعداد Workbox السابق كان يبني قائمة precache من 35 ملفًا بحجم 1328.16 KiB، وتشمل ملفات ميزات كبيرة مثل AdminDashboard (401.91 kB) وMathTextRenderer (442.53 kB) رغم أنها مؤجلة في واجهة React.
+- القرار: حصر globPatterns في app shell (HTML وملف entry JS/CSS وregisterSW.js)، وترك ملفات JS/CSS ذات الأسماء المرقّمة للتحميل عند الطلب ثم تخزينها في runtime cache باسم lumen-versioned-assets باستخدام CacheFirst، وبحد أقصى 60 مدخلًا و30 يومًا، مع قبول الاستجابات 200 فقط.
+- الحفاظ على تضمين أيقونات manifest وrobots.txt وعلى navigateFallbackDenylist للمسار /ws؛ لا تُخزّن استجابات API أو WebSocket ضمن هذه القاعدة.
+- النطاق: frontend/vite.config.js فقط؛ لا اعتماديات أو تغييرات Backend/API/DB/migrations/manifest/hosting/payment.
+- التحقق على PR #67: CI #41876997024 نجح بالكامل: Backend 423 passed, 20 warnings، Ruff 0 diagnostics، Frontend 80 passed عبر 16 ملفًا، production build وGitleaks ناجحان. سجل Workbox: 8 entries / 378.63 KiB مقابل 35 / 1328.16 KiB قبل التغيير؛ انخفاض الحجم المسبق نحو 71.5%.
+- القيد: القطع المخزنة تصبح قابلة لإعادة الاستخدام بعد زيارتها أول مرة؛ هذا لا يجعل API أو الدروس المعتمدة على الخادم أو WebSocket متاحة دون اتصال. أحجام build وprecache ليست قياسًا ميدانيًا لزمن التحميل أو Core Web Vitals.
+- ملاحظة التدقيق: سجل CI أظهر advisory متوسطًا موجودًا في الاعتمادية الانتقالية workbox-build؛ لم تُضف أو تُحدّث اعتماديات ضمن PR #67. تُدرس أي ترقية منفصلة بعد فحص توافق vite-plugin-pwa واختبارات البناء.
+- التراجع: إعادة سياسة globPatterns وruntimeCaching السابقة في frontend/vite.config.js ثم بناء ونشر إصدار جديد من Service Worker؛ لا migration أو تعديل بيانات.
