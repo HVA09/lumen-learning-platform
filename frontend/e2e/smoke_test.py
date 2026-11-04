@@ -55,7 +55,7 @@ def run_smoke_test() -> None:
                 timeout=30_000
             )
 
-            cookies = {cookie["name"]: cookie for cookie in context.cookies(API_URL)}
+            cookies = {cookie["name"]: cookie for cookie in context.cookies(f"{API_URL}/auth/refresh")}
             for name in ("lumen_access", "lumen_refresh"):
                 assert name in cookies, f"Expected browser session cookie {name!r}"
                 assert cookies[name]["httpOnly"] is True, (
@@ -84,7 +84,7 @@ def run_smoke_test() -> None:
             )
 
             remaining_cookies = {
-                cookie["name"] for cookie in context.cookies(API_URL)
+                cookie["name"] for cookie in context.cookies(f"{API_URL}/auth/refresh")
             }
             assert "lumen_access" not in remaining_cookies
             assert "lumen_refresh" not in remaining_cookies
