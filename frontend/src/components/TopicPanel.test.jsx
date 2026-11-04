@@ -14,7 +14,7 @@ vi.mock("../lib/quizApi", () => ({
   getQuizHistory: vi.fn(),
 }));
 // المختبر يحمّل محاكاة ثقيلة — غير مهم لهذه الاختبارات
-vi.mock("./LabPanel", () => ({ default: () => null }));
+vi.mock("./LabPanel", () => ({ default: () => <div data-testid="lab-panel" /> }));
 
 import { completeLesson, getTopic, getTopicLessons, getTopicMastery } from "../lib/curriculumApi";
 import { getQuizHistory, startQuiz, submitQuiz } from "../lib/quizApi";
@@ -167,6 +167,20 @@ describe("TopicPanel — الاختبارات", () => {
     renderPanel();
     await user.click(await screen.findByText("🚪 اختبار البوابة"));
     expect(await screen.findByText("راجع الدرس أولًا ثم أعد اختبار البوابة بعد 4 دقيقة")).toBeInTheDocument();
+  });
+});
+
+describe("TopicPanel — التحميل عند الحاجة", () => {
+  it("لا يحمّل المختبر قبل أن يطلبه الطالب", async () => {
+    getTopic.mockResolvedValue({ ...topic, simulation_type: "linear-function" });
+    const user = userEvent.setup();
+    renderPanel();
+
+    await screen.findByText("الدروس");
+    expect(screen.queryByTestId("lab-panel")).not.toBeInTheDocument();
+
+    await user.click(screen.getByText("🧪 افتح المختبر"));
+    expect(await screen.findByTestId("lab-panel")).toBeInTheDocument();
   });
 });
 
