@@ -8,8 +8,8 @@
 
 - المستودع: [HVA09/lumen-learning-platform](https://github.com/HVA09/lumen-learning-platform) — عام.
 - الفرع الأساسي: `main`.
-- آخر commit متحقق على `main`: `96fff938fa5ec85b921de247bfe7a3dbe3300071` بعد دمج PR #57.
-- PR #4 و#29–#46 و#48 و#49 و#51–#54 و#56–#57 مدمجة. PR #51 حدّث سجلات الحالة بعد Ruff، وPR #52 جعل إعادة التصدير في واجهات التوافق صريحة، وPR #53 خفّض نتائج Ruff من 62 إلى صفر، وPR #54 و#57 حدّثا التوثيق الدائم وخط أساس الجودة، وPR #56 أزال ثلاثة findings مؤكدة في الواجهة. PR #55 أُغلق دون دمج لأنه كان تجربة ESLint مؤقتة لا تمثل baseline معتمدًا. أُغلق PR #50 دون دمج لأن التغيير كان قد وصل إلى `main` عبر PR #49.
+- آخر commit متحقق على `main`: `30d768932934fb7c57e5f18da673de169e1bb6f2` بعد دمج PR #59.
+- PR #4 و#29–#46 و#48 و#49 و#51–#54 و#56–#59 مدمجة. PR #51 حدّث سجلات الحالة بعد Ruff، وPR #52 جعل إعادة التصدير في واجهات التوافق صريحة، وPR #53 خفّض نتائج Ruff من 62 إلى صفر، وPR #54 و#57 و#58 حدّثت التوثيق الدائم، وPR #56 أزال ثلاثة findings مؤكدة في الواجهة، وPR #59 خفّض حجم الحزمة الأولية بتحميل لوحة الدرس عند الحاجة. PR #55 أُغلق دون دمج لأنه كان تجربة ESLint مؤقتة لا تمثل baseline معتمدًا. أُغلق PR #50 دون دمج لأن التغيير كان قد وصل إلى `main` عبر PR #49.
 - PR #30 دُمج في 2026-11-03. بقي المسار القديم `app.services.quiz_logic` كواجهة توافق.
 - CI #526 نجح على رأس PR #30، وCI #532 على PR #31، وCI #534 على PR #32؛ جميع وظائف Backend وFrontend/build وFull Git history secret scan نجحت.
 - CI #537 نجح على main قبل PR #34: Backend **404 passed** وFrontend **51 passed**.
@@ -17,7 +17,9 @@
 - CI #541 نجح على main بعد PR #35: Backend **407 passed** وFrontend **51 passed**.
 - CI #543 نجح على main بعد PR #36: Backend **407 passed** وFrontend **51 passed**.
 - CI بعد PR #54: [#41759458975](https://github.com/HVA09/lumen-learning-platform/actions/runs/41759458975) نجح بالكامل على `7f6953636241997156e478a5ec489159825a7d2f`.
-- CI بعد PR #56: [#41763352189](https://github.com/HVA09/lumen-learning-platform/actions/runs/41763352189) نجح بالكامل. أحدث CI على `main` بعد PR #57: [#41767787126](https://github.com/HVA09/lumen-learning-platform/actions/runs/41767787126) نجح بالكامل على `96fff938fa5ec85b921de247bfe7a3dbe3300071`: Backend **423 passed, 20 warnings**؛ Ruff **0 diagnostics**؛ Frontend **73 passed عبر 14 ملفًا**؛ production build، Gitleaks، migrations، Compose، Restic، وPostgreSQL backup/restore كلها ناجحة.
+- CI بعد PR #57: [#41767787126](https://github.com/HVA09/lumen-learning-platform/actions/runs/41767787126) نجح بالكامل على `96fff938fa5ec85b921de247bfe7a3dbe3300071`.
+- PR #58 (تحديث توثيقي) دُمج عند `92315de7ee18acdd2b44f5d473b9c1eef0ff7683`؛ CI بعد الدمج [#41850447579](https://github.com/HVA09/lumen-learning-platform/actions/runs/41850447579) نجح.
+- PR #59 دُمج عند `30d768932934fb7c57e5f18da673de169e1bb6f2`؛ PR CI [#41850891816](https://github.com/HVA09/lumen-learning-platform/actions/runs/41850891816) نجح: Backend **423 passed, 20 warnings**، Ruff **0 diagnostics**، Frontend **73 passed عبر 14 ملفًا**، production build وGitleaks وفحوص PostgreSQL وmigrations وRestic نجحت. CI بعد الدمج [#41851527075](https://github.com/HVA09/lumen-learning-platform/actions/runs/41851527075) بدأ على `main`؛ حالة Backend كانت قيد التنفيذ وقت التوثيق.
 - لا يوجد نشر إنتاجي مثبت.
 
 ## حالة المراحل
@@ -30,7 +32,7 @@
 | P3 — تجربة Backend ثانية صغيرة | مكتمل | PR #32 مدمج؛ CI #534 على PR وCI #535 على main نجحا |
 | P4 — فصل حدود خدمات Backend | منفذ جزئيًا | PR #34/#35 (Learning Progress)، و#37 (Review/SRS)، و#40 (Gamification scoring) مدمجة؛ تبقى فرص فصل أخرى حسب تحليل الاعتماديات |
 | P5 — تنظيم Frontend | P5.1–P5.4 مكتملة | PR #41 WebSocket، و#43 Session، و#44 Notifications state، و#46 نقلت ميزة الإشعارات إلى `features/notifications`؛ PR #42 وثّق الخريطة والخطة |
-| P6 — الجودة والأداء والمراقبة | P6.0 وP6.1 الخاصة بـ Ruff مكتملتان | Ruff report-only = 0 diagnostics. تجربة ESLint الاستكشافية في PR #55 لم تُدمج؛ أزيلت 3 حالات مؤكدة في PR #56. لا توجد حزمة/إعداد/أمر ESLint معتمد في main؛ coverage وE2E والأداء والمراقبة لاحقة |
+| P6 — الجودة والأداء والمراقبة | P6.0 وRuff baseline مكتملان؛ P6.5 تحسين أولي للحزمة نُفّذ | Ruff report-only = 0 diagnostics. PR #59 خفّض main entry من 830.50 إلى 362.86 kB (gzip من 258.06 إلى 116.80 kB) بإضافة lazy loading للوحة الدرس؛ لا تحذير chunk فوق 500 kB في البناء الجديد. ESLint وcoverage وE2E وميزانية أداء/مراقبة فعلية ما زالت لاحقة |
 | P7 — الإطلاق | غير جاهز | بوابات الاستضافة والتشغيل أدناه لم تُغلق |
 
 ## آخر نقاط التحقق
@@ -126,4 +128,4 @@
 3. أُضيف Ruff 0.17.3 عبر PR #49 بوضع report-only على `app`, `tests`, `scripts`, و`migrations`. عولجت إعادة التصدير المقصودة في PR #52، ثم الاستيرادات والتعيينات وأسماء المتغيرات في PR #53؛ التقرير الحالي **0 diagnostic(s)**. يبقى Ruff report-only. ESLint للواجهة لم يُثبّت أو يُشغّل بعد؛ يجب أولًا توليد `package-lock.json` باستخدام npm والتحقق بـ `npm ci` قبل تسجيل أي baseline.
 4. تبقى سلسلة LTI/AGS #16–#23 بحاجة إلى إعادة تأسيس وتحليل تعارضات وترحيلات ثم اختبار Sandbox؛ لا تدمجها مباشرة.
 5. لا يوجد نشر إنتاجي مثبت. اختبار Restic الحالي يستخدم مستودعًا مؤقتًا في CI وليس وجهة تخزين خارجية حقيقية.
-6. آخر تحديث: PR #57 توثيقي فقط ومُدمج في `main` عند `96fff938fa5ec85b921de247bfe7a3dbe3300071`؛ PR CI #41766914355 وmain CI #41767787126 نجحا. ESLint لا يزال غير مثبت ولا يوجد baseline رسمي. بيئة التنفيذ المتاحة بها Node/npm لكن تعذر الوصول إلى `registry.npmjs.org` بسبب فشل DNS، ولا توجد حزم ESLint في cache؛ لذلك لم يُعدّل `package.json` أو lockfile. الخطوة التالية لا تزال تثبيت ESLint وReact Hooks plugin بإصدارات محددة عند توفر اتصال npm، وتوليد lockfile بواسطة npm ثم نجاح `npm ci`.
+6. آخر تحديث برمجي: PR #59 مدمج عند `30d768932934fb7c57e5f18da673de169e1bb6f2`؛ CI PR #41850891816 نجح بالكامل. خفّض lazy loading لوحة الدرس حجم entry من 830.50 kB إلى 362.86 kB قبل الضغط. CI بعد الدمج #41851527075 بدأ على `main`؛ تحقّق من نتيجته قبل اعتبار نقطة الاستئناف النهائية مستقرة. ESLint لا يزال غير مثبت ولا يوجد baseline رسمي. بيئة التنفيذ المتاحة بها Node/npm لكن تعذر الوصول إلى `registry.npmjs.org` بسبب فشل DNS، ولا توجد حزم ESLint في cache؛ لذلك لم يُعدّل `package.json` أو lockfile. الخطوة التالية لا تزال تثبيت ESLint وReact Hooks plugin بإصدارات محددة عند توفر اتصال npm، وتوليد lockfile بواسطة npm ثم نجاح `npm ci`.
