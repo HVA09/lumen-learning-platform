@@ -1,33 +1,24 @@
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import remarkMath from "remark-math";
-import rehypeKatex from "rehype-katex";
+import { lazy, Suspense } from "react";
 
-// ثوابت خارج المكوّن: نفس المراجع كل عرض بدل إنشاء مصفوفات جديدة
-const REMARK_PLUGINS = [remarkGfm, remarkMath];
-// throwOnError: false → معادلة خاطئة تظهر بالأحمر بدل ما تكسر الصفحة
-const REHYPE_PLUGINS = [[rehypeKatex, { throwOnError: false, strict: "ignore" }]];
-// الفقرة تصير <span> عشان النص القصير (سؤال، خيار) يبقى داخل السطر بدون هوامش فقرة
-const INLINE_COMPONENTS = {
-  p: ({ node, ...props }) => <span {...props} />,
-};
+const MathTextRenderer = lazy(() => import("./MathTextRenderer"));
 
-/**
- * يعرض نصًا فيه Markdown + رياضيات LaTeX ($...$ داخل السطر، و$$ على أسطر مستقلة للمعادلة المنفصلة) + كود.
- * inline: للنصوص القصيرة (نص سؤال، خيار، شرح) — بدون فقرات وهوامش.
- */
-export default function MathText({ children, inline = false, className = "" }) {
-  const text = typeof children === "string" ? children : String(children ?? "");
+function MathTextFallback({ inline = false, className = "" }) {
   const Wrapper = inline ? "span" : "div";
   return (
-    <Wrapper className={`math-text ${className}`.trim()}>
-      <ReactMarkdown
-        remarkPlugins={REMARK_PLUGINS}
-        rehypePlugins={REHYPE_PLUGINS}
-        components={inline ? INLINE_COMPONENTS : undefined}
-      >
-        {text}
-      </ReactMarkdown>
+    <Wrapper className={`math-text ${className}`.trim()} aria-busy="true">
+      <span aria-hidden="true">…</span>
     </Wrapper>
+  );
+}
+
+/**
+ * حمّل محرك Markdown وKaTeX فقط عندما يظهر محتوى يحتاج إلى العرض.
+ * يبقى هذا الغلاف خفيفًا حتى مع استيراده من لوحات محمّلة عند الطلب.
+ */
+export default function MathText(props) {
+  return (
+    <Suspense fallback={<MathTextFallback inline={props.inline} className={props.className} />}>
+      <MathTextRenderer {...props} />
+    </Suspense>
   );
 }
