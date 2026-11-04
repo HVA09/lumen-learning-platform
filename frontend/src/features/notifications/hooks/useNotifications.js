@@ -3,7 +3,7 @@ import {
   listNotifications,
   markAllNotificationsRead as markAllNotificationsReadRequest,
   markNotificationRead as markNotificationReadRequest,
-} from "../lib/notificationsApi";
+} from "../api/notificationsApi";
 
 /**
  * Owns notification data and read-state mutations for the authenticated user.

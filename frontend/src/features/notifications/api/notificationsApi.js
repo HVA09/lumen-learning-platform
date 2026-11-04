@@ -1,4 +1,4 @@
-import api from "./api";
+import api from "../../../lib/api";
 
 export async function listNotifications() {
   const { data } = await api.get("/notifications");

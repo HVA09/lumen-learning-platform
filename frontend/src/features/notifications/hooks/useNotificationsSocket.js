@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { buildNotificationsWebSocketUrl } from "../lib/notificationsApi";
+import { buildNotificationsWebSocketUrl } from "../api/notificationsApi";
 
 function parseNotificationMessage(data) {
   if (typeof data !== "string") return null;

@@ -1,6 +1,6 @@
 import LanguageToggle from "./LanguageToggle";
 import ThemeToggle from "./ThemeToggle";
-import NotificationBell from "./NotificationBell";
+import { NotificationBell } from "../features/notifications";
 import { useTranslation } from "react-i18next";
 
 export default function AppHeader({
