@@ -18,11 +18,11 @@ from app.models.topic_mastery import TopicMastery
 from app.models.user_achievement import UserAchievement
 from app.services.study_activity import get_study_streak
 from app.modules.gamification.domain.scoring import (
-    MAX_REVIEWED_CARDS_FOR_POINTS,
-    POINTS_PER_GATEWAY_PASSED,
-    POINTS_PER_PASSING_ASSIGNMENT,
-    POINTS_PER_REVIEWED_CARD,
-    POINTS_PER_TEN_MASTERY_PERCENT,
+    MAX_REVIEWED_CARDS_FOR_POINTS as MAX_REVIEWED_CARDS_FOR_POINTS,
+    POINTS_PER_GATEWAY_PASSED as POINTS_PER_GATEWAY_PASSED,
+    POINTS_PER_PASSING_ASSIGNMENT as POINTS_PER_PASSING_ASSIGNMENT,
+    POINTS_PER_REVIEWED_CARD as POINTS_PER_REVIEWED_CARD,
+    POINTS_PER_TEN_MASTERY_PERCENT as POINTS_PER_TEN_MASTERY_PERCENT,
     ScoreComponents,
     calculate_score,
 )
