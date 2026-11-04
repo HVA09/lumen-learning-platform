@@ -1,15 +1,11 @@
-import LinearFunctionSim from "./simulations/LinearFunctionSim";
-import DerivativeSim from "./simulations/DerivativeSim";
-import ProjectileSim from "./simulations/ProjectileSim";
-import CircuitSim from "./simulations/CircuitSim";
-import PythonLabSim from "./simulations/PythonLabSim";
+import { lazy, Suspense } from "react";
 
 const SIM_COMPONENTS = {
-  "linear-function": LinearFunctionSim,
-  derivative: DerivativeSim,
-  projectile: ProjectileSim,
-  "circuits-dc": CircuitSim,
-  "python-lab": PythonLabSim,
+  "linear-function": lazy(() => import("./simulations/LinearFunctionSim")),
+  derivative: lazy(() => import("./simulations/DerivativeSim")),
+  projectile: lazy(() => import("./simulations/ProjectileSim")),
+  "circuits-dc": lazy(() => import("./simulations/CircuitSim")),
+  "python-lab": lazy(() => import("./simulations/PythonLabSim")),
 };
 
 export default function LabPanel({ simulationType, topicName, onClose }) {
@@ -31,7 +27,9 @@ export default function LabPanel({ simulationType, topicName, onClose }) {
         </div>
 
         {SimComponent ? (
-          <SimComponent />
+          <Suspense fallback={<p className="text-sm text-slate-400">جاري تحميل المحاكاة...</p>}>
+            <SimComponent />
+          </Suspense>
         ) : (
           <p className="text-sm text-slate-400">ما فيه محاكاة لهذا الموضوع بعد</p>
         )}
