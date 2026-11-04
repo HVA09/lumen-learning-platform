@@ -5,7 +5,7 @@
 ## 1. المرجع وحدود هذا التقييم
 
 - المستودع: `HVA09/lumen-learning-platform`.
-- خط أساس `main` الذي تمت مراجعته: `aaeeb38e0b16c0ee2d2cea3664a6a3b6b00e1eac` بعد دمج PR #42.
+- خط أساس `main` المحدث بعد دمج PR #46: `ee149a40b144883b0fea34232ae730574d5e5ed7`.
 - هذا الملف يوثق ما هو مفعّل فعليًا في المستودع وCI، ثم يقترح إدخال أدوات الجودة تدريجيًا.
 - هذا التقييم توثيقي فقط؛ لا يضيف اعتماديات أو يغيّر سلوك التطبيق أو شروط CI.
 
@@ -23,10 +23,11 @@
 
 - CI #547 على خط الأساس التاريخي `de79d3e4`: Backend **417 passed** مع 20 warning؛ Frontend **51 passed** عبر 11 ملف اختبار.
 - بعد دمج P5.1–P5.3، نجح CI على `main` عند commit `aec9584df78009b07c8bed35b48742d7b7a60ede` (run #41738385373).
-- أحدث رأس `main` هو `b63574af78f20971563a0a8bc9df2f0a563515a7` بعد PR #39؛ تشغيل CI #41742892283 كان جاريًا عند تحديث الوثيقة.
+- بعد PR #46، أحدث رأس `main` هو `ee149a40b144883b0fea34232ae730574d5e5ed7`؛ CI #41745646366 نجح بالكامل بعد الدمج.
 - أحدث تحقق كامل لتغييرات P5.3 في PR #44 بعد إعادة تأسيسه على `main`: CI #41737808038 على الرأس `356aad52874ec7086215edd8d892e4894d0c1c4c`؛ وظائف Backend وFrontend/build وGitleaks نجحت.
 - في CI #41737808038 نجح Vite production build، وتدقيق الاعتماديات الإنتاجية، وGitleaks، وCompose، وRestic CI smoke، والتحقق من migrations وPostgreSQL backup/restore.
 - PR #39 أصلح escaping لمتغيرات shell في خدمة `offsite_backup` وأضاف assertion يتحقق من command بعد Docker Compose rendering؛ CI #41738681026 نجح قبل دمجه إلى `main` في commit `b63574af78f20971563a0a8bc9df2f0a563515a7`.
+- PR #46 نقل الإشعارات إلى `features/notifications`؛ كل وظائف CI على رأس PR #46 نجحت في #41744744642، ثم نجحت جميع وظائف CI على `main` بعد الدمج في #41745646366.
 - نتيجة npm production audit في CI #570: **0 vulnerabilities** عند مستوى High/Critical المشمول بالأمر الحالي. أما التقرير الكامل لكل شجرة الاعتماديات فسجّل **10 تنبيهات غير عالية: 2 Low و8 Moderate**؛ أغلبها في سلسلة `vite-plugin-pwa` والاعتماديات التابعة لها. لا تُحدّث السلسلة عشوائيًا؛ افحص الشجرة والتوافق وPWA قبل أي ترقية.
 - يظهر تحذير حجم Chunk في بناء Vite، ولا يوجد حتى الآن حد أداء رقمي معتمد.
 
@@ -38,7 +39,8 @@
 - [CI #41742892283 — main بعد دمج PR #39](https://github.com/HVA09/lumen-learning-platform/actions/runs/41742892283)
 - [CI #41743356088 — PR #42 قبل الدمج](https://github.com/HVA09/lumen-learning-platform/actions/runs/41743356088)
 - [CI #41744012439 — main بعد دمج PR #42](https://github.com/HVA09/lumen-learning-platform/actions/runs/41744012439)
-- [CI #41744087417 — PR #46 بعد إصلاح mock path](https://github.com/HVA09/lumen-learning-platform/actions/runs/41744087417)
+- [CI #41744744642 — PR #46 قبل الدمج](https://github.com/HVA09/lumen-learning-platform/actions/runs/41744744642)
+- [CI #41745646366 — main بعد دمج PR #46](https://github.com/HVA09/lumen-learning-platform/actions/runs/41745646366)
 
 مهم: تغييرات P5.1–P5.3 أصبحت جزءًا من `main` بعد دمج PR #41 ثم #43 ثم #44 بالترتيب. نجاح CI لا يثبت تشغيلًا إنتاجيًا أو اختبار متصفح حي.
 
@@ -135,5 +137,6 @@
 
 1. P6.0 موثق.
 2. الخطوة التالية المقترحة هي P6.1: تجربة ESLint وRuff بوضع تقرير فقط، بعد إغلاق ترتيب تكامل P5 أو في فرع مستقل لا يغير شيفرة التطبيق.
-3. P5.4 — PR #46 ينقل notifications إلى `features/notifications`؛ فشل تشغيله الأول بسبب mock path قديم في اختبار hook، ثم أُصلح في commit `5f7307c13a83a3ce946b422da9bfb9d02004af53`. CI #41744087417 ينتظر التحقق على هذا الرأس؛ لا يوجد دمج بعد.
-4. لا يوجد نشر إنتاجي مثبت. اختبار Restic الحالي اختبار CI باستخدام مستودع مؤقت وليس وجهة تخزين خارجية حقيقية.
+3. P5.4 مكتملة: PR #46 مدمج في `main` بالـ commit `ee149a40b144883b0fea34232ae730574d5e5ed7`؛ CI #41744744642 على PR و#41745646366 بعد الدمج نجحا بالكامل.
+4. الخطوة التالية P6.1: تثبيت ESLint وRuff بوضع تقرير فقط أولًا، مع تحليل النتائج وتصنيفها قبل تحويل أي قاعدة إلى شرط CI.
+5. لا يوجد نشر إنتاجي مثبت. اختبار Restic الحالي اختبار CI باستخدام مستودع مؤقت وليس وجهة تخزين خارجية حقيقية.

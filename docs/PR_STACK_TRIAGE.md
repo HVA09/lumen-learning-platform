@@ -5,12 +5,11 @@
 
 ## 1. الحالة الحالية
 
-- HEAD الحالي لـ `main`: `aaeeb38e0b16c0ee2d2cea3664a6a3b6b00e1eac` بعد PR #42.
+- HEAD الحالي لـ `main`: `ee149a40b144883b0fea34232ae730574d5e5ed7` بعد دمج PR #46.
 - لا نعدّ أي PR مدمجًا إلا بعد التحقق من حالة GitHub والـ merge commit.
+- [CI #41745646366](https://github.com/HVA09/lumen-learning-platform/actions/runs/41745646366) نجح بالكامل على `main` بعد PR #46؛ الوظائف الثلاث Backend وFrontend/build وGitleaks ناجحة.
+- [CI #41744744642](https://github.com/HVA09/lumen-learning-platform/actions/runs/41744744642) نجح على رأس PR #46 قبل الدمج.
 - لا يوجد نشر إنتاجي مثبت.
-- [CI #41738385373](https://github.com/HVA09/lumen-learning-platform/actions/runs/41738385373) نجح بالكامل على main بعد دمج PR #44.
-- [CI #41742892283](https://github.com/HVA09/lumen-learning-platform/actions/runs/41742892283) نجح على main بعد PR #39؛ [CI #41744012439](https://github.com/HVA09/lumen-learning-platform/actions/runs/41744012439) على main بعد PR #42 كان جاريًا عند آخر تحقق.
-- [CI #41738681026](https://github.com/HVA09/lumen-learning-platform/actions/runs/41738681026) نجح على رأس PR #39 بعد إعادة تأسيسه.
 
 ## 2. PRs المدمجة حديثًا
 
@@ -21,18 +20,20 @@
 | #41 | Hook لدورة WebSocket للإشعارات | `9481c7927cd06653c584f3b11faa4e1d842259b9` | مدمج |
 | #43 | Hook لدورة الجلسة | `9a2a23c071f31f8553b3b1eef9f67195f3b08f07` | مدمج |
 | #44 | Hook لحالة الإشعارات والقراءة الآمنة عبر تبدل الجلسة | `aec9584df78009b07c8bed35b48742d7b7a60ede` | مدمج |
+| #45 | خط أساس الجودة وتحديث سجلات الحالة والقرارات | `4445ddaf347bf97ae3e89450d7dce01a7bb65eb6` | مدمج |
+| #46 | نقل الإشعارات إلى `features/notifications` | `ee149a40b144883b0fea34232ae730574d5e5ed7` | مدمج |
 
 P5.1–P5.3 دخلت `main` بالترتيب #41 → #43 → #44. PR #39 أعيد تأسيسه على أحدث main بعد هذه السلسلة، وأُدخل بعد نجاح CI على رأسه.
 
-## 3. طلبات التوثيق والهيكلة الحالية
+## 3. طلبات التوثيق والهيكلة المدمجة
 
-| PR | المجال | Base | الرأس الحالي | النطاق / CI |
-|---|---|---|---|---|
-| #42 | خريطة بنية Frontend وخطة Features/Shared | `main` | `e33b6e016339bcc5a50165ccd7238121d7e2202f` | مدمج في `main` عبر `aaeeb38e0b16c0ee2d2cea3664a6a3b6b00e1eac`؛ CI #41743356088 ناجح |
-| #45 | خط أساس الجودة وخطة P6 وتحديث السجلات | `main` | يتطلب إعادة تأسيس على `aaeeb38e` | مفتوح، ينتظر CI بعد إعادة التأسيس |
-| #46 | P5.4 — نقل notifications إلى `features/notifications` | `main` | `5f7307c13a83a3ce946b422da9bfb9d02004af53` | Draft؛ CI الأول كشف mock path قديمًا، أصلح في commit المذكور؛ CI #41744087417 ينتظر التشغيل |
+| PR | المجال | Merge commit | الحالة / الدليل |
+|---|---|---|---|
+| #42 | خريطة بنية Frontend وخطة Features/Shared | `aaeeb38e0b16c0ee2d2cea3664a6a3b6b00e1eac` | مدمج؛ CI #41743356088 ناجح |
+| #45 | خط أساس الجودة وخطة P6 وتحديث السجلات | `4445ddaf347bf97ae3e89450d7dce01a7bb65eb6` | مدمج؛ CI على `main` #41744675433 ناجح |
+| #46 | P5.4 نقل Notifications إلى `features/notifications` | `ee149a40b144883b0fea34232ae730574d5e5ed7` | مدمج؛ PR CI #41744744642 وmain CI #41745646366 ناجحان |
 
-لا تعتمد نتائج CI التاريخية على رؤوس قديمة كبديل عن الفحص على الرأس الحالي.
+لا يوجد ضمن سلسلة P5/P6 PR مفتوح عند آخر تحقق. سلسلة LTI #16–#23 تظل منفصلة ومتراكبة على فروع قديمة وتحتاج خطة تكامل مستقلة.
 
 ## 4. سلسلة LTI/AGS — PR #16 إلى #23
 
