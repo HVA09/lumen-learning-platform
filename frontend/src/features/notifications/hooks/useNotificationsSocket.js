@@ -77,10 +77,19 @@ export default function useNotificationsSocket({ enabled, onNotification }) {
       };
     };
 
+    const handleOnline = () => {
+      if (!active || reconnectTimer === null) return;
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+      connect();
+    };
+
+    window.addEventListener("online", handleOnline);
     connect();
 
     return () => {
       active = false;
+      window.removeEventListener("online", handleOnline);
       if (reconnectTimer !== null) {
         clearTimeout(reconnectTimer);
       }
