@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { setAuthSessionActive } from "../lib/api";
 import { logoutUser, refreshSession } from "../lib/authApi";
 import { getCurrentUser } from "../lib/usersApi";
@@ -11,6 +11,8 @@ export default function useSession({ onSessionExpired } = {}) {
   const [authenticated, setAuthenticated] = useState(false);
   const [authReady, setAuthReady] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const authenticatedRef = useRef(false);
+  const logoutRequestedRef = useRef(false);
 
   const refreshCurrentUser = useCallback(async () => {
     try {
@@ -24,12 +26,16 @@ export default function useSession({ onSessionExpired } = {}) {
   }, []);
 
   const markAuthenticated = useCallback(() => {
+    logoutRequestedRef.current = false;
+    authenticatedRef.current = true;
     setAuthSessionActive(true);
     setAuthenticated(true);
     void refreshCurrentUser();
   }, [refreshCurrentUser]);
 
   const logout = useCallback(() => {
+    logoutRequestedRef.current = true;
+    authenticatedRef.current = false;
     setAuthSessionActive(false);
     // Revoke the server session and clear HttpOnly cookies; UI logout is immediate.
     logoutUser().catch(() => {});
@@ -45,30 +51,77 @@ export default function useSession({ onSessionExpired } = {}) {
 
   useEffect(() => {
     let mounted = true;
+    let bootstrapInFlight = false;
+    let bootstrapRetryRequested = false;
 
-    getCurrentUser()
-      .catch(async (error) => {
-        if (error.response?.status !== 401) throw error;
-        await refreshSession();
-        return getCurrentUser();
-      })
-      .then((user) => {
-        if (!mounted) return;
+    const bootstrapSession = async () => {
+      if (!mounted || logoutRequestedRef.current) return;
+      if (bootstrapInFlight) {
+        bootstrapRetryRequested = true;
+        return;
+      }
+
+      bootstrapInFlight = true;
+      try {
+        let user;
+        try {
+          user = await getCurrentUser();
+        } catch (error) {
+          if (error.response?.status !== 401) throw error;
+          await refreshSession();
+          user = await getCurrentUser();
+        }
+
+        if (!mounted || logoutRequestedRef.current) return;
+        authenticatedRef.current = true;
         setCurrentUser(user);
         setAuthSessionActive(true);
         setAuthenticated(true);
-      })
-      .catch(() => {
-        if (mounted) setAuthSessionActive(false);
-      })
-      .finally(() => {
-        if (mounted) setAuthReady(true);
-      });
+      } catch {
+        // A temporary network failure must not be treated as an expired session.
+        if (mounted && !authenticatedRef.current && !logoutRequestedRef.current) {
+          setAuthSessionActive(false);
+          setAuthenticated(false);
+          setCurrentUser(null);
+        }
+      } finally {
+        bootstrapInFlight = false;
+        if (mounted) {
+          setAuthReady(true);
+          if (bootstrapRetryRequested) {
+            bootstrapRetryRequested = false;
+            if (!logoutRequestedRef.current) {
+              if (!authenticatedRef.current) {
+                void bootstrapSession();
+              }
+            }
+          }
+        } else {
+          bootstrapRetryRequested = false;
+        }
+      }
+    };
+
+    const handleOnline = () => {
+      if (!mounted || logoutRequestedRef.current) return;
+      if (bootstrapInFlight) {
+        bootstrapRetryRequested = true;
+        return;
+      }
+      if (!authenticatedRef.current) {
+        void bootstrapSession();
+      }
+    };
+
+    window.addEventListener("online", handleOnline);
+    void bootstrapSession();
 
     return () => {
       mounted = false;
+      bootstrapRetryRequested = false;
+      window.removeEventListener("online", handleOnline);
     };
-  }, []);
+  }, [refreshCurrentUser]);
 
   useEffect(() => {
     const handleUnauthorized = () => {
