@@ -75,6 +75,44 @@ describe("useSession", () => {
     expect(setAuthSessionActive).toHaveBeenCalledWith(false);
   });
 
+  it("retries session bootstrap when the browser returns online", async () => {
+    const user = { id: 17, role: "student" };
+    getCurrentUser
+      .mockRejectedValueOnce(new Error("network unavailable"))
+      .mockResolvedValueOnce(user);
+
+    const { result } = renderHook(() => useSession());
+
+    await waitFor(() => expect(result.current.authReady).toBe(true));
+    expect(result.current.authenticated).toBe(false);
+    expect(getCurrentUser).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      window.dispatchEvent(new Event("online"));
+    });
+
+    await waitFor(() => expect(result.current.authenticated).toBe(true));
+    expect(result.current.currentUser).toEqual(user);
+    expect(getCurrentUser).toHaveBeenCalledTimes(2);
+    expect(setAuthSessionActive).toHaveBeenLastCalledWith(true);
+
+    await act(async () => {
+      window.dispatchEvent(new Event("online"));
+    });
+    expect(getCurrentUser).toHaveBeenCalledTimes(2);
+  });
+
+  it("removes the online recovery listener when the hook unmounts", async () => {
+    getCurrentUser.mockRejectedValue(new Error("network unavailable"));
+    const removeSpy = vi.spyOn(window, "removeEventListener");
+    const { result, unmount } = renderHook(() => useSession());
+
+    await waitFor(() => expect(result.current.authReady).toBe(true));
+    unmount();
+
+    expect(removeSpy).toHaveBeenCalledWith("online", expect.any(Function));
+  });
+
   it("marks a successful login and reloads the current user", async () => {
     const user = { id: 14, role: "admin" };
     getCurrentUser
