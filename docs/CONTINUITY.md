@@ -4,13 +4,11 @@
 
 ## نقطة الاستئناف — 2026-11-05
 
-- آخر commit برمجي على `main`: PR #77، commit `451572c1253351e0b4406ed21480b659b2862406`.
-- CI الخاص بـ PR #77 (#41940578786) وCI بعد الدمج على `main` (#41941142454) نجحا بجميع الوظائف الأربع.
-- P6.6 يغطي الآن التسجيل والجلسة، إكمال الدرس، Quiz وسجل المحاولات، وأدوار الطالب والمعلم والمسؤول مع عزل الفصول.
-- PR #78 يختبر دورة إنشاء مسودة درس ثم نشرها وظهورها للطالب؛ لا تعتبرها منجزة قبل نجاح CI ودمج PR.
-- المرجع التفصيلي للحالة والخطوة التالية هو `docs/PROJECT_STATUS.md`، وللقرارات `docs/DECISIONS.md`، وللتحقق `docs/QUALITY_BASELINE.md`.
-
-
+- آخر commit برمجي على main: PR #82، commit cf15149abe546627ee36feba65fcf48dbab3ba64.
+- PR #82 CI #41949826358 وCI بعد الدمج على main #41950657568 نجحا بجميع الوظائف الأربع. Backend 423 passed و20 warnings؛ Ruff 0 diagnostics؛ Frontend 80 passed عبر 16 ملفًا؛ production audit 0 vulnerabilities؛ full audit 2 Low و4 Moderate.
+- P6.6 يغطي التسجيل والجلسة، إكمال الدرس واستعادة التقدم، نشر الدرس، Quiz فارغاً وسجل المحاولات، اجتياز البوابة عند العتبة، أدوار الطالب/المعلم/المسؤول وعزل الفصول، وإدارة أسئلة المعلم من الإنشاء إلى التعديل والتعطيل والحذف.
+- الخطوة التالية المقترحة: اختبار ClamAV حقيقي داخل CI بملف نظيف وملف EICAR اختباري غير تنفيذي، ثم التحقق من عدم حفظ الملفات المرفوضة ومن فشل الرفع بشكل مغلق عند تعطل الماسح. بعدها اختبارات تصحيح Quiz الأوسع والإشعارات/WebSocket وRTL/LTR والاتصال.
+- لا يوجد نشر إنتاجي مثبت؛ لا تنشئ موارد مدفوعة أو تتجاوز CI أو branch protection. المرجع التفصيلي للحالة والخطوات هو docs/PROJECT_STATUS.md، وللقرارات docs/DECISIONS.md، وللتحقق docs/QUALITY_BASELINE.md.
 ## الهدف
 
 هذا الدليل يمنع اعتماد متابعة Lumen على محادثة واحدة أو هاتف واحد. سجل المشروع الرسمي موجود في GitHub، ويمكن فتحه من أي هاتف أو حاسوب متصل بالإنترنت.
@@ -28,12 +26,11 @@ https://github.com/HVA09/lumen-learning-platform
 4. سجل commits وPR وGitHub Actions — ما الذي تغيّر فعليًا وما الاختبارات التي نجحت؟
 
 الصفحات المباشرة:
-- [الحالة](https://github.com/HVA09/lumen-learning-platform/blob/fix/security-production-hardening/docs/PROJECT_STATUS.md)
-- [القرارات](https://github.com/HVA09/lumen-learning-platform/blob/fix/security-production-hardening/docs/DECISIONS.md)
-- [ميثاق المشروع](https://github.com/HVA09/lumen-learning-platform/blob/fix/security-production-hardening/docs/PROJECT_CHARTER.md)
-- [استمرارية العمل](https://github.com/HVA09/lumen-learning-platform/blob/fix/security-production-hardening/docs/CONTINUITY.md)
+- [الحالة](https://github.com/HVA09/lumen-learning-platform/blob/main/docs/PROJECT_STATUS.md)
+- [القرارات](https://github.com/HVA09/lumen-learning-platform/blob/main/docs/DECISIONS.md)
+- [ميثاق المشروع](https://github.com/HVA09/lumen-learning-platform/blob/main/docs/PROJECT_CHARTER.md)
+- [استمرارية العمل](https://github.com/HVA09/lumen-learning-platform/blob/main/docs/CONTINUITY.md)
 
-> هذه الملفات أُضيفت أولًا إلى فرع التطوير `fix/security-production-hardening`. لا تعتمد روابط فرع `main` حتى يتم دمج PR #4 والتحقق من ذلك.
 
 ## عند فتح ChatGPT من جهاز آخر
 
