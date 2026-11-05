@@ -232,6 +232,12 @@ describe("useSession", () => {
     await waitFor(() => expect(result.current.currentUser).toEqual(user));
     expect(result.current.authenticated).toBe(true);
     expect(setAuthSessionActive).toHaveBeenLastCalledWith(true);
+
+    const requestsAfterLogin = getCurrentUser.mock.calls.length;
+    await act(async () => {
+      window.dispatchEvent(new Event("online"));
+    });
+    expect(getCurrentUser).toHaveBeenCalledTimes(requestsAfterLogin);
   });
 
   it("logs out locally immediately and attempts to revoke the server session", async () => {
