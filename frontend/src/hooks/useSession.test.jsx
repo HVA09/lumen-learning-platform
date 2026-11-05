@@ -113,6 +113,35 @@ describe("useSession", () => {
     expect(setAuthSessionActive).toHaveBeenLastCalledWith(true);
   });
 
+  it("retries once when connectivity returns while session bootstrap is still in flight", async () => {
+    const user = { id: 20, role: "student" };
+    let rejectInitialRequest;
+    const initialRequest = new Promise((resolve, reject) => {
+      rejectInitialRequest = reject;
+    });
+    getCurrentUser
+      .mockReturnValueOnce(initialRequest)
+      .mockResolvedValueOnce(user);
+
+    const { result } = renderHook(() => useSession());
+    await waitFor(() => expect(getCurrentUser).toHaveBeenCalledTimes(1));
+
+    act(() => {
+      window.dispatchEvent(new Event("online"));
+    });
+
+    await act(async () => {
+      rejectInitialRequest(new Error("network unavailable"));
+      await waitFor(() => {
+        expect(result.current.authenticated).toBe(true);
+        expect(result.current.currentUser).toEqual(user);
+      });
+    });
+
+    expect(getCurrentUser).toHaveBeenCalledTimes(2);
+    expect(setAuthSessionActive).toHaveBeenLastCalledWith(true);
+  });
+
   it("keeps an active session when a profile refresh fails after reconnect", async () => {
     const user = { id: 18, role: "teacher" };
     getCurrentUser
