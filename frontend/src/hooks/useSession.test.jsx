@@ -102,6 +102,51 @@ describe("useSession", () => {
     expect(getCurrentUser).toHaveBeenCalledTimes(2);
   });
 
+  it("queues one recovery attempt when online fires during bootstrap", async () => {
+    const user = { id: 18, role: "student" };
+    let rejectFirstRequest;
+    const firstRequest = new Promise((resolve, reject) => {
+      rejectFirstRequest = reject;
+    });
+    getCurrentUser
+      .mockReturnValueOnce(firstRequest)
+      .mockResolvedValueOnce(user);
+
+    const { result } = renderHook(() => useSession());
+    await waitFor(() => expect(getCurrentUser).toHaveBeenCalledTimes(1));
+
+    await act(async () => {
+      window.dispatchEvent(new Event("online"));
+      window.dispatchEvent(new Event("online"));
+      rejectFirstRequest(new Error("network unavailable"));
+      await firstRequest.catch(() => {});
+    });
+
+    await waitFor(() => expect(result.current.authenticated).toBe(true));
+    expect(result.current.currentUser).toEqual(user);
+    expect(getCurrentUser).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not bootstrap again after a user logs out", async () => {
+    const user = { id: 19, role: "student" };
+    getCurrentUser.mockResolvedValue(user);
+
+    const { result } = renderHook(() => useSession());
+    await waitFor(() => expect(result.current.authenticated).toBe(true));
+
+    act(() => {
+      result.current.logout();
+    });
+    expect(result.current.authenticated).toBe(false);
+
+    await act(async () => {
+      window.dispatchEvent(new Event("online"));
+    });
+
+    expect(getCurrentUser).toHaveBeenCalledTimes(1);
+    expect(result.current.currentUser).toBeNull();
+  });
+
   it("does not restore a stale session after logout wins a pending bootstrap", async () => {
     let resolveBootstrap;
     getCurrentUser.mockReturnValueOnce(
