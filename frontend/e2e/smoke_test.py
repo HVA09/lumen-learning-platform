@@ -415,6 +415,108 @@ def run_smoke_test() -> None:
                 expect(
                     teacher_a_page.get_by_role("button", name="الدروس", exact=True)
                 ).to_be_visible()
+
+                # Select the seeded lesson topic and create an unpublished draft
+                # through the teacher content manager.
+                teacher_a_page.locator("select").select_option(str(topic_id))
+                draft_title = f"Browser E2E draft {uuid.uuid4().hex[:8]}"
+                draft_body = "نص تجريبي لمسودة غير منشورة."
+                with teacher_a_page.expect_response(
+                    lambda response: response.request.method == "POST"
+                    and response.url.endswith(
+                        f"/content/topics/{topic_id}/lessons"
+                    ),
+                    timeout=30_000,
+                ) as draft_create_info:
+                    teacher_a_page.get_by_role(
+                        "button", name="+ درس جديد", exact=True
+                    ).click()
+                    teacher_a_page.get_by_placeholder("عنوان الدرس").fill(draft_title)
+                    teacher_a_page.get_by_placeholder(
+                        "محتوى الدرس (Markdown) — الرياضيات بين $...$ والمعادلة المنفصلة بـ $ على أسطر مستقلة"
+                    ).fill(draft_body)
+                    teacher_a_page.get_by_label(
+                        "منشور (يظهر للطلاب)", exact=True
+                    ).uncheck()
+                    teacher_a_page.get_by_role(
+                        "button", name="حفظ", exact=True
+                    ).click()
+
+                draft_create_response = draft_create_info.value
+                assert draft_create_response.status == 201, (
+                    f"Draft lesson creation returned HTTP {draft_create_response.status}"
+                )
+                draft_lesson = draft_create_response.json()
+                draft_lesson_id = draft_lesson["id"]
+                assert draft_lesson["is_published"] is False
+                assert draft_lesson["title_ar"] == draft_title
+                expect(
+                    teacher_a_page.get_by_text(draft_title, exact=True)
+                ).to_be_visible(timeout=30_000)
+
+                student_draft_list = page.request.get(
+                    f"{API_URL}/curriculum/topics/{topic_id}/lessons",
+                    headers=student_headers,
+                )
+                assert student_draft_list.status == 200, (
+                    f"Student lesson list returned HTTP {student_draft_list.status}"
+                )
+                assert all(
+                    item["id"] != draft_lesson_id
+                    for item in student_draft_list.json()
+                ), "Unpublished lesson must remain hidden from students"
+
+                teacher_draft_card = teacher_a_page.get_by_text(
+                    draft_title, exact=True
+                ).locator("xpath=../..")
+                with teacher_a_page.expect_response(
+                    lambda response: response.request.method == "PUT"
+                    and response.url.endswith(
+                        f"/content/lessons/{draft_lesson_id}"
+                    ),
+                    timeout=30_000,
+                ) as draft_publish_info:
+                    teacher_draft_card.get_by_role(
+                        "button", name="تعديل", exact=True
+                    ).click()
+                    teacher_a_page.get_by_placeholder("عنوان الدرس").fill(
+                        f"{draft_title} منشور"
+                    )
+                    teacher_a_page.get_by_placeholder(
+                        "محتوى الدرس (Markdown) — الرياضيات بين $...$ والمعادلة المنفصلة بـ $ على أسطر مستقلة"
+                    ).fill(f"{draft_body}\n\nتم نشر هذا الدرس.")
+                    teacher_a_page.get_by_label(
+                        "منشور (يظهر للطلاب)", exact=True
+                    ).check()
+                    teacher_a_page.get_by_role(
+                        "button", name="حفظ", exact=True
+                    ).click()
+
+                publish_response = draft_publish_info.value
+                assert publish_response.status == 200, (
+                    f"Lesson publication returned HTTP {publish_response.status}"
+                )
+                published_lesson = publish_response.json()
+                published_title = f"{draft_title} منشور"
+                assert published_lesson["id"] == draft_lesson_id
+                assert published_lesson["is_published"] is True
+                assert published_lesson["title_ar"] == published_title
+                expect(
+                    teacher_a_page.get_by_text(published_title, exact=True)
+                ).to_be_visible(timeout=30_000)
+
+                student_published_list = page.request.get(
+                    f"{API_URL}/curriculum/topics/{topic_id}/lessons",
+                    headers=student_headers,
+                )
+                assert student_published_list.status == 200
+                assert any(
+                    item["id"] == draft_lesson_id
+                    and item["title_ar"] == published_title
+                    for item in student_published_list.json()
+                ), "Published lesson must become visible in the student curriculum"
+
+                # Close Content Manager before continuing with class ownership checks.
                 teacher_a_page.get_by_role(
                     "button", name="✕", exact=True
                 ).click()
