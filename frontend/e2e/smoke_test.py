@@ -17,6 +17,17 @@ API_URL = os.environ.get("LUMEN_E2E_API_URL", "http://127.0.0.1:8000").rstrip("/
 SCREENSHOT = Path(os.environ.get("RUNNER_TEMP", "/tmp")) / "lumen-browser-e2e-failure.png"
 
 
+def _select_quiz_radio(card, index: int) -> None:
+    """Select a quiz option through the browser's native input event."""
+    radio = card.locator("input[type='radio']").nth(index)
+    radio.evaluate(
+        "(element) => { element.scrollIntoView({block: 'center', inline: 'nearest'}); element.click(); }"
+    )
+    assert radio.is_checked(), "The selected quiz option did not become checked"
+
+
+
+
 def _register_browser_user(browser, email: str, password: str):
     """Register an isolated browser user through the real sign-up form."""
     context = browser.new_context(
@@ -496,6 +507,7 @@ def run_smoke_test() -> None:
                     answer_should_be_correct = index < target_correct_count
                     answer_key = teacher_question["correct_answer"]
                     card = question_cards.nth(index)
+                    card.scroll_into_view_if_needed()
 
                     if question["kind"] == "mcq":
                         correct_index = int(answer_key)
@@ -504,13 +516,13 @@ def run_smoke_test() -> None:
                         selected_index = correct_index
                         if not answer_should_be_correct:
                             selected_index = (correct_index + 1) % len(choices)
-                        card.locator("input[type='radio']").nth(selected_index).check()
+                        _select_quiz_radio(card, selected_index)
                     elif question["kind"] == "true_false":
                         selected_answer = bool(answer_key)
                         if not answer_should_be_correct:
                             selected_answer = not selected_answer
                         selected_index = 0 if selected_answer else 1
-                        card.locator("input[type='radio']").nth(selected_index).check()
+                        _select_quiz_radio(card, selected_index)
                     elif question["kind"] == "numeric":
                         numeric_answer = float(answer_key)
                         if not answer_should_be_correct:
