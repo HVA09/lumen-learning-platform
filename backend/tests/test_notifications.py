@@ -2,6 +2,7 @@
 اختبارات المرحلة العاشرة: الإشعارات (REST + WebSocket الفوري)
 """
 from unittest.mock import MagicMock
+import uuid
 
 from app.config import settings
 from app.routers import billing as billing_router_module
@@ -70,35 +71,68 @@ def test_websocket_rejects_invalid_token(client):
             websocket.receive_json()
 
 
-def test_websocket_receives_realtime_notification_on_subscription_activated(client, monkeypatch):
-    # This integration test uses a mocked Stripe webhook; production default remains disabled.
+def test_websocket_broadcasts_realtime_notification_to_multiple_user_sessions(
+    client, monkeypatch
+):
+    # The mocked Stripe webhook is test-only; production payments remain disabled by default.
     monkeypatch.setattr(billing_router_module.app_settings, "PAYMENT_PROVIDER", "stripe")
-    token = _register_and_login(client, "wsuser@example.com")
+    email = f"wsuser-{uuid.uuid4().hex[:8]}@example.com"
+    password = f"test-session-{uuid.uuid4().hex}"
+    token = _register_and_login(client, email, password)
     headers = {"Authorization": f"Bearer {token}"}
     me = client.get("/users/me", headers=headers).json()
     plans = client.get("/billing/plans").json()
     pro_plan = next(p for p in plans if p["name"] == "Pro")
 
-    with client.websocket_connect("/ws/notifications", headers={"origin": settings.CORS_ORIGINS[0]}) as websocket:
-        mock_provider = MagicMock()
-        mock_provider.verify_webhook = MagicMock(
-            return_value=WebhookEvent(
-                event_id="evt_ws_subscription_activated_001",
-                event_type="checkout_completed",
-                provider_subscription_id="sub_ws",
-                provider_customer_id="cus_ws",
-                status="active",
-                client_reference_id=str(me["id"]),
-                plan_id=str(pro_plan["id"]),
-            )
+    origin_headers = {"origin": settings.CORS_ORIGINS[0]}
+    with client.websocket_connect(
+        "/ws/notifications", headers=origin_headers
+    ) as first_session:
+        # A second login creates a distinct server-side session for the same user.
+        second_login = client.post(
+            "/auth/login", json={"email": email, "password": password}
         )
-        monkeypatch.setattr(billing_router_module, "get_payment_provider", lambda: mock_provider)
-        webhook_response = client.post("/billing/webhook/stripe", json={"type": "fake"})
-        assert webhook_response.status_code == 200
+        assert second_login.status_code == 200
+        second_token = second_login.cookies.get("lumen_access")
+        assert second_token and second_token != token
 
-        data = websocket.receive_json()
-        assert data["title"] == "تم تفعيل اشتراكك"
-        assert data["notification_type"] == "billing"
+        with client.websocket_connect(
+            "/ws/notifications", headers=origin_headers
+        ) as second_session:
+            mock_provider = MagicMock()
+            mock_provider.verify_webhook = MagicMock(
+                return_value=WebhookEvent(
+                    event_id="evt_ws_subscription_activated_multi_session_001",
+                    event_type="checkout_completed",
+                    provider_subscription_id="sub_ws_multi_session",
+                    provider_customer_id="cus_ws_multi_session",
+                    status="active",
+                    client_reference_id=str(me["id"]),
+                    plan_id=str(pro_plan["id"]),
+                )
+            )
+            monkeypatch.setattr(
+                billing_router_module, "get_payment_provider", lambda: mock_provider
+            )
+            webhook_response = client.post(
+                "/billing/webhook/stripe", json={"type": "fake"}
+            )
+            assert webhook_response.status_code == 200
+
+            first_data = first_session.receive_json()
+            second_data = second_session.receive_json()
+            assert first_data["id"] == second_data["id"]
+            assert first_data["title"] == "تم تفعيل اشتراكك"
+            assert first_data["notification_type"] == "billing"
+            assert second_data == first_data
+
+    saved_notifications = client.get("/notifications", headers=headers)
+    assert saved_notifications.status_code == 200
+    assert any(
+        item["id"] == first_data["id"] and item["title"] == "تم تفعيل اشتراكك"
+        for item in saved_notifications.json()
+    )
+
 
 def test_websocket_rejects_untrusted_origin_even_with_session_cookie(client):
     import pytest
