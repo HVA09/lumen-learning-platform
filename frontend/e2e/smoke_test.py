@@ -654,6 +654,175 @@ def run_smoke_test() -> None:
                 page.get_by_role("button", name="إغلاق", exact=True).click()
                 page.get_by_role("button", name="✕", exact=True).click()
 
+                # A separate learner must fail one question below the server threshold.
+                # This covers the negative boundary without inheriting the prior learner's pass.
+                failed_student_email = (
+                    f"browser-e2e-gateway-fail-{uuid.uuid4().hex[:10]}@example.com"
+                )
+                failed_student_context, failed_student_page = _register_browser_user(
+                    browser, failed_student_email, password
+                )
+                role_contexts.append(failed_student_context)
+                expect(
+                    failed_student_page.get_by_text("إتقانك الإجمالي", exact=True)
+                ).to_be_visible(timeout=45_000)
+                failed_student_page.get_by_role(
+                    "button",
+                    name=re.compile(rf"^{re.escape(topic_name)}\s"),
+                ).click()
+                expect(
+                    failed_student_page.get_by_role(
+                        "heading", name=topic_name, exact=True
+                    )
+                ).to_be_visible(timeout=30_000)
+
+                with failed_student_page.expect_response(
+                    lambda response: response.request.method == "POST"
+                    and response.url.endswith(f"/quiz/topics/{topic_id}/start"),
+                    timeout=30_000,
+                ) as failed_gateway_start_info:
+                    failed_student_page.get_by_role(
+                        "button", name=re.compile(r"اختبار البوابة")
+                    ).click()
+
+                failed_gateway_start_response = failed_gateway_start_info.value
+                assert failed_gateway_start_response.status == 200, (
+                    "Below-threshold gateway quiz start returned HTTP "
+                    f"{failed_gateway_start_response.status}"
+                )
+                failed_gateway_attempt = failed_gateway_start_response.json()
+                failed_gateway_questions = failed_gateway_attempt.get("questions", [])
+                assert failed_gateway_attempt["mode"] == "gateway"
+                assert len(failed_gateway_questions) == 10
+                assert failed_gateway_attempt["pass_percentage"] == pass_percentage
+                assert all(
+                    "correct_answer" not in question and "answer_key" not in question
+                    for question in failed_gateway_questions
+                ), "A fresh learner must not receive gateway answer keys"
+
+                failed_correct_count = max(0, target_correct_count - 1)
+                failed_expected_score = round(
+                    100.0 * failed_correct_count / len(failed_gateway_questions), 1
+                )
+                assert failed_expected_score < pass_percentage
+
+                failed_quiz_heading = failed_student_page.get_by_role(
+                    "heading", name="اختبار البوابة", exact=True
+                )
+                expect(failed_quiz_heading).to_be_visible(timeout=30_000)
+                failed_quiz_modal = failed_quiz_heading.locator("xpath=../..")
+                failed_question_cards = failed_quiz_modal.locator(
+                    "div.rounded-2xl.border.border-slate-200.p-3"
+                )
+                expect(failed_question_cards).to_have_count(
+                    len(failed_gateway_questions), timeout=30_000
+                )
+
+                for index, question in enumerate(failed_gateway_questions):
+                    teacher_question = teacher_questions_by_id.get(question["id"])
+                    assert teacher_question is not None, (
+                        f"Teacher answer key is missing question {question['id']}"
+                    )
+                    answer_should_be_correct = index < failed_correct_count
+                    answer_key = teacher_question["correct_answer"]
+                    card = failed_question_cards.nth(index)
+                    card.scroll_into_view_if_needed()
+
+                    if question["kind"] == "mcq":
+                        correct_index = int(answer_key)
+                        choices = question["choices"]
+                        assert choices and 0 <= correct_index < len(choices)
+                        selected_index = correct_index
+                        if not answer_should_be_correct:
+                            selected_index = (correct_index + 1) % len(choices)
+                        _select_quiz_radio(card, selected_index)
+                    elif question["kind"] == "true_false":
+                        selected_answer = bool(answer_key)
+                        if not answer_should_be_correct:
+                            selected_answer = not selected_answer
+                        _select_quiz_radio(card, 0 if selected_answer else 1)
+                    elif question["kind"] == "numeric":
+                        numeric_answer = float(answer_key)
+                        if not answer_should_be_correct:
+                            numeric_answer += float(teacher_question.get("tolerance") or 0) + 1.0
+                        card.get_by_placeholder("اكتب رقمًا...").fill(str(numeric_answer))
+                    elif question["kind"] == "short_text":
+                        accepted = answer_key if isinstance(answer_key, list) else [answer_key]
+                        assert accepted
+                        text_answer = str(accepted[0])
+                        if not answer_should_be_correct:
+                            text_answer = "إجابة اختبار غير صحيحة"
+                        card.get_by_placeholder("اكتب إجابتك...").fill(text_answer)
+                    else:
+                        raise AssertionError(
+                            f"Unsupported seeded question kind: {question['kind']}"
+                        )
+
+                failed_submit_label = (
+                    f"سلّم الإجابات ({len(failed_gateway_questions)}/"
+                    f"{len(failed_gateway_questions)})"
+                )
+                with failed_student_page.expect_response(
+                    lambda response: response.request.method == "POST"
+                    and response.url.endswith(
+                        f"/quiz/attempts/{failed_gateway_attempt['attempt_id']}/submit"
+                    ),
+                    timeout=30_000,
+                ) as failed_gateway_submit_info:
+                    failed_quiz_modal.get_by_role(
+                        "button", name=failed_submit_label, exact=True
+                    ).click()
+
+                failed_gateway_submit_response = failed_gateway_submit_info.value
+                assert failed_gateway_submit_response.status == 200, (
+                    "Below-threshold gateway submission returned HTTP "
+                    f"{failed_gateway_submit_response.status}"
+                )
+                failed_gateway_result = failed_gateway_submit_response.json()
+                assert failed_gateway_result["attempt_id"] == failed_gateway_attempt["attempt_id"]
+                assert failed_gateway_result["mode"] == "gateway"
+                assert failed_gateway_result["total"] == len(failed_gateway_questions) == 10
+                assert failed_gateway_result["correct_count"] == failed_correct_count
+                assert failed_gateway_result["score_percentage"] == failed_expected_score
+                assert failed_gateway_result["score_percentage"] < pass_percentage
+                assert failed_gateway_result["passed"] is False
+                assert failed_gateway_result["gateway_quiz_passed"] is False
+                assert all(
+                    item["correct"] is (index < failed_correct_count)
+                    and item["correct_answer_text"]
+                    for index, item in enumerate(failed_gateway_result["results"])
+                ), "Failed gateway results must preserve per-question grading feedback"
+
+                failed_student_headers = {
+                    "Authorization": (
+                        f"Bearer {_browser_access_token(failed_student_context)}"
+                    )
+                }
+                failed_history_response = failed_student_page.request.get(
+                    f"{API_URL}/quiz/topics/{topic_id}/history",
+                    headers=failed_student_headers,
+                )
+                assert failed_history_response.status == 200
+                failed_history = failed_history_response.json()
+                assert failed_history and failed_history[0]["id"] == failed_gateway_attempt["attempt_id"]
+                assert failed_history[0]["score_percentage"] == failed_expected_score
+                assert failed_history[0]["passed"] is False
+
+                # The five-minute retry cooldown is enforced by the server, not the UI.
+                blocked_gateway_retry = failed_student_page.request.post(
+                    f"{API_URL}/quiz/topics/{topic_id}/start",
+                    data={"mode": "gateway"},
+                    headers=failed_student_headers,
+                )
+                assert blocked_gateway_retry.status == 429, (
+                    "A failed gateway attempt must trigger the retry cooldown; "
+                    f"received HTTP {blocked_gateway_retry.status}"
+                )
+                print(
+                    "Gateway failure boundary passed: score below threshold rejected, "
+                    "attempt persisted, and immediate retry blocked."
+                )
+
                 # Exercise the teacher question bank through the real Content Manager UI.
                 teacher_a_page.get_by_role(
                     "button", name="الأسئلة", exact=True
