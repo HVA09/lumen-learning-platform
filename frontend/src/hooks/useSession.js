@@ -91,9 +91,7 @@ export default function useSession({ onSessionExpired } = {}) {
           if (bootstrapRetryRequested) {
             bootstrapRetryRequested = false;
             if (!logoutRequestedRef.current) {
-              if (authenticatedRef.current) {
-                void refreshCurrentUser();
-              } else {
+              if (!authenticatedRef.current) {
                 void bootstrapSession();
               }
             }
@@ -110,9 +108,7 @@ export default function useSession({ onSessionExpired } = {}) {
         bootstrapRetryRequested = true;
         return;
       }
-      if (authenticatedRef.current) {
-        void refreshCurrentUser();
-      } else {
+      if (!authenticatedRef.current) {
         void bootstrapSession();
       }
     };
