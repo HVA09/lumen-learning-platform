@@ -87,6 +87,13 @@ jobs:
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
+      clamav:
+        image: clamav/clamav:1.4.6
+        ports:
+          - 3310:3310
+        env:
+          CLAMD_STARTUP_TIMEOUT: "900"
+          CLAMAV_NO_MILTERD: "true"
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/lumen_e2e
       JWT_SECRET_KEY: ci-only-secret-for-browser-e2e-not-for-deployment
@@ -97,6 +104,11 @@ jobs:
       REDIS_URL: redis://localhost:6379/0
       CELERY_BROKER_URL: redis://localhost:6379/1
       CELERY_RESULT_BACKEND: redis://localhost:6379/1
+      MALWARE_SCAN_ENABLED: "true"
+      CLAMAV_HOST: 127.0.0.1
+      CLAMAV_PORT: "3310"
+      CLAMAV_TIMEOUT_SECONDS: "90"
+      UPLOAD_DIR: /tmp/lumen-e2e-uploads
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
@@ -119,6 +131,10 @@ jobs:
       - name: Apply database migrations and seed curriculum
         working-directory: backend
         run: alembic upgrade head
+      - name: Prepare isolated upload directory
+        run: |
+          rm -rf /tmp/lumen-e2e-uploads
+          mkdir -p /tmp/lumen-e2e-uploads
       - name: Start API and wait for database-backed health check
         working-directory: backend
         run: |
