@@ -102,6 +102,31 @@ describe("useSession", () => {
     expect(getCurrentUser).toHaveBeenCalledTimes(2);
   });
 
+  it("does not restore a stale session after logout wins a pending bootstrap", async () => {
+    let resolveBootstrap;
+    getCurrentUser.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveBootstrap = resolve;
+      })
+    );
+
+    const { result } = renderHook(() => useSession());
+    await waitFor(() => expect(getCurrentUser).toHaveBeenCalledTimes(1));
+
+    act(() => {
+      result.current.logout();
+    });
+
+    await act(async () => {
+      resolveBootstrap({ id: 19, role: "student" });
+    });
+
+    expect(result.current.authenticated).toBe(false);
+    expect(result.current.currentUser).toBeNull();
+    expect(setAuthSessionActive).toHaveBeenLastCalledWith(false);
+    expect(logoutUser).toHaveBeenCalledTimes(1);
+  });
+
   it("does not retry bootstrap after an explicit login or logout", async () => {
     const user = { id: 18, role: "student" };
     getCurrentUser
