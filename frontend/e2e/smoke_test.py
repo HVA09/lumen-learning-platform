@@ -438,7 +438,7 @@ def run_smoke_test() -> None:
                 # questions and the threshold come from the server, not the browser.
                 page.get_by_role(
                     "button",
-                    name=re.compile(rf"^{re.escape(topic_name)}\\s"),
+                    name=re.compile(rf"^{re.escape(topic_name)}\s"),
                 ).click()
                 expect(
                     page.get_by_role("heading", name=topic_name, exact=True)
@@ -486,7 +486,7 @@ def run_smoke_test() -> None:
                 question_cards = quiz_modal.locator(
                     "div.rounded-2xl.border.border-slate-200.p-3"
                 )
-                assert question_cards.count() == len(gateway_questions)
+                expect(question_cards).to_have_count(len(gateway_questions), timeout=30_000)
 
                 for index, question in enumerate(gateway_questions):
                     teacher_question = teacher_questions_by_id.get(question["id"])
@@ -902,7 +902,7 @@ def run_smoke_test() -> None:
 
             print(
                 "Browser E2E passed: registration, HttpOnly session, lesson progress, quiz submission, "
-                "persisted lesson progress, server-graded quiz result, persisted quiz history, and logout."
+                "persisted lesson progress, server-graded quiz result at the gateway pass threshold, persisted quiz history, and logout."
             )
         except Exception:
             try:
