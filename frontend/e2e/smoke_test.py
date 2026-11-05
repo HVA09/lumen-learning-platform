@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 import re
 import sys
@@ -415,6 +416,150 @@ def run_smoke_test() -> None:
                 expect(
                     teacher_a_page.get_by_role("button", name="الدروس", exact=True)
                 ).to_be_visible()
+
+                # Read answer keys only through the teacher-only content endpoint.
+                # The learner browser still receives public quiz questions without keys.
+                teacher_headers = {
+                    "Authorization": f"Bearer {_browser_access_token(teacher_a_context)}"
+                }
+                teacher_a_page.locator("select").select_option(str(topic_id))
+                teacher_question_response = teacher_a_page.request.get(
+                    f"{API_URL}/content/topics/{topic_id}/questions",
+                    headers=teacher_headers,
+                )
+                assert teacher_question_response.status == 200, (
+                    f"Teacher question bank returned HTTP {teacher_question_response.status}"
+                )
+                teacher_questions_by_id = {
+                    item["id"]: item for item in teacher_question_response.json()
+                }
+
+                # Exercise a real gateway quiz at the minimum passing score. Ten
+                # questions and the threshold come from the server, not the browser.
+                page.get_by_role(
+                    "button",
+                    name=re.compile(rf"^{re.escape(topic_name)}\\s"),
+                ).click()
+                expect(
+                    page.get_by_role("heading", name=topic_name, exact=True)
+                ).to_be_visible(timeout=30_000)
+                with page.expect_response(
+                    lambda response: response.request.method == "POST"
+                    and response.url.endswith(f"/quiz/topics/{topic_id}/start"),
+                    timeout=30_000,
+                ) as gateway_start_info:
+                    page.get_by_role(
+                        "button", name=re.compile(r"اختبار البوابة")
+                    ).click()
+
+                gateway_start_response = gateway_start_info.value
+                assert gateway_start_response.status == 200, (
+                    f"Gateway quiz start returned HTTP {gateway_start_response.status}"
+                )
+                gateway_attempt = gateway_start_response.json()
+                gateway_questions = gateway_attempt.get("questions", [])
+                assert gateway_attempt["mode"] == "gateway"
+                assert len(gateway_questions) == 10
+                assert gateway_attempt["pass_percentage"] is not None
+                assert all(
+                    "correct_answer" not in question and "answer_key" not in question
+                    for question in gateway_questions
+                ), "Gateway quiz must not expose correct answers to the learner"
+
+                pass_percentage = float(gateway_attempt["pass_percentage"])
+                target_correct_count = math.ceil(
+                    pass_percentage * len(gateway_questions) / 100.0
+                )
+                expected_score = round(
+                    100.0 * target_correct_count / len(gateway_questions), 1
+                )
+                assert expected_score >= pass_percentage
+                assert (
+                    expected_score - 100.0 / len(gateway_questions) < pass_percentage
+                ), "The selected result must be the minimum passing score"
+
+                quiz_heading = page.get_by_role(
+                    "heading", name="اختبار البوابة", exact=True
+                )
+                expect(quiz_heading).to_be_visible(timeout=30_000)
+                quiz_modal = quiz_heading.locator("xpath=../..")
+                question_cards = quiz_modal.locator(
+                    "div.rounded-2xl.border.border-slate-200.p-3"
+                )
+                assert question_cards.count() == len(gateway_questions)
+
+                for index, question in enumerate(gateway_questions):
+                    teacher_question = teacher_questions_by_id.get(question["id"])
+                    assert teacher_question is not None, (
+                        f"Teacher answer key is missing question {question['id']}"
+                    )
+                    answer_should_be_correct = index < target_correct_count
+                    answer_key = teacher_question["correct_answer"]
+                    card = question_cards.nth(index)
+
+                    if question["kind"] == "mcq":
+                        correct_index = int(answer_key)
+                        choices = question["choices"]
+                        assert choices and 0 <= correct_index < len(choices)
+                        selected_index = correct_index
+                        if not answer_should_be_correct:
+                            selected_index = (correct_index + 1) % len(choices)
+                        card.locator("input[type='radio']").nth(selected_index).check()
+                    elif question["kind"] == "true_false":
+                        selected_answer = bool(answer_key)
+                        if not answer_should_be_correct:
+                            selected_answer = not selected_answer
+                        selected_index = 0 if selected_answer else 1
+                        card.locator("input[type='radio']").nth(selected_index).check()
+                    elif question["kind"] == "numeric":
+                        numeric_answer = float(answer_key)
+                        if not answer_should_be_correct:
+                            numeric_answer += float(teacher_question.get("tolerance") or 0) + 1.0
+                        card.get_by_placeholder("اكتب رقمًا...").fill(str(numeric_answer))
+                    elif question["kind"] == "short_text":
+                        accepted = answer_key if isinstance(answer_key, list) else [answer_key]
+                        assert accepted
+                        text_answer = str(accepted[0])
+                        if not answer_should_be_correct:
+                            text_answer = "إجابة اختبار غير صحيحة"
+                        card.get_by_placeholder("اكتب إجابتك...").fill(text_answer)
+                    else:
+                        raise AssertionError(
+                            f"Unsupported seeded question kind: {question['kind']}"
+                        )
+
+                submit_label = (
+                    f"سلّم الإجابات ({len(gateway_questions)}/{len(gateway_questions)})"
+                )
+                with page.expect_response(
+                    lambda response: response.request.method == "POST"
+                    and response.url.endswith(
+                        f"/quiz/attempts/{gateway_attempt['attempt_id']}/submit"
+                    ),
+                    timeout=30_000,
+                ) as gateway_submit_info:
+                    quiz_modal.get_by_role(
+                        "button", name=submit_label, exact=True
+                    ).click()
+
+                gateway_submit_response = gateway_submit_info.value
+                assert gateway_submit_response.status == 200, (
+                    f"Gateway quiz submission returned HTTP {gateway_submit_response.status}"
+                )
+                gateway_result = gateway_submit_response.json()
+                assert gateway_result["attempt_id"] == gateway_attempt["attempt_id"]
+                assert gateway_result["mode"] == "gateway"
+                assert gateway_result["total"] == len(gateway_questions) == 10
+                assert gateway_result["correct_count"] == target_correct_count
+                assert gateway_result["score_percentage"] == expected_score
+                assert gateway_result["score_percentage"] >= pass_percentage
+                assert gateway_result["passed"] is True
+                assert gateway_result["gateway_quiz_passed"] is True
+                expect(
+                    quiz_modal.get_by_text("🎉 اجتزت اختبار البوابة!", exact=True)
+                ).to_be_visible(timeout=30_000)
+                page.get_by_role("button", name="إغلاق", exact=True).click()
+                page.get_by_role("button", name="✕", exact=True).click()
 
                 # Select the seeded lesson topic and create an unpublished draft
                 # through the teacher content manager.
