@@ -573,6 +573,139 @@ def run_smoke_test() -> None:
                 page.get_by_role("button", name="إغلاق", exact=True).click()
                 page.get_by_role("button", name="✕", exact=True).click()
 
+                # Exercise the teacher question bank through the real Content Manager UI.
+                teacher_a_page.get_by_role(
+                    "button", name="الأسئلة", exact=True
+                ).click()
+                expect(
+                    teacher_a_page.get_by_role(
+                        "button", name="+ سؤال جديد", exact=True
+                    )
+                ).to_be_visible(timeout=30_000)
+
+                question_prompt = f"Browser E2E question {uuid.uuid4().hex[:8]}"
+                with teacher_a_page.expect_response(
+                    lambda response: response.request.method == "POST"
+                    and response.url.endswith(
+                        f"/content/topics/{topic_id}/questions"
+                    ),
+                    timeout=30_000,
+                ) as question_create_info:
+                    teacher_a_page.get_by_role(
+                        "button", name="+ سؤال جديد", exact=True
+                    ).click()
+                    question_form = teacher_a_page.locator(
+                        "div.rounded-2xl.border.border-slate-300.bg-slate-50.p-3"
+                    )
+                    expect(question_form).to_have_count(1)
+                    question_form.get_by_placeholder(
+                        re.compile(r"^نص السؤال")
+                    ).fill(question_prompt)
+                    question_form.get_by_placeholder("خيار 1").fill(
+                        "خيار غير صحيح"
+                    )
+                    question_form.get_by_placeholder("خيار 2").fill(
+                        "الخيار الصحيح"
+                    )
+                    correct_option = question_form.locator(
+                        "input[type='radio']"
+                    ).nth(1)
+                    correct_option.evaluate(
+                        "(element) => { element.scrollIntoView({block: 'center'}); element.click(); }"
+                    )
+                    assert correct_option.is_checked()
+                    question_form.get_by_role(
+                        "button", name="حفظ", exact=True
+                    ).click()
+
+                question_create_response = question_create_info.value
+                assert question_create_response.status == 201, (
+                    f"Question creation returned HTTP {question_create_response.status}"
+                )
+                created_question = question_create_response.json()
+                created_question_id = created_question["id"]
+                assert created_question["topic_id"] == topic_id
+                assert created_question["correct_answer"] == 1
+                assert created_question["is_active"] is True
+
+                question_card = teacher_a_page.locator(
+                    "div.rounded-xl.border.border-slate-200.p-3.text-sm"
+                ).filter(has=teacher_a_page.get_by_text(question_prompt, exact=True))
+                expect(question_card).to_have_count(1, timeout=30_000)
+                updated_question_prompt = f"{question_prompt} معدّل"
+                with teacher_a_page.expect_response(
+                    lambda response: response.request.method == "PUT"
+                    and response.url.endswith(
+                        f"/content/questions/{created_question_id}"
+                    ),
+                    timeout=30_000,
+                ) as question_update_info:
+                    question_card.get_by_role(
+                        "button", name="تعديل", exact=True
+                    ).click()
+                    question_form = teacher_a_page.locator(
+                        "div.rounded-2xl.border.border-slate-300.bg-slate-50.p-3"
+                    )
+                    question_form.get_by_placeholder(
+                        re.compile(r"^نص السؤال")
+                    ).fill(updated_question_prompt)
+                    question_form.get_by_label(
+                        "نشط (يظهر بالاختبارات)", exact=True
+                    ).uncheck()
+                    question_form.get_by_role(
+                        "button", name="حفظ", exact=True
+                    ).click()
+
+                question_update_response = question_update_info.value
+                assert question_update_response.status == 200, (
+                    f"Question update returned HTTP {question_update_response.status}"
+                )
+                updated_question = question_update_response.json()
+                assert updated_question["id"] == created_question_id
+                assert updated_question["prompt_ar"] == updated_question_prompt
+                assert updated_question["correct_answer"] == 1
+                assert updated_question["is_active"] is False
+
+                updated_question_card = teacher_a_page.locator(
+                    "div.rounded-xl.border.border-slate-200.p-3.text-sm"
+                ).filter(
+                    has=teacher_a_page.get_by_text(
+                        updated_question_prompt, exact=True
+                    )
+                )
+                expect(updated_question_card).to_have_count(1, timeout=30_000)
+                expect(
+                    updated_question_card.get_by_text("غير نشط", exact=False)
+                ).to_be_visible()
+
+                # Delete the disabled test question through the UI and confirm the
+                # teacher-only bank no longer returns it.
+                teacher_a_page.once("dialog", lambda dialog: dialog.accept())
+                with teacher_a_page.expect_response(
+                    lambda response: response.request.method == "DELETE"
+                    and response.url.endswith(
+                        f"/content/questions/{created_question_id}"
+                    ),
+                    timeout=30_000,
+                ) as question_delete_info:
+                    updated_question_card.get_by_role(
+                        "button", name="حذف", exact=True
+                    ).click()
+
+                question_delete_response = question_delete_info.value
+                assert question_delete_response.status == 204, (
+                    f"Question deletion returned HTTP {question_delete_response.status}"
+                )
+                question_list_after_delete = teacher_a_page.request.get(
+                    f"{API_URL}/content/topics/{topic_id}/questions",
+                    headers=teacher_headers,
+                )
+                assert question_list_after_delete.status == 200
+                assert all(
+                    question["id"] != created_question_id
+                    for question in question_list_after_delete.json()
+                ), "Deleted question must disappear from the teacher question bank"
+
                 # Select the seeded lesson topic and create an unpublished draft
                 # through the teacher content manager.
                 teacher_a_page.locator("select").select_option(str(topic_id))
