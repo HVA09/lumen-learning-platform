@@ -178,4 +178,4 @@
 
 - PR #101: [test(backend): cover SMTP transport failure paths](https://github.com/HVA09/lumen-learning-platform/pull/101)، الفرع test/backend-email-smtp-fail-safe، مبني مؤقتًا على رأس PR #100 5c840464e66543a21e3398491da6ca7095896442 حتى تبقى التغييرات متسلسلة دون تكرار commits على main.
 - أضيفت اختبارات وهمية لاتصال SMTP وSTARTTLS والمصادقة والإرسال، مع التحقق من عدم تسجيل محتوى الرسالة عند الفشل. لا تغييرات runtime أو API أو DB أو migrations أو اعتماديات.
-- PR #100 لا يزال مفتوحًا؛ آخر CI مرصود على الرأس 5c840464e66543a21e3398491da6ca7095896442 نجح في Frontend/build وBrowser E2E وGitleaks، بينما Backend job لا يزال قيد التنفيذ عند آخر تحقق. لذلك لا نعتبر PR #100 ولا PR #101 مدمجين.
+- PR #100 لا يزال مفتوحًا؛ تشغيل CI على الرأس 5c840464e66543a21e3398491da6ca7095896442 اكتمل بنجاح 4/4 في run #42125492215. Backend: 431 passed و20 warnings، وتغطية 89%. PR #100 وPR #101 لم يدمجا بعد.
