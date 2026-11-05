@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import useSession from "./useSession";
@@ -45,6 +46,20 @@ describe("useSession", () => {
     expect(getCurrentUser).toHaveBeenCalledTimes(1);
   });
 
+  it("restores the session when mounted under React StrictMode", async () => {
+    const user = { id: 19, role: "student" };
+    getCurrentUser.mockResolvedValue(user);
+    const wrapper = ({ children }) => <StrictMode>{children}</StrictMode>;
+
+    const { result } = renderHook(() => useSession(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.authReady).toBe(true);
+      expect(result.current.authenticated).toBe(true);
+    });
+    expect(result.current.currentUser).toEqual(user);
+  });
+
   it("refreshes an expired session once and retries the user request", async () => {
     const user = { id: 13, role: "teacher" };
     getCurrentUser
@@ -73,6 +88,75 @@ describe("useSession", () => {
     expect(result.current.currentUser).toBeNull();
     expect(refreshSession).not.toHaveBeenCalled();
     expect(setAuthSessionActive).toHaveBeenCalledWith(false);
+  });
+
+  it("retries session bootstrap when the browser reports that the network is back", async () => {
+    const user = { id: 17, role: "student" };
+    getCurrentUser
+      .mockRejectedValueOnce(new Error("network unavailable"))
+      .mockResolvedValueOnce(user);
+
+    const { result } = renderHook(() => useSession());
+
+    await waitFor(() => expect(result.current.authReady).toBe(true));
+    expect(result.current.authenticated).toBe(false);
+
+    act(() => {
+      window.dispatchEvent(new Event("online"));
+    });
+
+    await waitFor(() => {
+      expect(result.current.authenticated).toBe(true);
+      expect(result.current.currentUser).toEqual(user);
+    });
+    expect(getCurrentUser).toHaveBeenCalledTimes(2);
+    expect(setAuthSessionActive).toHaveBeenLastCalledWith(true);
+  });
+
+  it("retries once when connectivity returns while session bootstrap is still in flight", async () => {
+    const user = { id: 20, role: "student" };
+    let rejectInitialRequest;
+    const initialRequest = new Promise((resolve, reject) => {
+      rejectInitialRequest = reject;
+    });
+    getCurrentUser
+      .mockReturnValueOnce(initialRequest)
+      .mockResolvedValueOnce(user);
+
+    const { result } = renderHook(() => useSession());
+    await waitFor(() => expect(getCurrentUser).toHaveBeenCalledTimes(1));
+
+    act(() => {
+      window.dispatchEvent(new Event("online"));
+    });
+
+    await act(async () => {
+      rejectInitialRequest(new Error("network unavailable"));
+    });
+
+    await waitFor(() => {
+      expect(result.current.authenticated).toBe(true);
+      expect(result.current.currentUser).toEqual(user);
+    });
+
+    expect(getCurrentUser).toHaveBeenCalledTimes(2);
+    expect(setAuthSessionActive).toHaveBeenLastCalledWith(true);
+  });
+
+  it("does not restart bootstrap when an authenticated session reconnects", async () => {
+    const user = { id: 18, role: "teacher" };
+    getCurrentUser.mockResolvedValue(user);
+
+    const { result } = renderHook(() => useSession());
+    await waitFor(() => expect(result.current.authenticated).toBe(true));
+
+    act(() => {
+      window.dispatchEvent(new Event("online"));
+    });
+
+    expect(getCurrentUser).toHaveBeenCalledTimes(1);
+    expect(result.current.authenticated).toBe(true);
+    expect(result.current.currentUser).toEqual(user);
   });
 
   it("marks a successful login and reloads the current user", async () => {
@@ -108,6 +192,11 @@ describe("useSession", () => {
     expect(result.current.currentUser).toBeNull();
     expect(setAuthSessionActive).toHaveBeenLastCalledWith(false);
     expect(logoutUser).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      window.dispatchEvent(new Event("online"));
+    });
+    expect(getCurrentUser).toHaveBeenCalledTimes(1);
   });
 
   it("handles unauthorized events and notifies the app shell", async () => {
@@ -135,5 +224,6 @@ describe("useSession", () => {
     unmount();
 
     expect(removeSpy).toHaveBeenCalledWith("auth:unauthorized", expect.any(Function));
+    expect(removeSpy).toHaveBeenCalledWith("online", expect.any(Function));
   });
 });
