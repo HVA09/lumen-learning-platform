@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import useSession from "./useSession";
@@ -43,6 +44,20 @@ describe("useSession", () => {
     expect(setAuthSessionActive).toHaveBeenCalledWith(true);
     expect(refreshSession).not.toHaveBeenCalled();
     expect(getCurrentUser).toHaveBeenCalledTimes(1);
+  });
+
+  it("restores the session when mounted under React StrictMode", async () => {
+    const user = { id: 19, role: "student" };
+    getCurrentUser.mockResolvedValue(user);
+    const wrapper = ({ children }) => <StrictMode>{children}</StrictMode>;
+
+    const { result } = renderHook(() => useSession(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.authReady).toBe(true);
+      expect(result.current.authenticated).toBe(true);
+    });
+    expect(result.current.currentUser).toEqual(user);
   });
 
   it("refreshes an expired session once and retries the user request", async () => {
