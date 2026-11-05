@@ -521,7 +521,7 @@
 ## ADR-039 — اختبار تبديل اتجاه المستند عند تغيير اللغة
 
 - التاريخ: 2026-11-05
-- الحالة: **منفذ ومُدمج — PR #91 عند Squash commit `d7962c2553a5af206eaa27cd27dbae560cfcef94`; CI على رأس PR [#42104050543](https://github.com/HVA09/lumen-learning-platform/actions/runs/42104050543) نجح 4/4. CI بعد الدمج على main [#42105382640](https://github.com/HVA09/lumen-learning-platform/actions/runs/42105382640) كان pending عند آخر تحقق.**
+- الحالة: **منفذ ومُدمج — PR #91 عند Squash commit `d7962c2553a5af206eaa27cd27dbae560cfcef94`; CI على رأس PR [#42104050543](https://github.com/HVA09/lumen-learning-platform/actions/runs/42104050543) نجح 4/4. CI بعد الدمج على main [#42105382640](https://github.com/HVA09/lumen-learning-platform/actions/runs/42105382640) اكتمل بنجاح 4/4.**
 - الجهة: توصية تحقق ضمن P6.6 للتأكد من أن تغيير اللغة يحدّث سمات المستند الفعلية، لا نص الزر فقط.
 - القرار: إضافة اختبار React مركز في `frontend/src/hooks/useDirection.test.jsx` يركّب `LanguageToggle` مع hook `useDirection`، ويتحقق من الحالة العربية الابتدائية (`dir=rtl`, `lang=ar`)، ثم الإنجليزية (`dir=ltr`, `lang=en`)، ثم العودة للعربية.
 - النطاق: ملف اختبار Frontend واحد فقط. لا تغيير في التطبيق أو قاموس الترجمات أو API أو قاعدة البيانات أو dependencies أو إعدادات النشر.
