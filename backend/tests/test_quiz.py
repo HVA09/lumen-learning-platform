@@ -1,11 +1,13 @@
 """
 اختبارات الاختبارات (Quiz): التصحيح والإتقان يصيرون بالسيرفر فقط، وقفل المواضيع بالمتطلّبات
 """
+from app.models.question import Question
 from app.models.subject import Subject
 from app.models.topic import Topic
 from app.models.user import UserRole
 from tests.quiz_helpers import (
     auth,
+    correct_answer_payload,
     make_student,
     register_and_login,
     take_quiz,
@@ -113,6 +115,57 @@ def test_empty_submission_scores_zero_and_shows_explanations(client, db_session)
     assert all(item["correct"] is False for item in result["results"])
     assert all(item["explanation_ar"] for item in result["results"])
     assert all(item["correct_answer_text"] for item in result["results"])
+
+
+def test_gateway_below_threshold_does_not_unlock_dependent_topic(client, db_session):
+    token = make_student(client, "belowthreshold@example.com")
+    linear_id = topic_id_by_slug(client, "linear-equations")
+    derivatives_id = topic_id_by_slug(client, "derivatives-intro")
+
+    assert _start(client, token, derivatives_id).status_code == 403
+
+    attempt = _start(client, token, linear_id, "gateway").json()
+    questions = attempt["questions"]
+    assert len(questions) == 10
+
+    answers = []
+    for index, public_question in enumerate(questions):
+        row = db_session.get(Question, public_question["id"])
+        correct_answer = correct_answer_payload(row)
+
+        if index < 7:
+            answer = correct_answer
+        elif row.kind == "mcq":
+            answer = (int(correct_answer) + 1) % len(row.choices)
+        elif row.kind == "true_false":
+            answer = not bool(correct_answer)
+        elif row.kind == "numeric":
+            answer = (
+                float(correct_answer) + float(row.tolerance or 0.0) + 1.0
+            )
+        elif row.kind == "short_text":
+            answer = "__incorrect_test_answer__"
+        else:
+            raise AssertionError(f"Unsupported seeded question kind: {row.kind}")
+
+        answers.append({"question_id": row.id, "answer": answer})
+
+    submitted = client.post(
+        f"/quiz/attempts/{attempt['attempt_id']}/submit",
+        json={"answers": answers},
+        headers=auth(token),
+    )
+    assert submitted.status_code == 200, submitted.text
+    result = submitted.json()
+    assert result["total"] == 10
+    assert result["correct_count"] == 7
+    assert result["score_percentage"] == 70.0
+    assert result["passed"] is False
+    assert result["gateway_quiz_passed"] is False
+
+    still_locked = _start(client, token, derivatives_id)
+    assert still_locked.status_code == 403
+    assert "المعادلات الخطية" in still_locked.json()["detail"]
 
 
 def test_practice_quiz_never_sets_gateway_passed(client, db_session):

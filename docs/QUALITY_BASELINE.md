@@ -5,7 +5,7 @@
 ## 1. المرجع وحدود هذا التقييم
 
 - المستودع: `HVA09/lumen-learning-platform`.
-- آخر تغيير برمجي مدمج على main: PR #88 عند `92b05ca09c489857328647f42f61a39c969dea0f`. CI الخاص بالـ PR [#42092155512](https://github.com/HVA09/lumen-learning-platform/actions/runs/42092155512) نجح 4/4. أضاف Browser E2E لنتيجة بوابة أقل من حد النجاح (7/10 عند حد 80%)، والتحقق من تصحيح الخادم وحفظ المحاولة وHTTP 429 عند إعادة المحاولة الفورية. CI بعد الدمج على main [#42092874266](https://github.com/HVA09/lumen-learning-platform/actions/runs/42092874266) كان قيد التنفيذ عند آخر تحقق. PR #87 قبله أضاف إعادة اتصال WebSocket واختبار تعدد جلسات الإشعارات؛ CI بعده #42091787403 نجح 4/4.
+- آخر تغيير برمجي مدمج على main: PR #89 عند `06a66e0e70dd2e929ab7a818ad65a96db11465a3`. أضاف اختبار Backend تكامليًا يثبت أن 7/10 (70%) لا تجتاز عتبة البوابة 80%، وأن `passed=false` و`gateway_quiz_passed=false` وأن الموضوع التابع يبقى مقفلاً (403). PR CI بعد تحديث الفرع [#42101543986](https://github.com/HVA09/lumen-learning-platform/actions/runs/42101543986) نجح 4/4. CI بعد الدمج على main [#42102276661](https://github.com/HVA09/lumen-learning-platform/actions/runs/42102276661) كان قيد التنفيذ عند آخر تحقق. CI بعد PR #88 [#42092874266](https://github.com/HVA09/lumen-learning-platform/actions/runs/42092874266) نجح 4/4؛ PR #87 قبله أضاف إعادة اتصال WebSocket واختبار تعدد جلسات الإشعارات؛ CI بعده #42091787403 نجح 4/4.
 - هذا الملف يوثق ما هو مفعّل فعليًا في المستودع وCI، ثم يقترح إدخال أدوات الجودة تدريجيًا.
 - هذا التقييم توثيقي فقط؛ لا يضيف اعتماديات أو يغيّر سلوك التطبيق أو شروط CI.
 
@@ -16,9 +16,9 @@
 | Job | التحقق الحالي |
 |---|---|
 | Frontend tests and production build | تثبيت الاعتماديات بواسطة `npm ci`، اختبارات Vitest، بناء Vite الإنتاجي، تدقيق الاعتماديات الإنتاجية |
-| Backend tests | Python 3.12، Ruff 0.17.3 report-only، PostgreSQL 16 وRedis، اختبار pytest الكامل، migrations، Compose، Restic smoke، وPostgreSQL backup/restore |
+| Backend tests | Python 3.12، Ruff 0.17.3 report-only، PostgreSQL 16 وRedis، اختبار pytest الكامل (بما فيه اختبار حد بوابة Quiz من PR #89)، migrations، Compose، Restic smoke، وPostgreSQL backup/restore |
 | Full Git history secret scan | Gitleaks على نطاق PR، وفحص كل refs والتاريخ الكامل والأرشيفات |
-| Browser E2E (registration and browser session) | Playwright + Chromium على Vite production preview مع FastAPI وPostgreSQL وRedis وClamAV مؤقتة؛ التسجيل والجلسة، الدرس والتقدم والنشر، Quiz وسجل المحاولات والعتبة، صلاحيات الأدوار وعزل الفصول، إدارة السؤال، وفحص ClamAV الحقيقي. يغطي الاختبار الآن حالة بوابة ناجحة عند الحد، وحالة رسوب أسفل الحد مع حفظ المحاولة وHTTP 429 عند إعادة المحاولة مباشرةً (PR #88، CI 4/4). |
+| Browser E2E (registration and browser session) | Playwright + Chromium على Vite production preview مع FastAPI وPostgreSQL وRedis وClamAV مؤقتة؛ التسجيل والجلسة، الدرس والتقدم والنشر، Quiz وسجل المحاولات والعتبة، صلاحيات الأدوار وعزل الفصول، إدارة السؤال، وفحص ClamAV الحقيقي. يغطي الاختبار الآن حالة بوابة ناجحة عند الحد، وحالة رسوب أسفل الحد مع حفظ المحاولة وHTTP 429 عند إعادة المحاولة مباشرةً (PR #88، CI 4/4). ويؤكد اختبار Backend المستقل في PR #89 عدم فتح الموضوع التابع عند 70% (CI 4/4). |
 
 نتيجة التحقق لـ P6.6:
 
@@ -206,7 +206,7 @@
 
 ## 8. نقطة الاستئناف
 
-- آخر تغيير برمجي مدمج على main: PR #88 عند `92b05ca09c489857328647f42f61a39c969dea0f`. CI للـ PR #42092155512 نجح 4/4؛ CI بعد الدمج على main #42092874266 قيد التنفيذ عند آخر تحقق.
+- آخر تغيير برمجي مدمج على main: PR #89 عند `06a66e0e70dd2e929ab7a818ad65a96db11465a3`. CI للـ PR بعد تحديث الفرع #42101543986 نجح 4/4؛ CI بعد الدمج على main #42102276661 قيد التنفيذ عند آخر تحقق. CI بعد PR #88 #42092874266 نجح 4/4.
 - P6.6 يغطي التسجيل والجلسة، تقدم الدرس ونشره، Quiz وسجل المحاولات وحدّي النجاح والرسوب، الأدوار وعزل الفصول، إدارة الأسئلة، ClamAV الحقيقي، وإعادة اتصال WebSocket وتعدد جلسات الإشعارات.
 - حسابات E2E ذات الأدوار مؤقتة؛ الترقية محصورة في قاعدة PostgreSQL المحلية المسماة lumen_e2e مع التحقق من المضيف وتطابق DATABASE_URL. لا توجد نقطة ترقية دور في التطبيق.
 - P6.1: Ruff 0.17.3 report-only والنتيجة الحالية 0 diagnostic(s)؛ لا يوجد ESLint معتمد في main.
