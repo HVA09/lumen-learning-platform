@@ -433,7 +433,7 @@ def run_smoke_test() -> None:
                     ).click()
                     teacher_a_page.get_by_placeholder("عنوان الدرس").fill(draft_title)
                     teacher_a_page.get_by_placeholder(
-                        "محتوى الدرس (Markdown) — الرياضيات بين $...$ والمعادلة المنفصلة بـ $ على أسطر مستقلة"
+                        re.compile(r"^محتوى الدرس \\(Markdown\\)")
                     ).fill(draft_body)
                     teacher_a_page.get_by_label(
                         "منشور (يظهر للطلاب)", exact=True
@@ -483,7 +483,7 @@ def run_smoke_test() -> None:
                         f"{draft_title} منشور"
                     )
                     teacher_a_page.get_by_placeholder(
-                        "محتوى الدرس (Markdown) — الرياضيات بين $...$ والمعادلة المنفصلة بـ $ على أسطر مستقلة"
+                        re.compile(r"^محتوى الدرس \\(Markdown\\)")
                     ).fill(f"{draft_body}\n\nتم نشر هذا الدرس.")
                     teacher_a_page.get_by_label(
                         "منشور (يظهر للطلاب)", exact=True
