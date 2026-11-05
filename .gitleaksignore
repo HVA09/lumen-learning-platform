@@ -179,3 +179,5 @@ a945dbb38722b9386332e3528e114f8e641cda05:backend/tests/test_spaced_repetition.py
 a945dbb38722b9386332e3528e114f8e641cda05:backend/tests/test_srs.py:generic-api-key:10
 a945dbb38722b9386332e3528e114f8e641cda05:backend/tests/test_srs.py:generic-api-key:15
 a945dbb38722b9386332e3528e114f8e641cda05:backend/tests/test_two_factor.py:generic-api-key:12
+# Exact false-positive fingerprint: shared dummy test password in one PR #86 test commit.
+fb021d61ccfcaa42667199192cb1bcc12affe52a:backend/tests/test_notifications.py:generic-api-key:79
