@@ -1,7 +1,7 @@
 # الخطة المعمارية الحالية والمراحل التنفيذية لمنصة Lumen
 
 آخر تحديث: **2026-11-05**  
-آخر تغيير برمجي على main: PR #84 عند commit `11a77588d73f3c5a98365549b2e07002f7491d9e`. أضاف اختبار Browser E2E يتصل بخدمة ClamAV مؤقتة ويفحص ملفًا نظيفًا وعينة EICAR ويراقب عدم حفظ الملفات المرفوضة أو metadata؛ PR CI #41953273414 نجح 4/4. CI ما بعد الدمج على main #41954300369 كان جارياً وقت التوثيق.
+آخر تغيير برمجي على main: PR #84 عند commit `11a77588d73f3c5a98365549b2e07002f7491d9e`. أضاف اختبار Browser E2E يتصل بخدمة ClamAV مؤقتة ويفحص ملفًا نظيفًا وعينة EICAR ويراقب عدم حفظ الملفات المرفوضة أو metadata؛ PR CI #41953273414 نجح 4/4. CI ما بعد الدمج على main [#41954300369](https://github.com/HVA09/lumen-learning-platform/actions/runs/41954300369) نجح بالكامل 4/4؛ Backend 423 passed و20 warnings؛ Ruff 0 diagnostics؛ Frontend 80 passed عبر 16 ملفًا؛ production audit بلا ثغرات؛ full audit: 2 Low و4 Moderate وصفر High/Critical؛ Browser E2E وGitleaks وmigrations وPostgreSQL backup/restore نجحت.
 PR #39–#46 و#48 و#49 و#51–#59 و#62 و#64–#84 مدمجة (باستثناء PR #55 المغلق دون دمج). PR #59/#62/#64 حسّنت code splitting، وPR #65 أضاف Vite preload recovery، وPR #67 قلّص precache من 35 ملفًا/1328.16 KiB إلى 8 ملفات/378.63 KiB. تغطية Browser E2E تشمل التسجيل والجلسة، التقدم والنشر، Quiz وإدارة السؤال، وصار ClamAV الحقيقي مشمولاً في CI؛ ما زالت الإشعارات المتعددة الجلسات وRTL/LTR والانقطاع/العودة غير مكتملة.
 
 > الغرض هو تنظيم النظام تدريجيًا دون إعادة كتابة، أو تغيير سلوك الميزات، أو تعريض بيانات المستخدمين والترحيلات للخطر.
@@ -138,7 +138,7 @@ PR #39–#46 و#48 و#49 و#51–#59 و#62 و#64–#84 مدمجة (باستثن�
 | P3 | استخراج وحدة نقية ثانية صغيرة | مكتمل — PR #32 مدمج؛ CI #534 على PR وCI #535 على main ناجحان |
 | P4 | فصل حدود خدمات Learning/Progress/SRS/Gamification | منفذ جزئيًا: Progress عبر PR #34/#35، وReview/SRS عبر PR #37، وGamification scoring عبر PR #40؛ تبقى الحدود الأخرى وفق الأولوية والتحليل |
 | P5 | تنظيم Frontend تدريجيًا | P5.1–P5.4 مكتملة ومدمجة؛ PR #46 نقل الإشعارات إلى `features/notifications` واختُبر قبل الدمج وبعده |
-| P6 | الجودة والأداء والمراقبة | Ruff 0 diagnostics report-only؛ ESLint لم يبدأ بسبب قيد npm registry؛ code splitting في #59/#62/#64، وpreload recovery في #65، وسياسة PWA في #67 خفّضت precache 71.5% إلى 8 entries/378.63 KiB. P6.6 عبر #70/#73/#75/#77/#80/#81/#82/#84: التسجيل والجلسة، التقدم والنشر، Quiz وسجل المحاولات، الأدوار وعزل الفصول، إدارة السؤال، وفحص ClamAV الحقيقي بملف نظيف وعينة EICAR مع إثبات حذف الملف/metadata المرفوضين. PR CI #41953273414 نجح 4/4؛ CI ما بعد الدمج #41954300369 كان قيد التنفيذ وقت التحديث. المتبقي: Browser E2E الأوسع لحالات Quiz المختلطة/الحدّية، الإشعارات/WebSocket متعددة الجلسات، RTL/LTR والانقطاع/العودة، وقياسات RUM/Typecheck/Coverage |
+| P6 | الجودة والأداء والمراقبة | Ruff 0 diagnostics report-only؛ ESLint لم يبدأ بسبب قيد npm registry؛ code splitting في #59/#62/#64، وpreload recovery في #65، وسياسة PWA في #67 خفّضت precache 71.5% إلى 8 entries/378.63 KiB. P6.6 عبر #70/#73/#75/#77/#80/#81/#82/#84: التسجيل والجلسة، التقدم والنشر، Quiz وسجل المحاولات، الأدوار وعزل الفصول، إدارة السؤال، وفحص ClamAV الحقيقي بملف نظيف وعينة EICAR مع إثبات حذف الملف/metadata المرفوضين. PR CI #41953273414 نجح 4/4؛ CI ما بعد الدمج على main [#41954300369](https://github.com/HVA09/lumen-learning-platform/actions/runs/41954300369) نجح بالكامل 4/4؛ Backend 423 passed و20 warnings؛ Ruff 0 diagnostics؛ Frontend 80 passed عبر 16 ملفًا؛ production audit بلا ثغرات؛ full audit: 2 Low و4 Moderate وصفر High/Critical؛ Browser E2E وGitleaks وmigrations وPostgreSQL backup/restore نجحت. المتبقي: Browser E2E الأوسع لحالات Quiz المختلطة/الحدّية، الإشعارات/WebSocket متعددة الجلسات، RTL/LTR والانقطاع/العودة، وقياسات RUM/Typecheck/Coverage |
 | P7 | الإطلاق | بعد إغلاق متطلبات الاستضافة والأمن والتشغيل |
 
 ## 6. بوابات القبول لكل تغيير
@@ -162,7 +162,7 @@ PR #39–#46 و#48 و#49 و#51–#59 و#62 و#64–#84 مدمجة (باستثن�
 
 ## 8. نقطة الاستئناف
 
-- آخر تغيير برمجي على main: PR #84 عند `11a77588d73f3c5a98365549b2e07002f7491d9e`. CI PR #41953273414 نجح 4/4؛ CI ما بعد الدمج #41954300369 كان قيد التنفيذ.
+- آخر تغيير برمجي على main: PR #84 عند `11a77588d73f3c5a98365549b2e07002f7491d9e`. CI PR #41953273414 نجح 4/4؛ CI ما بعد الدمج على main [#41954300369](https://github.com/HVA09/lumen-learning-platform/actions/runs/41954300369) نجح بالكامل 4/4؛ Backend 423 passed و20 warnings؛ Ruff 0 diagnostics؛ Frontend 80 passed عبر 16 ملفًا؛ production audit بلا ثغرات؛ full audit: 2 Low و4 Moderate وصفر High/Critical؛ Browser E2E وGitleaks وmigrations وPostgreSQL backup/restore نجحت.
 - P4: فواصل Progress وReview وGamification scoring منفذة عبر PR #34/#35/#37/#40.
 - P5.1–P5.4 مدمجة: WebSocket (#41)، خريطة Frontend (#42)، session (#43)، notification state (#44)، ثم نقل Notifications إلى features/notifications (#46).
 - P6.1: Ruff 0.17.3 report-only، 0 diagnostic(s)؛ ESLint لم يُعتمد بعد.
