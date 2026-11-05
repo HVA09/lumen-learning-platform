@@ -102,6 +102,38 @@ describe("useSession", () => {
     expect(getCurrentUser).toHaveBeenCalledTimes(2);
   });
 
+  it("does not retry bootstrap after an explicit login or logout", async () => {
+    const user = { id: 18, role: "student" };
+    getCurrentUser
+      .mockRejectedValueOnce(new Error("network unavailable"))
+      .mockResolvedValueOnce(user);
+
+    const { result } = renderHook(() => useSession());
+
+    await waitFor(() => expect(result.current.authReady).toBe(true));
+
+    act(() => {
+      result.current.markAuthenticated();
+    });
+    await waitFor(() => expect(result.current.currentUser).toEqual(user));
+
+    await act(async () => {
+      window.dispatchEvent(new Event("online"));
+    });
+    expect(getCurrentUser).toHaveBeenCalledTimes(2);
+
+    act(() => {
+      result.current.logout();
+    });
+    await act(async () => {
+      window.dispatchEvent(new Event("online"));
+    });
+
+    expect(getCurrentUser).toHaveBeenCalledTimes(2);
+    expect(result.current.authenticated).toBe(false);
+    expect(logoutUser).toHaveBeenCalledTimes(1);
+  });
+
   it("removes the online recovery listener when the hook unmounts", async () => {
     getCurrentUser.mockRejectedValue(new Error("network unavailable"));
     const removeSpy = vi.spyOn(window, "removeEventListener");
