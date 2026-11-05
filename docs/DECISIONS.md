@@ -508,7 +508,7 @@
 ## ADR-038 — اختبار Backend لعدم فتح الموضوع التابع دون عتبة بوابة Quiz
 
 - التاريخ: 2026-11-05
-- الحالة: **منفذ ومُدمج — PR #89 عند Squash commit `06a66e0e70dd2e929ab7a818ad65a96db11465a3`؛ CI على رأس PR المحدّث [#42101543986](https://github.com/HVA09/lumen-learning-platform/actions/runs/42101543986) نجح 4/4. CI بعد الدمج على main [#42102276661](https://github.com/HVA09/lumen-learning-platform/actions/runs/42102276661) كان قيد التنفيذ عند آخر تحقق.**
+- الحالة: **منفذ ومُدمج — PR #89 عند Squash commit `06a66e0e70dd2e929ab7a818ad65a96db11465a3`؛ CI على رأس PR المحدّث [#42101543986](https://github.com/HVA09/lumen-learning-platform/actions/runs/42101543986) نجح 4/4. CI بعد الدمج على main [#42102276661](https://github.com/HVA09/lumen-learning-platform/actions/runs/42102276661) اكتمل بنجاح 4/4.**
 - الجهة: توصية تحقق هندسي ضمن P6.6، لتغطية ضمان قفل المتطلب السابق على مستوى Backend/API بالإضافة إلى رحلة المتصفح في PR #88.
 - القرار: إضافة اختبار تكاملي واحد في `backend/tests/test_quiz.py` يبدأ اختبار بوابة من عشر أسئلة ويقدم سبع إجابات صحيحة وثلاثًا خاطئة (70%) عند عتبة نجاح 80%. يتحقق الاختبار من `correct_count=7` و`score_percentage=70.0` و`passed=false` و`gateway_quiz_passed=false`، ثم يطلب بدء موضوع تابع ويتحقق من استجابة HTTP 403 قبل الاختبار وبعد الرسوب.
 - تفاصيل سلامة الاختبار: يبني الاختبار إجابات صحيحة/خاطئة وفق أنواع الأسئلة المزروعة (MCQ وTrue/False وNumeric وShort Text) باستخدام بيانات fixture في قاعدة الاختبار؛ لا يضيف مفاتيح إجابة إلى واجهة الطالب ولا يعتمد على درجة مرسلة من العميل.
