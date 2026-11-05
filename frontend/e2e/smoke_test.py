@@ -89,6 +89,9 @@ def run_smoke_test() -> None:
             assert lesson_list_response.status == 200, (
                 f"Lesson list returned HTTP {lesson_list_response.status}"
             )
+            topic_match = re.search(r"/curriculum/topics/(\d+)/lessons$", lesson_list_response.url)
+            assert topic_match, f"Could not determine topic id from {lesson_list_response.url}"
+            topic_id = int(topic_match.group(1))
             lessons = lesson_list_response.json()
             assert lessons, "The seeded topic must contain at least one published lesson"
             first_lesson = lessons[0]
@@ -174,6 +177,108 @@ def run_smoke_test() -> None:
             expect(page.get_by_text("إتقانك الإجمالي", exact=True)).to_be_visible(
                 timeout=45_000
             )
+            page.get_by_role(
+                "button",
+                name=re.compile(rf"^{re.escape(topic_name)}\s"),
+            ).click()
+            expect(
+                page.get_by_role("heading", name=topic_name, exact=True)
+            ).to_be_visible(timeout=30_000)
+
+            # Exercise a real learner quiz through the browser. The initial attempt
+            # must not expose answer keys; the server alone grades the submission.
+            with page.expect_response(
+                lambda response: response.request.method == "POST"
+                and response.url.endswith(f"/quiz/topics/{topic_id}/start"),
+                timeout=30_000,
+            ) as quiz_start_info:
+                page.get_by_role(
+                    "button",
+                    name=re.compile(r"اختبار تدريبي"),
+                ).click()
+
+            quiz_start_response = quiz_start_info.value
+            assert quiz_start_response.status == 200, (
+                f"Quiz start returned HTTP {quiz_start_response.status}"
+            )
+            quiz_attempt = quiz_start_response.json()
+            quiz_questions = quiz_attempt.get("questions", [])
+            assert quiz_attempt["topic_id"] == topic_id
+            assert quiz_attempt["mode"] == "practice"
+            assert quiz_questions, "The seeded topic must contain quiz questions"
+            assert all(
+                "correct_answer" not in question and "answer_key" not in question
+                for question in quiz_questions
+            ), "Quiz start must not expose correct answers to the learner"
+
+            expect(
+                page.get_by_role("heading", name="اختبار تدريبي", exact=True)
+            ).to_be_visible(timeout=30_000)
+            submit_label = f"سلّم الإجابات (0/{len(quiz_questions)})"
+            with page.expect_response(
+                lambda response: response.request.method == "POST"
+                and response.url.endswith(
+                    f"/quiz/attempts/{quiz_attempt['attempt_id']}/submit"
+                ),
+                timeout=30_000,
+            ) as quiz_submit_info:
+                page.get_by_role("button", name=submit_label, exact=True).click()
+
+            quiz_submit_response = quiz_submit_info.value
+            assert quiz_submit_response.status == 200, (
+                f"Quiz submission returned HTTP {quiz_submit_response.status}"
+            )
+            quiz_result = quiz_submit_response.json()
+            assert quiz_result["attempt_id"] == quiz_attempt["attempt_id"]
+            assert quiz_result["mode"] == "practice"
+            assert quiz_result["total"] == len(quiz_questions)
+            assert quiz_result["correct_count"] == 0
+            assert quiz_result["score_percentage"] == 0.0
+            assert quiz_result["passed"] is None
+            assert all(
+                item["correct"] is False and item["correct_answer_text"]
+                for item in quiz_result["results"]
+            ), "The graded result must contain per-question feedback"
+
+            expect(
+                page.get_by_text(
+                    f"0 من {len(quiz_questions)} صحيحة",
+                    exact=True,
+                )
+            ).to_be_visible(timeout=30_000)
+            page.get_by_role("button", name="إغلاق", exact=True).click()
+            page.get_by_role("button", name="✕", exact=True).click()
+
+            # Reload the app and fetch history again to prove the submitted attempt
+            # was committed to the server, not just held in the component state.
+            page.reload(wait_until="domcontentloaded")
+            expect(page.get_by_text("إتقانك الإجمالي", exact=True)).to_be_visible(
+                timeout=45_000
+            )
+            with page.expect_response(
+                lambda response: response.request.method == "GET"
+                and response.url.endswith(f"/quiz/topics/{topic_id}/history"),
+                timeout=30_000,
+            ) as quiz_history_info:
+                page.get_by_role(
+                    "button",
+                    name=re.compile(rf"^{re.escape(topic_name)}\s"),
+                ).click()
+
+            quiz_history_response = quiz_history_info.value
+            assert quiz_history_response.status == 200, (
+                f"Quiz history returned HTTP {quiz_history_response.status}"
+            )
+            quiz_history = quiz_history_response.json()
+            assert quiz_history, "The submitted quiz must appear in the attempt history"
+            assert quiz_history[0]["id"] == quiz_attempt["attempt_id"]
+            assert quiz_history[0]["mode"] == "practice"
+            assert quiz_history[0]["score_percentage"] == 0.0
+            assert quiz_history[0]["submitted_at"] is not None
+            expect(page.get_by_text("آخر المحاولات", exact=True)).to_be_visible(
+                timeout=30_000
+            )
+            page.get_by_role("button", name="✕", exact=True).click()
 
             # Logout is asynchronous in the UI: wait for the server to revoke the session.
             with page.expect_response(
@@ -200,8 +305,8 @@ def run_smoke_test() -> None:
             assert not page_errors, f"Unexpected browser errors: {page_errors}"
 
             print(
-                "Browser E2E passed: registration, HttpOnly session, lesson "
-                "completion, persisted progress after reload, and logout."
+                "Browser E2E passed: registration, HttpOnly session, lesson progress, quiz submission, "
+                "persisted lesson progress, server-graded quiz result, persisted quiz history, and logout."
             )
         except Exception:
             try:
