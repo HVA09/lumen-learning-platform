@@ -5,7 +5,7 @@
 ## 1. المرجع وحدود هذا التقييم
 
 - المستودع: `HVA09/lumen-learning-platform`.
-- آخر تغيير برمجي مدمج على main: PR #84 عند commit `11a77588d73f3c5a98365549b2e07002f7491d9e`. PR CI #41953273414 نجح 4/4؛ اختبار Browser E2E اتصل بـ ClamAV حقيقي داخل حاوية مؤقتة، قبل ملف CSV نظيفًا ورفض EICAR بـ HTTP 422، وأثبت عدم بقاء الملف المرفوض أو metadata. CI ما بعد الدمج على main [#41954300369](https://github.com/HVA09/lumen-learning-platform/actions/runs/41954300369) نجح بالكامل 4/4؛ Backend 423 passed و20 warnings؛ Ruff 0 diagnostics؛ Frontend 80 passed عبر 16 ملفًا؛ production audit بلا ثغرات؛ full audit: 2 Low و4 Moderate وصفر High/Critical؛ Browser E2E وGitleaks وmigrations وPostgreSQL backup/restore نجحت.
+- آخر تغيير برمجي مدمج على main: PR #88 عند `92b05ca09c489857328647f42f61a39c969dea0f`. CI الخاص بالـ PR [#42092155512](https://github.com/HVA09/lumen-learning-platform/actions/runs/42092155512) نجح 4/4. أضاف Browser E2E لنتيجة بوابة أقل من حد النجاح (7/10 عند حد 80%)، والتحقق من تصحيح الخادم وحفظ المحاولة وHTTP 429 عند إعادة المحاولة الفورية. CI بعد الدمج على main [#42092874266](https://github.com/HVA09/lumen-learning-platform/actions/runs/42092874266) كان قيد التنفيذ عند آخر تحقق. PR #87 قبله أضاف إعادة اتصال WebSocket واختبار تعدد جلسات الإشعارات؛ CI بعده #42091787403 نجح 4/4.
 - هذا الملف يوثق ما هو مفعّل فعليًا في المستودع وCI، ثم يقترح إدخال أدوات الجودة تدريجيًا.
 - هذا التقييم توثيقي فقط؛ لا يضيف اعتماديات أو يغيّر سلوك التطبيق أو شروط CI.
 
@@ -18,7 +18,7 @@
 | Frontend tests and production build | تثبيت الاعتماديات بواسطة `npm ci`، اختبارات Vitest، بناء Vite الإنتاجي، تدقيق الاعتماديات الإنتاجية |
 | Backend tests | Python 3.12، Ruff 0.17.3 report-only، PostgreSQL 16 وRedis، اختبار pytest الكامل، migrations، Compose، Restic smoke، وPostgreSQL backup/restore |
 | Full Git history secret scan | Gitleaks على نطاق PR، وفحص كل refs والتاريخ الكامل والأرشيفات |
-| Browser E2E (registration and browser session) | Playwright + Chromium على Vite production preview مع FastAPI وPostgreSQL وRedis وClamAV مؤقتة؛ التسجيل والجلسة، الدرس والتقدم والنشر، Quiz وسجل المحاولات والعتبة، صلاحيات الأدوار وعزل الفصول، وإدارة السؤال. PR #84 أضاف قبول CSV نظيف ورفض EICAR HTTP 422 مع التحقق من حذف الملف المرفوض وعدم حفظ metadata. حسابات الأدوار والملفات وقاعدة البيانات مؤقتة ومحلية في CI. |
+| Browser E2E (registration and browser session) | Playwright + Chromium على Vite production preview مع FastAPI وPostgreSQL وRedis وClamAV مؤقتة؛ التسجيل والجلسة، الدرس والتقدم والنشر، Quiz وسجل المحاولات والعتبة، صلاحيات الأدوار وعزل الفصول، إدارة السؤال، وفحص ClamAV الحقيقي. يغطي الاختبار الآن حالة بوابة ناجحة عند الحد، وحالة رسوب أسفل الحد مع حفظ المحاولة وHTTP 429 عند إعادة المحاولة مباشرةً (PR #88، CI 4/4).
 
 نتيجة التحقق لـ P6.6:
 
@@ -206,10 +206,10 @@
 
 ## 8. نقطة الاستئناف
 
-- آخر تغيير برمجي مدمج على main: PR #84 عند `11a77588d73f3c5a98365549b2e07002f7491d9e`. PR CI #41953273414 نجح 4/4؛ CI ما بعد الدمج #41954300369 كان قيد التنفيذ وقت التوثيق.
+- آخر تغيير برمجي مدمج على main: PR #88 عند `92b05ca09c489857328647f42f61a39c969dea0f`. CI للـ PR #42092155512 نجح 4/4؛ CI بعد الدمج على main #42092874266 قيد التنفيذ عند آخر تحقق.
 - P6.6 يغطي التسجيل والجلسة، تقدم الدرس ونشره، Quiz وسجل المحاولات وعتبة النجاح، الأدوار وعزل الفصول، إدارة الأسئلة، وفحص ClamAV الحقيقي مع تنظيف الملفات المرفوضة.
 - حسابات E2E ذات الأدوار مؤقتة؛ الترقية محصورة في قاعدة PostgreSQL المحلية المسماة lumen_e2e مع التحقق من المضيف وتطابق DATABASE_URL. لا توجد نقطة ترقية دور في التطبيق.
 - P6.1: Ruff 0.17.3 report-only والنتيجة الحالية 0 diagnostic(s)؛ لا يوجد ESLint معتمد في main.
 - P6.5: PR #59/#62/#64/#65/#67 مدمجة؛ خفض precache في #67 بنحو 71.5%. لا توجد قياسات أداء ميدانية.
-- الخطوة التالية: توسيع Browser E2E لحالات Quiz المختلطة والحدّية؛ ثم اختبار إشعارات WebSocket بين جلسات مختلفة وإعادة الاتصال؛ ثم RTL/LTR وانقطاع الشبكة وعودتها.
+- PR #88 دُمج؛ تغطية البوابة في Browser E2E تشمل الحد الأدنى للنجاح وحالة أقل منه، مع حفظ النتيجة وHTTP 429 أثناء مهلة التهدئة. المتبقي: RTL/LTR وفقدان الشبكة وعودتها.
 - لا يوجد نشر إنتاجي مثبت؛ خدمة ClamAV في CI لا تثبت جاهزية الماسح أو موارده على مضيف الإنتاج.
