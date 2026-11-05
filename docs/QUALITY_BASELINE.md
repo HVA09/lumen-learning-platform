@@ -5,7 +5,7 @@
 ## 1. المرجع وحدود هذا التقييم
 
 - المستودع: `HVA09/lumen-learning-platform`.
-- آخر تغيير برمجي مدمج على main: PR #82 عند commit cf15149abe546627ee36feba65fcf48dbab3ba64. PR #80 و#81 و#82 وسّعت Browser E2E لاختبار نشر الدرس، وتصحيح Quiz عند عتبة الاجتياز، ودورة السؤال من واجهة المعلم. التعديلات اختبارية في frontend/e2e/smoke_test.py فقط.
+- آخر تغيير برمجي مدمج على main: PR #82 عند commit cf15149abe546627ee36feba65fcf48dbab3ba64. CI PR #82 #41949826358 وCI ما بعد الدمج #41950657568 نجحا 4/4؛ Backend 423 passed و20 warnings، Ruff 0 diagnostics، Frontend 80 passed عبر 16 ملفًا، production audit 0 vulnerabilities، والتدقيق الكامل 2 Low و4 Moderate. PR #80 و#81 و#82 اختبرت نشر الدرس وعتبة اجتياز Quiz ودورة السؤال من واجهة المعلم؛ التغييرات اختبارية في frontend/e2e/smoke_test.py فقط.
 - هذا الملف يوثق ما هو مفعّل فعليًا في المستودع وCI، ثم يقترح إدخال أدوات الجودة تدريجيًا.
 - هذا التقييم توثيقي فقط؛ لا يضيف اعتماديات أو يغيّر سلوك التطبيق أو شروط CI.
 
@@ -30,7 +30,7 @@
 - PR #77 وCI [#41940578786](https://github.com/HVA09/lumen-learning-platform/actions/runs/41940578786): نجحت الوظائف الأربع. Browser E2E أنشأ حسابات مؤقتة للمعلمَين والمسؤول، وفحص إخفاء عناصر الإدارة من الطالب، وصول المعلم إلى Content Manager وإنشاء فصل، عزل قوائم الفصول، ومنع قراءة الفصل الآخر برمز 403، ثم التحقق من وصول المسؤول المصرح.
 - PR #80 وCI #41943697271: اختبار واجهة المعلم لإنشاء درس كمسودة، والتحقق من عدم ظهوره للطالب، ثم نشره والتحقق من ظهوره في منهج الطالب. CI بعد الدمج #41947786739 نجح 4/4.
 - PR #81 وCI #41948823950: اختبار تصحيح Quiz من الخادم بإجابات صحيحة تحقق عتبة اجتياز البوابة. CI بعد الدمج #41949251573 نجح 4/4.
-- PR #82 وCI #41949826358: اختبار إنشاء سؤال اختيار متعدد من Content Manager، والتحقق من استجابة المعلم المصرح بها، وتعديل السؤال وتعطيله ثم حذفه والتحقق من غيابه. الوظائف الأربع نجحت. CI بعد الدمج #41950657568 على commit cf15149abe546627ee36feba65fcf48dbab3ba64: Frontend/build وBrowser E2E وGitleaks نجحت؛ Backend كان قيد التنفيذ وقت هذا التحديث.
+- PR #82 وCI #41949826358: اختبار إنشاء سؤال اختيار متعدد من Content Manager، والتحقق من استجابة المعلم المصرح بها، وتعديل السؤال وتعطيله ثم حذفه والتحقق من غيابه. الوظائف الأربع نجحت. CI بعد الدمج #41950657568 على commit cf15149abe546627ee36feba65fcf48dbab3ba64 نجح 4/4: Backend 423 passed و20 warnings؛ Ruff 0 diagnostics؛ Frontend 80 passed عبر 16 ملفًا؛ production audit 0 vulnerabilities؛ full dependency audit 2 Low و4 Moderate وصفر High/Critical؛ Browser E2E وGitleaks وmigrations وPostgreSQL backup/restore نجحت.
 - CI بعد دمج PR #77 على `main`: [#41941142454](https://github.com/HVA09/lumen-learning-platform/actions/runs/41941142454) نجح على `451572c1253351e0b4406ed21480b659b2862406` في الوظائف الأربع (Backend، Frontend/build، Browser E2E، Gitleaks).
 
 نتيجة خط الأساس المدمج:
@@ -205,7 +205,7 @@
 
 ## 8. نقطة الاستئناف
 
-- آخر تغيير برمجي مدمج على main: PR #82 عند cf15149abe546627ee36feba65fcf48dbab3ba64. CI على PR #82 #41949826358 نجح 4/4. CI بعد الدمج #41950657568: Frontend/build وBrowser E2E وGitleaks نجحت؛ Backend كان قيد التنفيذ وقت هذا التحديث.
+- آخر تغيير برمجي مدمج على main: PR #82 عند cf15149abe546627ee36feba65fcf48dbab3ba64. CI على PR #82 #41949826358 وCI بعد الدمج #41950657568 نجحا 4/4. Backend 423 passed و20 warnings؛ Ruff 0 diagnostics؛ Frontend 80 passed عبر 16 ملفًا؛ production audit 0 vulnerabilities؛ full dependency audit 2 Low و4 Moderate.
 - P6.6 يغطي التسجيل والجلسة، تقدم الدرس واستعادته، نشر الدرس، Quiz فارغاً وسجل محاولاته، اجتياز البوابة عند العتبة، مصفوفة الأدوار وعزل الفصول، ودورة إدارة السؤال من واجهة المعلم.
 - حسابات E2E ذات الأدوار مؤقتة؛ الترقية محصورة في قاعدة PostgreSQL المحلية المسماة lumen_e2e مع التحقق من المضيف وتطابق DATABASE_URL. لا توجد نقطة ترقية دور في التطبيق.
 - P6.1: Ruff 0.17.3 report-only والنتيجة الحالية 0 diagnostic(s)؛ لا يوجد ESLint معتمد في main.
