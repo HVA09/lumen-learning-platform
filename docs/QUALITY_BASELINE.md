@@ -18,7 +18,7 @@
 | Frontend tests and production build | تثبيت الاعتماديات بواسطة `npm ci`، اختبارات Vitest، بناء Vite الإنتاجي، تدقيق الاعتماديات الإنتاجية |
 | Backend tests | Python 3.12، Ruff 0.17.3 report-only، PostgreSQL 16 وRedis، اختبار pytest الكامل، migrations، Compose، Restic smoke، وPostgreSQL backup/restore |
 | Full Git history secret scan | Gitleaks على نطاق PR، وفحص كل refs والتاريخ الكامل والأرشيفات |
-| Browser E2E (registration and browser session) | Playwright + Chromium على Vite production preview مع FastAPI وPostgreSQL وRedis وClamAV مؤقتة؛ التسجيل والجلسة، الدرس والتقدم والنشر، Quiz وسجل المحاولات والعتبة، صلاحيات الأدوار وعزل الفصول، إدارة السؤال، وفحص ClamAV الحقيقي. يغطي الاختبار الآن حالة بوابة ناجحة عند الحد، وحالة رسوب أسفل الحد مع حفظ المحاولة وHTTP 429 عند إعادة المحاولة مباشرةً (PR #88، CI 4/4).
+| Browser E2E (registration and browser session) | Playwright + Chromium على Vite production preview مع FastAPI وPostgreSQL وRedis وClamAV مؤقتة؛ التسجيل والجلسة، الدرس والتقدم والنشر، Quiz وسجل المحاولات والعتبة، صلاحيات الأدوار وعزل الفصول، إدارة السؤال، وفحص ClamAV الحقيقي. يغطي الاختبار الآن حالة بوابة ناجحة عند الحد، وحالة رسوب أسفل الحد مع حفظ المحاولة وHTTP 429 عند إعادة المحاولة مباشرةً (PR #88، CI 4/4). |
 
 نتيجة التحقق لـ P6.6:
 
@@ -207,7 +207,7 @@
 ## 8. نقطة الاستئناف
 
 - آخر تغيير برمجي مدمج على main: PR #88 عند `92b05ca09c489857328647f42f61a39c969dea0f`. CI للـ PR #42092155512 نجح 4/4؛ CI بعد الدمج على main #42092874266 قيد التنفيذ عند آخر تحقق.
-- P6.6 يغطي التسجيل والجلسة، تقدم الدرس ونشره، Quiz وسجل المحاولات وعتبة النجاح، الأدوار وعزل الفصول، إدارة الأسئلة، وفحص ClamAV الحقيقي مع تنظيف الملفات المرفوضة.
+- P6.6 يغطي التسجيل والجلسة، تقدم الدرس ونشره، Quiz وسجل المحاولات وحدّي النجاح والرسوب، الأدوار وعزل الفصول، إدارة الأسئلة، ClamAV الحقيقي، وإعادة اتصال WebSocket وتعدد جلسات الإشعارات.
 - حسابات E2E ذات الأدوار مؤقتة؛ الترقية محصورة في قاعدة PostgreSQL المحلية المسماة lumen_e2e مع التحقق من المضيف وتطابق DATABASE_URL. لا توجد نقطة ترقية دور في التطبيق.
 - P6.1: Ruff 0.17.3 report-only والنتيجة الحالية 0 diagnostic(s)؛ لا يوجد ESLint معتمد في main.
 - P6.5: PR #59/#62/#64/#65/#67 مدمجة؛ خفض precache في #67 بنحو 71.5%. لا توجد قياسات أداء ميدانية.
