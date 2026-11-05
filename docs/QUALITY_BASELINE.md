@@ -5,7 +5,7 @@
 ## 1. المرجع وحدود هذا التقييم
 
 - المستودع: `HVA09/lumen-learning-platform`.
-- آخر تغيير برمجي مدمج على main: PR #84 عند commit `11a77588d73f3c5a98365549b2e07002f7491d9e`. PR CI #41953273414 نجح 4/4؛ اختبار Browser E2E اتصل بـ ClamAV حقيقي داخل حاوية مؤقتة، قبل ملف CSV نظيفًا ورفض EICAR بـ HTTP 422، وأثبت عدم بقاء الملف المرفوض أو metadata. CI ما بعد الدمج على main #41954300369 كان قيد التنفيذ وقت التوثيق.
+- آخر تغيير برمجي مدمج على main: PR #84 عند commit `11a77588d73f3c5a98365549b2e07002f7491d9e`. PR CI #41953273414 نجح 4/4؛ اختبار Browser E2E اتصل بـ ClamAV حقيقي داخل حاوية مؤقتة، قبل ملف CSV نظيفًا ورفض EICAR بـ HTTP 422، وأثبت عدم بقاء الملف المرفوض أو metadata. CI ما بعد الدمج على main [#41954300369](https://github.com/HVA09/lumen-learning-platform/actions/runs/41954300369) نجح بالكامل 4/4؛ Backend 423 passed و20 warnings؛ Ruff 0 diagnostics؛ Frontend 80 passed عبر 16 ملفًا؛ production audit بلا ثغرات؛ full audit: 2 Low و4 Moderate وصفر High/Critical؛ Browser E2E وGitleaks وmigrations وPostgreSQL backup/restore نجحت.
 - هذا الملف يوثق ما هو مفعّل فعليًا في المستودع وCI، ثم يقترح إدخال أدوات الجودة تدريجيًا.
 - هذا التقييم توثيقي فقط؛ لا يضيف اعتماديات أو يغيّر سلوك التطبيق أو شروط CI.
 
