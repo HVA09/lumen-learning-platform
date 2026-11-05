@@ -2,6 +2,7 @@
 اختبارات المرحلة العاشرة: الإشعارات (REST + WebSocket الفوري)
 """
 from unittest.mock import MagicMock
+import uuid
 
 from app.config import settings
 from app.routers import billing as billing_router_module
@@ -75,8 +76,8 @@ def test_websocket_broadcasts_realtime_notification_to_multiple_user_sessions(
 ):
     # The mocked Stripe webhook is test-only; production payments remain disabled by default.
     monkeypatch.setattr(billing_router_module.app_settings, "PAYMENT_PROVIDER", "stripe")
-    email = "wsuser@example.com"
-    password = "StrongPass123"
+    email = f"wsuser-{uuid.uuid4().hex[:8]}@example.com"
+    password = f"test-session-{uuid.uuid4().hex}"
     token = _register_and_login(client, email, password)
     headers = {"Authorization": f"Bearer {token}"}
     me = client.get("/users/me", headers=headers).json()
