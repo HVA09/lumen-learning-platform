@@ -1,8 +1,8 @@
 # الخطة المعمارية الحالية والمراحل التنفيذية لمنصة Lumen
 
-آخر تحديث: **2026-11-04**  
-آخر تغيير برمجي على `main`: PR #73 عند commit `2d8721efbd581952cb16c3b6d64904a6ef5f6256`، ويضيف اختبار Browser E2E لإكمال الدرس والتحقق من استمرار التقدم بعد reload، دون تغيير سلوك التطبيق أو API أو قاعدة البيانات. PR #70 و#73 مدمجان. CI على رأس PR #73 [#41919944969](https://github.com/HVA09/lumen-learning-platform/actions/runs/41919944969) وCI بعد الدمج على `main` [#41920779594](https://github.com/HVA09/lumen-learning-platform/actions/runs/41920779594) نجحا بجميع الوظائف الأربع.
-PR #39–#46 و#48 و#49 و#51–#59 و#62 و#64–#73 مدمجة (باستثناء PR #55 المغلق دون دمج). PR #59/#62/#64 حسّنت code splitting، وPR #65 أضاف Vite preload recovery، وPR #67 قلّص precache من 35 ملفًا/1328.16 KiB إلى 8 ملفات/378.63 KiB. تغطية Browser E2E ما زالت أولية ولا تشمل بعد Quiz وجميع الأدوار والملفات والإشعارات/offline.
+آخر تحديث: **2026-11-05**  
+آخر تغيير برمجي على `main`: PR #75 عند commit `1c94e4f73695b675d8929daf25b35c8d718aac5d`، ووسّع Browser E2E لاختبار Quiz التدريبي وحفظ المحاولة بعد إعادة التحميل دون تغيير سلوك التطبيق أو API أو قاعدة البيانات. PR #70 و#73 و#75 مدمجة. CI على رأس PR #75 [#41925605855](https://github.com/HVA09/lumen-learning-platform/actions/runs/41925605855) وبعد الدمج على `main` [#41938791393](https://github.com/HVA09/lumen-learning-platform/actions/runs/41938791393) نجحا بجميع الوظائف الأربع.
+PR #39–#46 و#48 و#49 و#51–#59 و#62 و#64–#75 مدمجة (باستثناء PR #55 المغلق دون دمج). PR #59/#62/#64 حسّنت code splitting، وPR #65 أضاف Vite preload recovery، وPR #67 قلّص precache من 35 ملفًا/1328.16 KiB إلى 8 ملفات/378.63 KiB. تغطية Browser E2E تشمل الآن Quiz؛ وما زالت أدوار teacher/admin وإدارة المحتوى والملفات والإشعارات/offline غير مكتملة.
 
 > الغرض هو تنظيم النظام تدريجيًا دون إعادة كتابة، أو تغيير سلوك الميزات، أو تعريض بيانات المستخدمين والترحيلات للخطر.
 
@@ -138,7 +138,7 @@ PR #39–#46 و#48 و#49 و#51–#59 و#62 و#64–#73 مدمجة (باستثن�
 | P3 | استخراج وحدة نقية ثانية صغيرة | مكتمل — PR #32 مدمج؛ CI #534 على PR وCI #535 على main ناجحان |
 | P4 | فصل حدود خدمات Learning/Progress/SRS/Gamification | منفذ جزئيًا: Progress عبر PR #34/#35، وReview/SRS عبر PR #37، وGamification scoring عبر PR #40؛ تبقى الحدود الأخرى وفق الأولوية والتحليل |
 | P5 | تنظيم Frontend تدريجيًا | P5.1–P5.4 مكتملة ومدمجة؛ PR #46 نقل الإشعارات إلى `features/notifications` واختُبر قبل الدمج وبعده |
-| P6 | الجودة والأداء والمراقبة | Ruff 0 diagnostics report-only؛ ESLint لم يبدأ بسبب قيد npm registry؛ code splitting في #59/#62/#64، وpreload recovery في #65، وسياسة PWA في #67 خفّضت precache 71.5% إلى 8 entries/378.63 KiB. أول Browser E2E smoke في PR #70 نجح في CI #41909053692 (التسجيل، الجلسة، reload، logout) لكنه غير مدمج بعد. تبقى قياسات RUM وTypecheck وCoverage وتوسيع E2E، وتنبيهات اعتماديات التطوير منخفضة/متوسطة موثقة في ADR-033 |
+| P6 | الجودة والأداء والمراقبة | Ruff 0 diagnostics report-only؛ ESLint لم يبدأ بسبب قيد npm registry؛ code splitting في #59/#62/#64، وpreload recovery في #65، وسياسة PWA في #67 خفّضت precache 71.5% إلى 8 entries/378.63 KiB. P6.6 مدمجة عبر #70/#73/#75: تسجيل وجلسة، استعادة الجلسة، إكمال درس وحفظ التقدم، بدء Quiz وتسليمه وحفظ سجل المحاولة بعد reload. CI PR #75 #41925605855 وmain CI #41938791393 نجحا 4/4. تبقى قياسات RUM وTypecheck وCoverage، وأدوار teacher/admin وإدارة المحتوى والملفات والإشعارات/WebSocket وRTL/LTR والانقطاع/العودة، وتنبيهات اعتماديات التطوير منخفضة/متوسطة موثقة في ADR-033 |
 | P7 | الإطلاق | بعد إغلاق متطلبات الاستضافة والأمن والتشغيل |
 
 ## 6. بوابات القبول لكل تغيير
@@ -162,11 +162,12 @@ PR #39–#46 و#48 و#49 و#51–#59 و#62 و#64–#73 مدمجة (باستثن�
 
 ## 8. نقطة الاستئناف
 
-- آخر تغيير برمجي على `main`: `2453b9124fc4eaa617aa5bb5493ebc0cf1400c9a` بعد PR #67؛ PR #69 توثيقي ومُدمج عند `de1197927ab5321b739206ce09770499ccb55ebe` مع CI #41907780368 ناجح. PR #70 غير مدمج، وCI #41909053692 نجح على فرعه: Backend 423/20 warnings، Frontend 80/16 files، Ruff 0، Gitleaks success، Browser E2E success.
+- آخر تغيير برمجي على `main`: PR #75 عند `1c94e4f73695b675d8929daf25b35c8d718aac5d`. CI #41925605855 على PR و#41938791393 بعد الدمج نجحا بجميع الوظائف الأربع.
 - P4: فواصل Progress وReview وGamification scoring منفذة عبر PR #34/#35/#37/#40.
 - P5.1–P5.4 مدمجة: WebSocket (#41)، خريطة Frontend (#42)، session (#43)، notification state (#44)، ثم نقل Notifications إلى `features/notifications` (#46). CI #41745646366 نجح بعد الدمج.
-- P6.1: Ruff 0.17.3 مفعّل للخلفية كتقرير فقط والنتيجة الحالية 0 diagnostic(s). PR #52 و#53 أتما معالجة Ruff، وPR #55 تجربة ESLint جزئية أُغلقت دون دمج، وPR #56 أزال ثلاثة findings مؤكدة، وPR #57/#58 حدّثا السجلات. لا يوجد ESLint معتمد في `main`؛ بيئة التنفيذ الحالية لا تصل إلى npm registry ولا تحتوي cache للحزم، لذلك لا يُنشأ lockfile يدويًا.
-- P6.5: PR #59/#62/#64/#65/#67 مدمجة: code splitting للوحدات التعليمية، واسترداد Vite preload، وتقليل precache في #67 من 35 entries/1328.16 KiB إلى 8/378.63 KiB (نحو 71.5%). CI بعد الدمج [#41903896915](https://github.com/HVA09/lumen-learning-platform/actions/runs/41903896915) نجح على main. لا يوجد قياس أداء ميداني حتى الآن.
-- P6.6 (شريحة أولى على PR #70، غير مدمجة): Playwright 1.64.1 + Chromium في CI منفصل بقاعدة PostgreSQL وRedis مؤقتتين. نجح run [#41909053692](https://github.com/HVA09/lumen-learning-platform/actions/runs/41909053692) على `7b7e8c76b40c6da6cc1cacb94c676682a3a67462`. يغطي التسجيل والدخول، cookies HttpOnly وعدم تخزين tokens في localStorage/document.cookie، ظهور لوحة ومسار التعلم، استعادة الجلسة بعد reload، وlogout مع انتظار HTTP 200 من `/auth/logout` والتحقق من إزالة cookies. لا يغطي بعد جميع ميزات الطالب والمعلم/admin أو offline.
+- P6.1: Ruff 0.17.3 مفعّل للخلفية كتقرير فقط والنتيجة الحالية 0 diagnostic(s). PR #52 و#53 أتما معالجة Ruff؛ لا يوجد ESLint معتمد في `main`.
+- P6.5: PR #59/#62/#64/#65/#67 مدمجة: code splitting للوحدات التعليمية، واسترداد Vite preload، وتقليل precache في #67 من 35 entries/1328.16 KiB إلى 8/378.63 KiB (نحو 71.5%). لا يوجد قياس أداء ميداني حتى الآن.
+- P6.6: Playwright 1.64.1 + Chromium يعمل على production preview مع FastAPI وPostgreSQL وRedis مؤقتة. PR #70 يغطي التسجيل والجلسة الآمنة واستعادتها والخروج؛ PR #73 يغطي إكمال درس واستعادة تقدمه بعد reload؛ PR #75 يغطي بدء Quiz تدريبي دون كشف answer key، تسليم محاولة فارغة، نتيجة وتصحيح الخادم، وحفظ history بعد reload. CI PR #75 #41925605855 وmain CI #41938791393 نجحا 4/4.
+- فجوات P6.6 المتبقية: الأدوار teacher/admin وحدود ملكية الفصول والمحتوى، إدارة المحتوى، الملفات، الإشعارات/WebSocket، RTL/LTR، والانقطاع/العودة. اختبار Quiz الحالي لا يثبت بعد الدرجات الصحيحة وحالات النجاح.
 - سلسلة LTI #16–#23 تحتاج إعادة تأسيس وخطة migration/integration مستقلة؛ لا تدمج مباشرة.
 - لا يوجد نشر إنتاجي مثبت.
