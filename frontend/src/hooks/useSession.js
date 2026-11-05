@@ -64,7 +64,7 @@ export default function useSession({ onSessionExpired } = {}) {
           user = await getCurrentUser();
         }
 
-        if (!mounted) return;
+        if (!mounted || sessionResolvedRef.current) return;
         sessionResolvedRef.current = true;
         setCurrentUser(user);
         setAuthSessionActive(true);
