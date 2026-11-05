@@ -106,6 +106,84 @@ def _browser_access_token(context) -> str:
     return cookie["value"]
 
 
+def _exercise_real_clamav_upload(page) -> None:
+    """Verify clean and EICAR uploads against the real CI ClamAV daemon."""
+    token = _browser_access_token(page.context)
+    headers = {"Authorization": f"Bearer {token}"}
+    upload_root = Path(os.environ.get("UPLOAD_DIR", "/tmp/lumen-e2e-uploads"))
+
+    def stored_files() -> set[Path]:
+        return {path.resolve() for path in upload_root.rglob("*") if path.is_file()}
+
+    assert not stored_files(), "The isolated E2E upload directory must start empty"
+
+    clean_payload = b"topic,notes\nLumen,clean ClamAV integration fixture\n"
+    clean_response = page.request.post(
+        f"{API_URL}/files/upload",
+        headers=headers,
+        multipart={
+            "file": {
+                "name": "clamav-clean.csv",
+                "mimeType": "text/csv",
+                "buffer": clean_payload,
+            }
+        },
+        timeout=120_000,
+    )
+    assert clean_response.status == 201, (
+        f"ClamAV should accept a clean file, received HTTP {clean_response.status}: "
+        f"{clean_response.text()}"
+    )
+    clean_attachment = clean_response.json()
+    assert clean_attachment["original_filename"] == "clamav-clean.csv"
+    assert clean_attachment["size_bytes"] == len(clean_payload)
+
+    clean_files = stored_files()
+    assert len(clean_files) == 1, "The clean upload must create exactly one stored file"
+
+    listing_after_clean = page.request.get(f"{API_URL}/files", headers=headers)
+    assert listing_after_clean.status == 200
+    clean_listing = listing_after_clean.json()
+    assert [item["id"] for item in clean_listing] == [clean_attachment["id"]]
+
+    # EICAR is a harmless industry-standard antivirus test signature, not live malware.
+    eicar_signature = (
+        b"X5O!P%@AP[4"
+        + bytes((0x5C,))
+        + b"PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*"
+    )
+    infected_response = page.request.post(
+        f"{API_URL}/files/upload",
+        headers=headers,
+        multipart={
+            "file": {
+                "name": "clamav-eicar-test.csv",
+                "mimeType": "text/csv",
+                "buffer": eicar_signature,
+            }
+        },
+        timeout=120_000,
+    )
+    assert infected_response.status == 422, (
+        "ClamAV must reject the EICAR test signature with HTTP 422; "
+        f"received {infected_response.status}: {infected_response.text()}"
+    )
+
+    assert stored_files() == clean_files, (
+        "The rejected EICAR upload must not leave a file on the upload volume"
+    )
+    listing_after_infected = page.request.get(f"{API_URL}/files", headers=headers)
+    assert listing_after_infected.status == 200
+    remaining_attachments = listing_after_infected.json()
+    assert [item["id"] for item in remaining_attachments] == [clean_attachment["id"]], (
+        "The rejected EICAR upload must not create attachment metadata"
+    )
+    print(
+        "Real ClamAV integration passed: clean file accepted; EICAR rejected; "
+        "file and metadata cleanup verified."
+    )
+
+
 def run_smoke_test() -> None:
     email = f"browser-e2e-{uuid.uuid4().hex[:12]}@example.com"
     password = "BrowserE2E-Pass-2026"
@@ -162,6 +240,9 @@ def run_smoke_test() -> None:
             assert "lumen_refresh" not in document_cookies
             assert page.evaluate("localStorage.getItem('access_token')") is None
             assert page.evaluate("localStorage.getItem('refresh_token')") is None
+
+            # File uploads must be scanned by the real temporary ClamAV service in CI.
+            _exercise_real_clamav_upload(page)
 
             # Open a real seeded topic and capture the lessons returned by the API.
             with page.expect_response(
