@@ -465,14 +465,14 @@
 ## ADR-035 — اختبار فحص الملفات عبر خدمة ClamAV حقيقية في CI
 
 - التاريخ: 2026-11-05
-- الحالة: **منفذ ومُدمج — PR #84؛ PR CI #41953273414 نجح 4/4، وCI ما بعد الدمج على main #41954300369 كان قيد التنفيذ وقت آخر توثيق.**
+- الحالة: **منفذ ومُدمج — PR #84؛ PR CI #41953273414 نجح 4/4، وCI ما بعد الدمج على main [#41954300369](https://github.com/HVA09/lumen-learning-platform/actions/runs/41954300369) نجح بالكامل 4/4؛ Backend 423 passed و20 warnings؛ Ruff 0 diagnostics؛ Frontend 80 passed عبر 16 ملفًا؛ production audit بلا ثغرات؛ full audit: 2 Low و4 Moderate وصفر High/Critical؛ Browser E2E وGitleaks وmigrations وPostgreSQL backup/restore نجحت.**
 - الجهة: توصية هندسية ضمن P6.6 بعد اكتمال مسارات رفع الملفات واختبارات بروتوكول ClamAV الوحدوية؛ الهدف التحقق من تكامل الخادم مع daemon فعلي في بيئة معزولة.
 - القرار: إضافة خدمة ClamAV المؤقتة عبر صورة `clamav/clamav:1.4.6` إلى Job Browser E2E في GitHub Actions، وتفعيل `MALWARE_SCAN_ENABLED=true` في بيئة الاختبار المؤقتة فقط. لا يتغير إعداد الإنتاج.
 - سيناريو القبول: رفع ملف CSV نظيف صالح والتحقق من HTTP 201 وتسجيله؛ ثم رفع عينة EICAR القياسية غير الضارة للاختبار والتحقق من HTTP 422، وعدم بقاء الملف المرفوض على القرص، وعدم إنشاء `FileAttachment` metadata له.
 - النطاق: `.github/workflows/ci.yml` و`frontend/e2e/smoke_test.py` فقط. لا تغيير في منطق الرفع أو API أو schema أو migrations أو dependencies أو أسرار الإنتاج أو موارد مدفوعة.
 - العزل: قاعدة البيانات وملفات الرفع وحاوية ClamAV كلها مؤقتة داخل CI. ربط منفذ ClamAV يتم من runner لاختبار CI؛ لا ينشأ منفذ عام أو خدمة إنتاج.
 - الضمانات: اختبارات `backend/tests/test_files.py` الحالية ما زالت تغطي رفض الملف عند اكتشاف الإصابة، وفشل الماسح المغلق عند عدم التوفر، ورسائل INSTREAM النظيفة والمصابة والخطأ. PR #84 يضيف تحققًا تكامليًا من daemon الحقيقي، ولا يحل محل هذه الاختبارات.
-- التحقق: [PR CI #41953273414](https://github.com/HVA09/lumen-learning-platform/actions/runs/41953273414) نجح على SHA `96b3ea34183553b491ccdb1ff69c473e79302978` بجميع الوظائف الأربع. CI ما بعد الدمج على main [#41954300369](https://github.com/HVA09/lumen-learning-platform/actions/runs/41954300369) كان قيد التنفيذ وقت إضافة هذا القرار؛ لا يُعلن نجاحه حتى ينتهي.
+- التحقق: [PR CI #41953273414](https://github.com/HVA09/lumen-learning-platform/actions/runs/41953273414) نجح على SHA `96b3ea34183553b491ccdb1ff69c473e79302978` بجميع الوظائف الأربع. CI ما بعد الدمج على main [#41954300369](https://github.com/HVA09/lumen-learning-platform/actions/runs/41954300369) نجح بالكامل 4/4؛ Backend 423 passed و20 warnings؛ Ruff 0 diagnostics؛ Frontend 80 passed عبر 16 ملفًا؛ production audit بلا ثغرات؛ full audit: 2 Low و4 Moderate وصفر High/Critical؛ Browser E2E وGitleaks وmigrations وPostgreSQL backup/restore نجحت.
 - الحدود: لا يثبت اختبار CI كفاية ذاكرة/CPU أو توافر ClamAV على مضيف الإنتاج، ولا يثبت إعداد قواعد التواقيع أو سياسات تحديثها على المضيف الفعلي. رفع الملفات في الإنتاج يظل مشروطًا باختبار موارد المضيف وتوفر الماسح fail-closed.
 - الخطوة التالية: توسيع Browser E2E لحالات Quiz المختلطة والحدّية؛ ثم الإشعارات/WebSocket متعددة الجلسات وإعادة الاتصال، وRTL/LTR وفقدان الشبكة وعودتها.
 - التراجع: إزالة خدمة ClamAV ومتغيرات البيئة واستدعاء اختبار الرفع من Browser E2E؛ لا يتطلب ذلك migration أو تغيير بيانات. لا تعطّل حماية ClamAV في الإنتاج.
