@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from app import database, tasks
+from app import database, notifications, tasks
 from app.models.user import User
 from app.services import reports
 
@@ -167,10 +167,7 @@ def test_due_card_reminder_notifies_only_existing_active_users(monkeypatch):
 
     monkeypatch.setattr(database, "SessionLocal", lambda: db)
     monkeypatch.setattr(
-        tasks,
-        "notify",
-        lambda *args: notified.append(args),
-        raising=False,
+        notifications, "notify", lambda *args: notified.append(args)
     )
 
     tasks.send_due_cards_reminders_task.run()
