@@ -117,7 +117,8 @@ def _exercise_real_clamav_upload(page) -> None:
 
     assert not stored_files(), "The isolated E2E upload directory must start empty"
 
-    clean_payload = b"\\x89PNG\\r\\n\\x1a\\nLumen clean ClamAV integration fixture"
+    png_signature = bytes((0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A))
+    clean_payload = png_signature + b"Lumen clean ClamAV integration fixture"
     clean_response = page.request.post(
         f"{API_URL}/files/upload",
         headers=headers,
@@ -148,9 +149,9 @@ def _exercise_real_clamav_upload(page) -> None:
 
     # EICAR is a harmless industry-standard antivirus test signature, not live malware.
     eicar_signature = (
-        b"X5O!P%@AP[4\\\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*"
+        b"X5O!P%@AP[4" + bytes((0x5C,)) + b"PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*"
     )
-    infected_payload = b"\\x89PNG\\r\\n\\x1a\\n" + eicar_signature
+    infected_payload = png_signature + eicar_signature
     infected_response = page.request.post(
         f"{API_URL}/files/upload",
         headers=headers,
@@ -177,7 +178,10 @@ def _exercise_real_clamav_upload(page) -> None:
     assert [item["id"] for item in remaining_attachments] == [clean_attachment["id"]], (
         "The rejected EICAR upload must not create attachment metadata"
     )
-    print("Real ClamAV integration passed: clean file accepted; EICAR rejected; file and metadata cleanup verified.")
+    print(
+        "Real ClamAV integration passed: clean file accepted; EICAR rejected; "
+        "file and metadata cleanup verified."
+    )
 
 
 def run_smoke_test() -> None:
