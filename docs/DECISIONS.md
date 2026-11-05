@@ -1,6 +1,6 @@
 # سجل قرارات مشروع Lumen
 
-آخر تحديث: 2026-11-04
+آخر تحديث: 2026-11-05
 
 يسجل هذا الملف القرارات التي اتُّخذت، والتوصيات الهندسية التي اعتُمدت في مسار العمل، وأسبابها وآثارها. لا يعني إدراج توصية أن المستخدم وافق عليها؛ تُذكر جهة القرار وحالته صراحةً.
 
@@ -427,15 +427,18 @@
 ## ADR-034 — إدخال Browser E2E حقيقي تدريجيًا باستخدام Playwright
 
 - التاريخ: 2026-11-04
-- الحالة: **منفذ ومُدمج — PR #70 وPR #73 (Squash Merge)**
+- الحالة: **منفذ ومُدمج — PR #70 وPR #73 وPR #75 (Squash Merge)**
 - الجهة: توصية هندسية ضمن P6.6 للتحقق من تدفقات المستخدم الفعلية بعد أن كانت الاختبارات تعتمد أساسًا على Vitest/jsdom.
 - القرار: إضافة وظيفة CI مستقلة باسم `Browser E2E (registration and browser session)` تستخدم Playwright for Python **1.64.1** مع Chromium، وتشغّل نسخة Vite production preview متصلة بخادم FastAPI حقيقي وقاعدة PostgreSQL وRedis مؤقتتين في GitHub Actions.
 - النطاق: `frontend/e2e/smoke_test.py` و`frontend/e2e/requirements.txt` وملف `.github/workflows/ci.yml`. تثبيت Playwright منفصل عن npm manifest و`package-lock.json` حتى لا يغيّر اعتماديات الواجهة أو lockfile.
 - السيناريو المثبت في PR #70: إنشاء حساب من واجهة الهاتف بعرض 390px، الدخول، التأكد من Cookies `lumen_access` و`lumen_refresh` كـ HttpOnly وعدم ظهورها في `document.cookie` أو `localStorage`، ظهور لوحة ومسار التعلّم والمحتوى المزروع، إعادة تحميل الصفحة واستعادة الجلسة من cookies، ثم تسجيل الخروج وانتظار استجابة `POST /auth/logout` بحالة HTTP 200 والتحقق من إزالة cookies.
 - التوسعة في PR #73: فتح موضوع «المعادلات الخطية»، قراءة أول درس منشور، إكماله من الواجهة مع تأكيد HTTP 200 من `/curriculum/lessons/{lesson_id}/complete`، التحقق من تحديث المسار إلى `1/2` دروس، إعادة تحميل الصفحة ثم فتح الموضوع مجددًا والتحقق أن استجابة API تحتوي `completed: true` للدرس نفسه، قبل تسجيل الخروج.
+- التوسعة في PR #75: بعد استعادة الجلسة وإكمال الدرس، فتح الموضوع مجددًا وبدء اختبار تدريبي؛ التحقق أن استجابة بدء المحاولة لا تحتوي `correct_answer` أو `answer_key`، ثم تسليم المحاولة بلا إجابات، والتحقق أن الخادم يعيد HTTP 200 ودرجة صفرية وتغذية راجعة لكل سؤال، ثم إعادة تحميل التطبيق والتحقق أن المحاولة نفسها ودرجتها ووقت تسليمها ظاهرة في سجل محاولات الموضوع. التغيير يقتصر على `frontend/e2e/smoke_test.py` ولا يغيّر كود التطبيق أو API أو DB أو migrations أو الاعتماديات.
 - التحقق على PR #70: [CI #41910145738](https://github.com/HVA09/lumen-learning-platform/actions/runs/41910145738) وCI ما بعد الدمج [#41914599965](https://github.com/HVA09/lumen-learning-platform/actions/runs/41914599965) نجحا بجميع الوظائف الأربع.
 - التحقق على PR #73: [CI #41919944969](https://github.com/HVA09/lumen-learning-platform/actions/runs/41919944969) نجح على رأس `1f929c6403a59cc4154999f42d4c9f784124b963` في الوظائف الأربع. Backend **423 passed, 20 warnings**؛ Frontend **80 passed عبر 16 ملفًا**؛ Ruff **0 diagnostics**؛ production dependency audit **0 vulnerabilities**؛ full dependency tree audit **2 Low و4 Moderate، وصفر High/Critical**؛ Playwright أثبت استكمال الدرس واستعادة تقدمه بعد reload؛ Gitleaks full-history نجح.
 - CI بعد دمج PR #73 على `main`: [#41920779594](https://github.com/HVA09/lumen-learning-platform/actions/runs/41920779594) نجح على commit `2d8721efbd581952cb16c3b6d64904a6ef5f6256` في الوظائف الأربع. Backend **423 passed, 20 warnings**؛ Frontend **80 passed عبر 16 ملفًا**؛ Ruff **0 diagnostics**؛ production dependency audit **0 vulnerabilities**؛ full dependency audit **2 Low و4 Moderate، وصفر High/Critical**؛ Browser E2E وGitleaks full-history نجحا.
-- قيد التغطية: التغطية الحالية لا تشمل تسليم Quiz والتحقق من النتيجة، أدوار teacher/admin، إدارة المحتوى من منظور هذه الأدوار، رفع الملفات، الإشعارات/WebSocket، RTL/LTR عبر جميع الصفحات، أو الانقطاع/العودة والعمل دون اتصال. أضف هذه السيناريوهات تدريجيًا دون استخدام بيانات طلاب حقيقية.
-- قيد التشغيل: جميع الخدمات والبيانات وبيانات الاعتماد داخل CI مؤقتة؛ لا يوجد نشر أو مزود خدمة مدفوع أو سر إنتاجي أو تفعيل دفع. دمج PR #70 و#73 لا يغيّر هذه القيود ولا يثبت جاهزية الإنتاج.
-- التراجع: إزالة وظيفة `browser-e2e` من workflow وحذف ملفات `frontend/e2e/`؛ لا يتطلب ذلك تغيير API أو قاعدة البيانات أو migrations أو سلوك التطبيق.
+- التحقق على PR #75: [CI #41925605855](https://github.com/HVA09/lumen-learning-platform/actions/runs/41925605855) نجح بجميع الوظائف الأربع على الرأس `87e3778b581e4a04e275024defa080b194e0ba62`؛ Browser E2E أثبت إخفاء answer keys وتسليم Quiz وتخزين سجل المحاولة بعد reload.
+- CI بعد دمج PR #75 على `main`: [#41938791393](https://github.com/HVA09/lumen-learning-platform/actions/runs/41938791393) نجح بجميع الوظائف الأربع على commit `1c94e4f73695b675d8929daf25b35c8d718aac5d`. Backend **423 passed, 20 warnings**؛ Frontend **80 passed عبر 16 ملفًا**؛ Ruff **0 diagnostics**؛ production dependency audit **0 vulnerabilities**؛ full dependency audit **2 Low و4 Moderate، وصفر High/Critical**؛ Browser E2E وGitleaks full-history نجحا.
+- قيد التغطية: يغطي Quiz الحالي مسار محاولة فارغة ودرجة صفرية وتغذية راجعة وحفظ history؛ لا يثبت بعد صحة تصحيح إجابات غير فارغة أو عتبة النجاح. كما لا تشمل التغطية أدوار teacher/admin، إدارة المحتوى من منظور هذه الأدوار، رفع الملفات، الإشعارات/WebSocket، RTL/LTR عبر جميع الصفحات، أو الانقطاع/العودة والعمل دون اتصال. أضف هذه السيناريوهات تدريجيًا دون استخدام بيانات طلاب حقيقية.
+- قيد التشغيل: جميع الخدمات والبيانات وبيانات الاعتماد داخل CI مؤقتة؛ لا يوجد نشر أو مزود خدمة مدفوع أو سر إنتاجي أو تفعيل دفع. دمج PR #70 و#73 و#75 لا يغيّر هذه القيود ولا يثبت جاهزية الإنتاج.
+- التراجع: لإلغاء توسعة Quiz فقط، احذف مقطع Quiz المضاف إلى `frontend/e2e/smoke_test.py` مع إبقاء تسجيل الدخول واختبار الدرس. إزالة وظيفة `browser-e2e` كاملة وحذف ملفات `frontend/e2e/` تلغي كل تغطية المتصفح وتتطلب قرارًا منفصلًا؛ لا يتطلب التراجع عن الاختبار تغيير API أو قاعدة البيانات أو migrations أو سلوك التطبيق.
