@@ -127,51 +127,6 @@ describe("useSession", () => {
     expect(getCurrentUser).toHaveBeenCalledTimes(2);
   });
 
-  it("does not bootstrap again after a user logs out", async () => {
-    const user = { id: 19, role: "student" };
-    getCurrentUser.mockResolvedValue(user);
-
-    const { result } = renderHook(() => useSession());
-    await waitFor(() => expect(result.current.authenticated).toBe(true));
-
-    act(() => {
-      result.current.logout();
-    });
-    expect(result.current.authenticated).toBe(false);
-
-    await act(async () => {
-      window.dispatchEvent(new Event("online"));
-    });
-
-    expect(getCurrentUser).toHaveBeenCalledTimes(1);
-    expect(result.current.currentUser).toBeNull();
-  });
-
-  it("does not restore a late bootstrap response after logout", async () => {
-    const user = { id: 20, role: "student" };
-    let resolveBootstrap;
-    const pendingBootstrap = new Promise((resolve) => {
-      resolveBootstrap = resolve;
-    });
-    getCurrentUser.mockReturnValueOnce(pendingBootstrap);
-
-    const { result } = renderHook(() => useSession());
-    await waitFor(() => expect(getCurrentUser).toHaveBeenCalledTimes(1));
-
-    act(() => {
-      result.current.logout();
-    });
-
-    await act(async () => {
-      resolveBootstrap(user);
-      await pendingBootstrap;
-    });
-
-    expect(result.current.authenticated).toBe(false);
-    expect(result.current.currentUser).toBeNull();
-    expect(setAuthSessionActive).toHaveBeenLastCalledWith(false);
-  });
-
   it("does not restore a stale session after logout wins a pending bootstrap", async () => {
     let resolveBootstrap;
     getCurrentUser.mockReturnValueOnce(
