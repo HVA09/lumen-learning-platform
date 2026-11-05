@@ -8,7 +8,9 @@ function installWebSocketMock() {
   class MockWebSocket {
     constructor(url) {
       this.url = url;
+      this.onopen = null;
       this.onmessage = null;
+      this.onclose = null;
       this.close = vi.fn();
       instances.push(this);
     }
@@ -21,6 +23,7 @@ function installWebSocketMock() {
 describe("useNotificationsSocket", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.useRealTimers();
   });
 
   it("does not connect while notifications are disabled", () => {
@@ -67,6 +70,88 @@ describe("useNotificationsSocket", () => {
     });
 
     expect(onNotification).not.toHaveBeenCalled();
+  });
+
+  it("reconnects after a transient close using capped exponential backoff", () => {
+    vi.useFakeTimers();
+    const instances = installWebSocketMock();
+    renderHook(() =>
+      useNotificationsSocket({ enabled: true, onNotification: vi.fn() })
+    );
+
+    act(() => {
+      instances[0].onclose({ code: 1006 });
+      vi.advanceTimersByTime(1_000);
+    });
+    expect(instances).toHaveLength(2);
+
+    act(() => {
+      instances[1].onclose({ code: 1006 });
+      vi.advanceTimersByTime(1_999);
+    });
+    expect(instances).toHaveLength(2);
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(instances).toHaveLength(3);
+  });
+
+  it("resets the reconnect delay after the socket opens", () => {
+    vi.useFakeTimers();
+    const instances = installWebSocketMock();
+    renderHook(() =>
+      useNotificationsSocket({ enabled: true, onNotification: vi.fn() })
+    );
+
+    act(() => {
+      instances[0].onclose({ code: 1006 });
+      vi.advanceTimersByTime(1_000);
+    });
+    expect(instances).toHaveLength(2);
+
+    act(() => {
+      instances[1].onopen();
+      instances[1].onclose({ code: 1006 });
+      vi.advanceTimersByTime(1_000);
+    });
+    expect(instances).toHaveLength(3);
+  });
+
+  it("does not retry terminal authentication or origin close codes", () => {
+    vi.useFakeTimers();
+    const instances = installWebSocketMock();
+    renderHook(() =>
+      useNotificationsSocket({ enabled: true, onNotification: vi.fn() })
+    );
+
+    act(() => {
+      instances[0].onclose({ code: 4001 });
+      vi.advanceTimersByTime(60_000);
+    });
+
+    expect(instances).toHaveLength(1);
+  });
+
+  it("cancels a pending reconnect and closes the socket on unmount", () => {
+    vi.useFakeTimers();
+    const instances = installWebSocketMock();
+    const { unmount } = renderHook(() =>
+      useNotificationsSocket({ enabled: true, onNotification: vi.fn() })
+    );
+    const socket = instances[0];
+
+    act(() => {
+      socket.onclose({ code: 1006 });
+    });
+    unmount();
+
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
+
+    expect(instances).toHaveLength(1);
+    expect(socket.close).toHaveBeenCalledTimes(1);
   });
 
   it("closes the socket and detaches its message handler on unmount", () => {
