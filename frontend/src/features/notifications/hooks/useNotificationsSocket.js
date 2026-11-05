@@ -69,6 +69,9 @@ export default function useNotificationsSocket({ enabled, onNotification }) {
       };
       connection.onclose = (event) => {
         if (socket === connection) socket = null;
+        connection.onopen = null;
+        connection.onmessage = null;
+        connection.onclose = null;
         if (NON_RETRYABLE_CLOSE_CODES.has(event.code)) return;
         scheduleReconnect();
       };
