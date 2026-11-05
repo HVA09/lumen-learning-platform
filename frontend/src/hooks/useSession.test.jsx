@@ -75,6 +75,48 @@ describe("useSession", () => {
     expect(setAuthSessionActive).toHaveBeenCalledWith(false);
   });
 
+  it("retries session bootstrap when the browser reports that the network is back", async () => {
+    const user = { id: 17, role: "student" };
+    getCurrentUser
+      .mockRejectedValueOnce(new Error("network unavailable"))
+      .mockResolvedValueOnce(user);
+
+    const { result } = renderHook(() => useSession());
+
+    await waitFor(() => expect(result.current.authReady).toBe(true));
+    expect(result.current.authenticated).toBe(false);
+
+    act(() => {
+      window.dispatchEvent(new Event("online"));
+    });
+
+    await waitFor(() => {
+      expect(result.current.authenticated).toBe(true);
+      expect(result.current.currentUser).toEqual(user);
+    });
+    expect(getCurrentUser).toHaveBeenCalledTimes(2);
+    expect(setAuthSessionActive).toHaveBeenLastCalledWith(true);
+  });
+
+  it("keeps an active session when a profile refresh fails after reconnect", async () => {
+    const user = { id: 18, role: "teacher" };
+    getCurrentUser
+      .mockResolvedValueOnce(user)
+      .mockRejectedValueOnce(new Error("network unavailable"));
+
+    const { result } = renderHook(() => useSession());
+    await waitFor(() => expect(result.current.authenticated).toBe(true));
+
+    act(() => {
+      window.dispatchEvent(new Event("online"));
+    });
+
+    await waitFor(() => expect(getCurrentUser).toHaveBeenCalledTimes(2));
+
+    expect(result.current.authenticated).toBe(true);
+    expect(result.current.currentUser).toEqual(user);
+  });
+
   it("marks a successful login and reloads the current user", async () => {
     const user = { id: 14, role: "admin" };
     getCurrentUser
@@ -108,6 +150,11 @@ describe("useSession", () => {
     expect(result.current.currentUser).toBeNull();
     expect(setAuthSessionActive).toHaveBeenLastCalledWith(false);
     expect(logoutUser).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      window.dispatchEvent(new Event("online"));
+    });
+    expect(getCurrentUser).toHaveBeenCalledTimes(1);
   });
 
   it("handles unauthorized events and notifies the app shell", async () => {
@@ -135,5 +182,6 @@ describe("useSession", () => {
     unmount();
 
     expect(removeSpy).toHaveBeenCalledWith("auth:unauthorized", expect.any(Function));
+    expect(removeSpy).toHaveBeenCalledWith("online", expect.any(Function));
   });
 });
