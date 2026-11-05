@@ -13,8 +13,6 @@ export default function useSession({ onSessionExpired } = {}) {
   const [currentUser, setCurrentUser] = useState(null);
   const authenticatedRef = useRef(false);
   const logoutRequestedRef = useRef(false);
-  const bootstrapInFlightRef = useRef(false);
-  const bootstrapRetryRequestedRef = useRef(false);
 
   const refreshCurrentUser = useCallback(async () => {
     try {
@@ -53,15 +51,17 @@ export default function useSession({ onSessionExpired } = {}) {
 
   useEffect(() => {
     let mounted = true;
+    let bootstrapInFlight = false;
+    let bootstrapRetryRequested = false;
 
     const bootstrapSession = async () => {
       if (!mounted || logoutRequestedRef.current) return;
-      if (bootstrapInFlightRef.current) {
-        bootstrapRetryRequestedRef.current = true;
+      if (bootstrapInFlight) {
+        bootstrapRetryRequested = true;
         return;
       }
 
-      bootstrapInFlightRef.current = true;
+      bootstrapInFlight = true;
       try {
         let user;
         try {
@@ -85,11 +85,11 @@ export default function useSession({ onSessionExpired } = {}) {
           setCurrentUser(null);
         }
       } finally {
-        bootstrapInFlightRef.current = false;
+        bootstrapInFlight = false;
         if (mounted) {
           setAuthReady(true);
-          if (bootstrapRetryRequestedRef.current) {
-            bootstrapRetryRequestedRef.current = false;
+          if (bootstrapRetryRequested) {
+            bootstrapRetryRequested = false;
             if (!logoutRequestedRef.current) {
               if (authenticatedRef.current) {
                 void refreshCurrentUser();
@@ -99,15 +99,15 @@ export default function useSession({ onSessionExpired } = {}) {
             }
           }
         } else {
-          bootstrapRetryRequestedRef.current = false;
+          bootstrapRetryRequested = false;
         }
       }
     };
 
     const handleOnline = () => {
       if (!mounted || logoutRequestedRef.current) return;
-      if (bootstrapInFlightRef.current) {
-        bootstrapRetryRequestedRef.current = true;
+      if (bootstrapInFlight) {
+        bootstrapRetryRequested = true;
         return;
       }
       if (authenticatedRef.current) {
@@ -122,7 +122,7 @@ export default function useSession({ onSessionExpired } = {}) {
 
     return () => {
       mounted = false;
-      bootstrapRetryRequestedRef.current = false;
+      bootstrapRetryRequested = false;
       window.removeEventListener("online", handleOnline);
     };
   }, [refreshCurrentUser]);
