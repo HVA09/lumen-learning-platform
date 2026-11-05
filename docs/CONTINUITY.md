@@ -5,7 +5,7 @@
 ## نقطة الاستئناف — 2026-11-05
 
 - آخر commit برمجي على main: PR #84، commit `11a77588d73f3c5a98365549b2e07002f7491d9e`.
-- CI على PR #84 رقم #41953273414 نجح بالوظائف الأربع؛ Browser E2E استخدم ClamAV حقيقيًا في حاوية مؤقتة، وقبل ملفًا نظيفًا ورفض EICAR مع إثبات عدم حفظ الملف المرفوض أو metadata. CI ما بعد الدمج على main رقم #41954300369 كان قيد التنفيذ عند آخر تحديث.
+- CI على PR #84 رقم #41953273414 نجح بالوظائف الأربع؛ Browser E2E استخدم ClamAV حقيقيًا في حاوية مؤقتة، وقبل ملفًا نظيفًا ورفض EICAR مع إثبات عدم حفظ الملف المرفوض أو metadata. CI ما بعد الدمج على main [#41954300369](https://github.com/HVA09/lumen-learning-platform/actions/runs/41954300369) نجح بالكامل 4/4؛ Backend 423 passed و20 warnings؛ Ruff 0 diagnostics؛ Frontend 80 passed عبر 16 ملفًا؛ production audit بلا ثغرات؛ full audit: 2 Low و4 Moderate وصفر High/Critical؛ Browser E2E وGitleaks وmigrations وPostgreSQL backup/restore نجحت.
 - P6.6 يغطي التسجيل والجلسة، الدرس والتقدم والنشر، Quiz وسجل المحاولات، الأدوار وعزل الفصول، إدارة الأسئلة، وفحص ClamAV الحقيقي.
 - الخطوة التالية: توسيع Browser E2E لحالات Quiz المختلطة والحدّية، ثم اختبار إشعارات WebSocket متعددة الجلسات مع إعادة الاتصال، ثم RTL/LTR وفقدان الشبكة وعودتها.
 - لا يوجد نشر إنتاجي مثبت؛ لا تنشئ موارد مدفوعة أو تتجاوز CI أو branch protection. المرجع التفصيلي للحالة والخطوات هو docs/PROJECT_STATUS.md، وللقرارات docs/DECISIONS.md، وللتحقق docs/QUALITY_BASELINE.md.
