@@ -97,6 +97,21 @@ describe("useNotificationsSocket", () => {
     expect(instances).toHaveLength(3);
   });
 
+  it("reconnects immediately when the browser reports that the network is back", () => {
+    vi.useFakeTimers();
+    const instances = installWebSocketMock();
+    renderHook(() =>
+      useNotificationsSocket({ enabled: true, onNotification: vi.fn() })
+    );
+
+    act(() => {
+      instances[0].onclose({ code: 1006 });
+      window.dispatchEvent(new Event("online"));
+    });
+
+    expect(instances).toHaveLength(2);
+  });
+
   it("resets the reconnect delay after the socket opens", () => {
     vi.useFakeTimers();
     const instances = installWebSocketMock();
@@ -159,6 +174,7 @@ describe("useNotificationsSocket", () => {
 
   it("closes the socket and detaches its message handler on unmount", () => {
     const instances = installWebSocketMock();
+    const removeSpy = vi.spyOn(window, "removeEventListener");
     const { unmount } = renderHook(() =>
       useNotificationsSocket({ enabled: true, onNotification: vi.fn() })
     );
@@ -168,5 +184,6 @@ describe("useNotificationsSocket", () => {
 
     expect(socket.onmessage).toBeNull();
     expect(socket.close).toHaveBeenCalledTimes(1);
+    expect(removeSpy).toHaveBeenCalledWith("online", expect.any(Function));
   });
 });
