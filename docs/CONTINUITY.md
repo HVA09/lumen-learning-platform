@@ -4,7 +4,7 @@
 
 ## نقطة الاستئناف — 2026-11-05
 
-- آخر تغيير برمجي مدمج على main: PR #91 عند Squash commit `d7962c2553a5af206eaa27cd27dbae560cfcef94`. CI بعد الدمج [#42105382640](https://github.com/HVA09/lumen-learning-platform/actions/runs/42105382640) كان pending عند آخر تحقق؛ CI على PR [#42104050543](https://github.com/HVA09/lumen-learning-platform/actions/runs/42104050543) نجح 4/4.
+- آخر تغيير برمجي مدمج على main: PR #91 عند Squash commit `d7962c2553a5af206eaa27cd27dbae560cfcef94`. CI بعد الدمج [#42105382640](https://github.com/HVA09/lumen-learning-platform/actions/runs/42105382640) اكتمل بنجاح 4/4؛ CI على PR [#42104050543](https://github.com/HVA09/lumen-learning-platform/actions/runs/42104050543) نجح 4/4.
 - PR #87 أضاف إعادة اتصال WebSocket للإشعارات بانقطاع مؤقت بتأخير تصاعدي محدود (1–30 ثانية)، مع عدم إعادة المحاولة لرموز الإغلاق النهائية 1008 و4001، وتنظيف المؤقتات ومعالجات الأحداث عند إلغاء المكوّن. أضاف اختبارات Frontend واختبار Backend يثبت وصول الإشعار نفسه إلى جلستين مستقلتين للمستخدم نفسه وحفظه في سجل الإشعارات. PR CI #41959167152 وCI بعد الدمج على main [#42091787403](https://github.com/HVA09/lumen-learning-platform/actions/runs/42091787403) نجحا 4/4.
 - PR #88 أضاف Browser E2E لمحاولة بوابة أقل من الحد (7/10 عند عتبة 80%)، والتحقق من تصحيح الخادم وحفظ نتيجة الرسوب في السجل ورفض إعادة المحاولة فورًا بـ HTTP 429. CI للـ PR [#42092155512](https://github.com/HVA09/lumen-learning-platform/actions/runs/42092155512) نجح 4/4؛ PR مدمج.
 - CI بعد PR #88 على main [#42092874266](https://github.com/HVA09/lumen-learning-platform/actions/runs/42092874266) اكتمل بنجاح 4/4 على commit `92b05ca09c489857328647f42f61a39c969dea0f`.
