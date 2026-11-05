@@ -11,7 +11,7 @@ export default function useSession({ onSessionExpired } = {}) {
   const [authenticated, setAuthenticated] = useState(false);
   const [authReady, setAuthReady] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
-  const sessionResolvedRef = useRef(false);
+  const sessionResolved = useRef(false);
 
   const refreshCurrentUser = useCallback(async () => {
     try {
@@ -25,14 +25,15 @@ export default function useSession({ onSessionExpired } = {}) {
   }, []);
 
   const markAuthenticated = useCallback(() => {
-    sessionResolvedRef.current = true;
+    sessionResolved.current = true;
     setAuthSessionActive(true);
     setAuthenticated(true);
     void refreshCurrentUser();
   }, [refreshCurrentUser]);
 
   const logout = useCallback(() => {
-    sessionResolvedRef.current = true;
+    // Do not let a later browser "online" event silently restore a logged-out session.
+    sessionResolved.current = true;
     setAuthSessionActive(false);
     // Revoke the server session and clear HttpOnly cookies; UI logout is immediate.
     logoutUser().catch(() => {});
@@ -49,9 +50,14 @@ export default function useSession({ onSessionExpired } = {}) {
   useEffect(() => {
     let mounted = true;
     let bootstrapInFlight = false;
+    let retryAfterCurrentAttempt = false;
 
     const bootstrapSession = async () => {
-      if (!mounted || bootstrapInFlight || sessionResolvedRef.current) return;
+      if (!mounted || sessionResolved.current) return;
+      if (bootstrapInFlight) {
+        retryAfterCurrentAttempt = true;
+        return;
+      }
 
       bootstrapInFlight = true;
       try {
@@ -64,22 +70,36 @@ export default function useSession({ onSessionExpired } = {}) {
           user = await getCurrentUser();
         }
 
-        if (!mounted || sessionResolvedRef.current) return;
-        sessionResolvedRef.current = true;
+        if (!mounted || sessionResolved.current) return;
+        sessionResolved.current = true;
         setCurrentUser(user);
         setAuthSessionActive(true);
         setAuthenticated(true);
       } catch {
-        if (mounted) setAuthSessionActive(false);
+        if (mounted && !sessionResolved.current) {
+          setAuthSessionActive(false);
+        }
       } finally {
         bootstrapInFlight = false;
-        if (mounted) setAuthReady(true);
+        if (mounted) {
+          setAuthReady(true);
+          if (!sessionResolved.current && retryAfterCurrentAttempt) {
+            retryAfterCurrentAttempt = false;
+            void bootstrapSession();
+          }
+        }
       }
     };
 
     const handleOnline = () => {
-      // A transient startup network failure must not require a manual page reload.
-      if (!sessionResolvedRef.current) void bootstrapSession();
+      // Retry startup only; authenticated, logged-out, or otherwise resolved sessions
+      // must not be changed by connectivity notifications.
+      if (sessionResolved.current) return;
+      if (bootstrapInFlight) {
+        retryAfterCurrentAttempt = true;
+        return;
+      }
+      void bootstrapSession();
     };
 
     window.addEventListener("online", handleOnline);
