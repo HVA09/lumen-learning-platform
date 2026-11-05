@@ -117,15 +117,14 @@ def _exercise_real_clamav_upload(page) -> None:
 
     assert not stored_files(), "The isolated E2E upload directory must start empty"
 
-    png_signature = bytes((0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A))
-    clean_payload = png_signature + b"Lumen clean ClamAV integration fixture"
+    clean_payload = b"topic,notes\nLumen,clean ClamAV integration fixture\n"
     clean_response = page.request.post(
         f"{API_URL}/files/upload",
         headers=headers,
         multipart={
             "file": {
-                "name": "clamav-clean.png",
-                "mimeType": "image/png",
+                "name": "clamav-clean.csv",
+                "mimeType": "text/csv",
                 "buffer": clean_payload,
             }
         },
@@ -136,7 +135,7 @@ def _exercise_real_clamav_upload(page) -> None:
         f"{clean_response.text()}"
     )
     clean_attachment = clean_response.json()
-    assert clean_attachment["original_filename"] == "clamav-clean.png"
+    assert clean_attachment["original_filename"] == "clamav-clean.csv"
     assert clean_attachment["size_bytes"] == len(clean_payload)
 
     clean_files = stored_files()
@@ -149,17 +148,18 @@ def _exercise_real_clamav_upload(page) -> None:
 
     # EICAR is a harmless industry-standard antivirus test signature, not live malware.
     eicar_signature = (
-        b"X5O!P%@AP[4" + bytes((0x5C,)) + b"PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*"
+        b"X5O!P%@AP[4"
+        + bytes((0x5C,))
+        + b"PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*"
     )
-    infected_payload = png_signature + eicar_signature
     infected_response = page.request.post(
         f"{API_URL}/files/upload",
         headers=headers,
         multipart={
             "file": {
-                "name": "clamav-eicar-test.png",
-                "mimeType": "image/png",
-                "buffer": infected_payload,
+                "name": "clamav-eicar-test.csv",
+                "mimeType": "text/csv",
+                "buffer": eicar_signature,
             }
         },
         timeout=120_000,
