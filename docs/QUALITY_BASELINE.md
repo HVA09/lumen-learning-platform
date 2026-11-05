@@ -5,7 +5,7 @@
 ## 1. المرجع وحدود هذا التقييم
 
 - المستودع: `HVA09/lumen-learning-platform`.
-- آخر تغيير برمجي مدمج على main: PR #82 عند commit cf15149abe546627ee36feba65fcf48dbab3ba64. CI PR #82 #41949826358 وCI ما بعد الدمج #41950657568 نجحا 4/4؛ Backend 423 passed و20 warnings، Ruff 0 diagnostics، Frontend 80 passed عبر 16 ملفًا، production audit 0 vulnerabilities، والتدقيق الكامل 2 Low و4 Moderate. PR #80 و#81 و#82 اختبرت نشر الدرس وعتبة اجتياز Quiz ودورة السؤال من واجهة المعلم؛ التغييرات اختبارية في frontend/e2e/smoke_test.py فقط.
+- آخر تغيير برمجي مدمج على main: PR #84 عند commit `11a77588d73f3c5a98365549b2e07002f7491d9e`. PR CI #41953273414 نجح 4/4؛ اختبار Browser E2E اتصل بـ ClamAV حقيقي داخل حاوية مؤقتة، قبل ملف CSV نظيفًا ورفض EICAR بـ HTTP 422، وأثبت عدم بقاء الملف المرفوض أو metadata. CI ما بعد الدمج على main [#41954300369](https://github.com/HVA09/lumen-learning-platform/actions/runs/41954300369) نجح بالكامل 4/4؛ Backend 423 passed و20 warnings؛ Ruff 0 diagnostics؛ Frontend 80 passed عبر 16 ملفًا؛ production audit بلا ثغرات؛ full audit: 2 Low و4 Moderate وصفر High/Critical؛ Browser E2E وGitleaks وmigrations وPostgreSQL backup/restore نجحت.
 - هذا الملف يوثق ما هو مفعّل فعليًا في المستودع وCI، ثم يقترح إدخال أدوات الجودة تدريجيًا.
 - هذا التقييم توثيقي فقط؛ لا يضيف اعتماديات أو يغيّر سلوك التطبيق أو شروط CI.
 
@@ -18,10 +18,11 @@
 | Frontend tests and production build | تثبيت الاعتماديات بواسطة `npm ci`، اختبارات Vitest، بناء Vite الإنتاجي، تدقيق الاعتماديات الإنتاجية |
 | Backend tests | Python 3.12، Ruff 0.17.3 report-only، PostgreSQL 16 وRedis، اختبار pytest الكامل، migrations، Compose، Restic smoke، وPostgreSQL backup/restore |
 | Full Git history secret scan | Gitleaks على نطاق PR، وفحص كل refs والتاريخ الكامل والأرشيفات |
-| Browser E2E (registration and browser session) | Playwright + Chromium على Vite production preview مع FastAPI وPostgreSQL وRedis مؤقتة؛ التسجيل والجلسة الآمنة، استعادة التقدم، نشر الدرس، تسليم Quiz وحفظ history، تصحيح الإجابات الصحيحة عند عتبة البوابة، مصفوفة صلاحيات الطالب/المعلم/المسؤول وعزل الفصول، وإدارة السؤال (إنشاء/تعديل/تعطيل/حذف). حسابات الأدوار مؤقتة وترقيتها محصورة في قاعدة lumen_e2e المحلية المؤقتة. |
+| Browser E2E (registration and browser session) | Playwright + Chromium على Vite production preview مع FastAPI وPostgreSQL وRedis وClamAV مؤقتة؛ التسجيل والجلسة، الدرس والتقدم والنشر، Quiz وسجل المحاولات والعتبة، صلاحيات الأدوار وعزل الفصول، وإدارة السؤال. PR #84 أضاف قبول CSV نظيف ورفض EICAR HTTP 422 مع التحقق من حذف الملف المرفوض وعدم حفظ metadata. حسابات الأدوار والملفات وقاعدة البيانات مؤقتة ومحلية في CI. |
 
 نتيجة التحقق لـ P6.6:
 
+- PR #84 وCI [#41953273414](https://github.com/HVA09/lumen-learning-platform/actions/runs/41953273414): أضافا ClamAV 1.4.6 كخدمة مؤقتة في Browser E2E CI. نجح الملف النظيف، ورُفضت عينة EICAR غير الضارة للاختبار بـ HTTP 422؛ تحقق السيناريو من بقاء الملف النظيف فقط وعدم إنشاء سجل attachment للعينة المرفوضة. نجحت وظائف Frontend tests/build وBackend وGitleaks كذلك؛ التشغيل 4/4.
 - PR #70 (CI ما بعد الدمج #41914599965) أثبت التسجيل والجلسة الآمنة واستعادتها والخروج.
 - PR #73 (CI #41919944969 على رأس `1f929c6403a59cc4154999f42d4c9f784124b963`) وسّع السيناريو إلى إكمال درس والتحقق من حفظ التقدم في الخادم واستعادته بعد reload. الوظائف الأربع نجحت: Backend **423 passed, 20 warnings**؛ Ruff **0 diagnostic(s)**؛ Frontend **80 passed عبر 16 ملفًا**؛ Browser E2E passed؛ production audit **0 vulnerabilities**؛ full dependency audit **2 Low و4 Moderate، وصفر High/Critical**؛ Gitleaks full-history نجح.
 - CI ما بعد دمج PR #73 على `main` هو [#41920779594](https://github.com/HVA09/lumen-learning-platform/actions/runs/41920779594) ونجح بجميع الوظائف الأربع على commit `2d8721efbd581952cb16c3b6d64904a6ef5f6256`. Backend **423 passed, 20 warnings**؛ Frontend **80 passed عبر 16 ملفًا**؛ Browser E2E أثبت إكمال الدرس واستمرار التقدم بعد reload؛ Ruff **0 diagnostics**؛ production audit **0 vulnerabilities**؛ full dependency audit **2 Low و4 Moderate**؛ Gitleaks full-history نجح.
@@ -205,10 +206,10 @@
 
 ## 8. نقطة الاستئناف
 
-- آخر تغيير برمجي مدمج على main: PR #82 عند cf15149abe546627ee36feba65fcf48dbab3ba64. CI على PR #82 #41949826358 وCI بعد الدمج #41950657568 نجحا 4/4. Backend 423 passed و20 warnings؛ Ruff 0 diagnostics؛ Frontend 80 passed عبر 16 ملفًا؛ production audit 0 vulnerabilities؛ full dependency audit 2 Low و4 Moderate.
-- P6.6 يغطي التسجيل والجلسة، تقدم الدرس واستعادته، نشر الدرس، Quiz فارغاً وسجل محاولاته، اجتياز البوابة عند العتبة، مصفوفة الأدوار وعزل الفصول، ودورة إدارة السؤال من واجهة المعلم.
+- آخر تغيير برمجي مدمج على main: PR #84 عند `11a77588d73f3c5a98365549b2e07002f7491d9e`. PR CI #41953273414 نجح 4/4؛ CI ما بعد الدمج #41954300369 كان قيد التنفيذ وقت التوثيق.
+- P6.6 يغطي التسجيل والجلسة، تقدم الدرس ونشره، Quiz وسجل المحاولات وعتبة النجاح، الأدوار وعزل الفصول، إدارة الأسئلة، وفحص ClamAV الحقيقي مع تنظيف الملفات المرفوضة.
 - حسابات E2E ذات الأدوار مؤقتة؛ الترقية محصورة في قاعدة PostgreSQL المحلية المسماة lumen_e2e مع التحقق من المضيف وتطابق DATABASE_URL. لا توجد نقطة ترقية دور في التطبيق.
 - P6.1: Ruff 0.17.3 report-only والنتيجة الحالية 0 diagnostic(s)؛ لا يوجد ESLint معتمد في main.
 - P6.5: PR #59/#62/#64/#65/#67 مدمجة؛ خفض precache في #67 بنحو 71.5%. لا توجد قياسات أداء ميدانية.
-- الخطوة التالية: تكامل ClamAV حقيقي في CI مع ملف نظيف وملف EICAR اختباري ورفض fail-closed عند تعطل الماسح؛ ثم توسيع حالات Quiz المتبقية، واختبارات الإشعارات/WebSocket وRTL/LTR والاتصال.
+- الخطوة التالية: توسيع Browser E2E لحالات Quiz المختلطة والحدّية؛ ثم اختبار إشعارات WebSocket بين جلسات مختلفة وإعادة الاتصال؛ ثم RTL/LTR وانقطاع الشبكة وعودتها.
 - لا يوجد نشر إنتاجي مثبت؛ خدمة ClamAV في CI لا تثبت جاهزية الماسح أو موارده على مضيف الإنتاج.
