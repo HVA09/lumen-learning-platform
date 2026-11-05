@@ -54,6 +54,63 @@ def _register_browser_user(browser, email: str, password: str):
         raise
 
 
+
+def _exercise_session_bootstrap_network_recovery(browser) -> None:
+    """Verify a failed startup profile request recovers on the browser online event."""
+    email = f"browser-e2e-network-{uuid.uuid4().hex[:10]}@example.com"
+    password = "BrowserE2E-Pass-2026"
+    context, page = _register_browser_user(browser, email, password)
+    profile_request_failed = False
+
+    def fail_first_profile_request(route) -> None:
+        nonlocal profile_request_failed
+        if (
+            route.request.method == "GET"
+            and route.request.url.rstrip("/").endswith("/users/me")
+            and not profile_request_failed
+        ):
+            profile_request_failed = True
+            route.abort("internetdisconnected")
+            return
+        route.continue_()
+
+    try:
+        page.route("**/users/me", fail_first_profile_request)
+        page.reload(wait_until="domcontentloaded")
+
+        expect(page.get_by_placeholder("البريد الإلكتروني")).to_be_visible(
+            timeout=30_000
+        )
+        assert profile_request_failed, (
+            "The initial current-user request should fail during the simulated outage"
+        )
+
+        with page.expect_response(
+            lambda response: response.request.method == "GET"
+            and response.url.rstrip("/").endswith("/users/me"),
+            timeout=30_000,
+        ) as recovery_response_info:
+            # Toggle the browser network state to emit its real online event while
+            # keeping the already-loaded application document alive.
+            context.set_offline(True)
+            context.set_offline(False)
+
+        recovery_response = recovery_response_info.value
+        assert recovery_response.status == 200, (
+            "Session bootstrap should recover through GET /users/me after the browser "
+            f"returns online; received HTTP {recovery_response.status}"
+        )
+        expect(page.get_by_text("إتقانك الإجمالي", exact=True)).to_be_visible(
+            timeout=30_000
+        )
+        print(
+            "Browser network recovery passed: failed startup profile request recovered "
+            "on the browser online event without reloading the application."
+        )
+    finally:
+        context.close()
+
+
 def _promote_e2e_user(email: str, role: str) -> None:
     """Assign a role only inside the disposable local lumen_e2e CI database."""
     from sqlalchemy.engine import make_url
@@ -191,6 +248,12 @@ def run_smoke_test() -> None:
 
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
+        try:
+            _exercise_session_bootstrap_network_recovery(browser)
+        except Exception:
+            browser.close()
+            raise
+
         context = browser.new_context(
             viewport={"width": 390, "height": 844},
             locale="ar",
