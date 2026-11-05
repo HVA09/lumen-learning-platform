@@ -706,6 +706,11 @@ def run_smoke_test() -> None:
                     for question in question_list_after_delete.json()
                 ), "Deleted question must disappear from the teacher question bank"
 
+                # Return to the lessons tab before exercising lesson publishing.
+                teacher_a_page.get_by_role(
+                    "button", name="الدروس", exact=True
+                ).click()
+
                 # Select the seeded lesson topic and create an unpublished draft
                 # through the teacher content manager.
                 teacher_a_page.locator("select").select_option(str(topic_id))
