@@ -172,3 +172,10 @@
 3. استكمال RUM/Core Web Vitals واختبار الأداء على هاتف واتصال بطيء عند توفر بيئة معاينة مناسبة.
 4. استكمال متطلبات P7: استضافة مجانية مناسبة بلا بطاقة، HTTPS، SMTP، ClamAV على موارد المضيف، أسرار خارج Git، ووجهة نسخ احتياطي خارجية واختبار استعادة حقيقي.
 
+
+
+## متابعة اختبارات SMTP — PR #101
+
+- PR #101: [test(backend): cover SMTP transport failure paths](https://github.com/HVA09/lumen-learning-platform/pull/101)، الفرع test/backend-email-smtp-fail-safe، مبني مؤقتًا على رأس PR #100 5c840464e66543a21e3398491da6ca7095896442 حتى تبقى التغييرات متسلسلة دون تكرار commits على main.
+- أضيفت اختبارات وهمية لاتصال SMTP وSTARTTLS والمصادقة والإرسال، مع التحقق من عدم تسجيل محتوى الرسالة عند الفشل. لا تغييرات runtime أو API أو DB أو migrations أو اعتماديات.
+- PR #100 لا يزال مفتوحًا؛ آخر CI مرصود على الرأس 5c840464e66543a21e3398491da6ca7095896442 نجح في Frontend/build وBrowser E2E وGitleaks، بينما Backend job لا يزال قيد التنفيذ عند آخر تحقق. لذلك لا نعتبر PR #100 ولا PR #101 مدمجين.
