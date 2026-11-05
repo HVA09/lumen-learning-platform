@@ -5,7 +5,7 @@
 ## 1. المرجع وحدود هذا التقييم
 
 - المستودع: `HVA09/lumen-learning-platform`.
-- آخر تغيير برمجي مدمج على `main`: PR #75 عند commit `1c94e4f73695b675d8929daf25b35c8d718aac5d`. CI على PR [#41925605855](https://github.com/HVA09/lumen-learning-platform/actions/runs/41925605855) وبعد الدمج على `main` [#41938791393](https://github.com/HVA09/lumen-learning-platform/actions/runs/41938791393) نجحا بجميع الوظائف الأربع. اختبار المتصفح يغطي التسجيل والجلسة، إكمال الدرس واستعادة التقدم، وتسليم Quiz وحفظ سجل المحاولة. نتيجة main: Backend **423 passed, 20 warnings**، Frontend **80 passed عبر 16 ملفًا**، Ruff **0 diagnostics**، production audit **0 vulnerabilities**، full dependency audit **2 Low و4 Moderate، وصفر High/Critical**، وGitleaks full-history نجح.
+- آخر تغيير برمجي مدمج على `main`: PR #77 عند commit `451572c1253351e0b4406ed21480b659b2862406`. CI على PR [#41940578786](https://github.com/HVA09/lumen-learning-platform/actions/runs/41940578786) وبعد الدمج على `main` [#41941142454](https://github.com/HVA09/lumen-learning-platform/actions/runs/41941142454) نجحا بجميع الوظائف الأربع. وسّع اختبار المتصفح مصفوفة أدوار الطالب والمعلم والمسؤول وعزل الفصول؛ التغيير في ملف الاختبار فقط.
 - هذا الملف يوثق ما هو مفعّل فعليًا في المستودع وCI، ثم يقترح إدخال أدوات الجودة تدريجيًا.
 - هذا التقييم توثيقي فقط؛ لا يضيف اعتماديات أو يغيّر سلوك التطبيق أو شروط CI.
 
@@ -18,7 +18,7 @@
 | Frontend tests and production build | تثبيت الاعتماديات بواسطة `npm ci`، اختبارات Vitest، بناء Vite الإنتاجي، تدقيق الاعتماديات الإنتاجية |
 | Backend tests | Python 3.12، Ruff 0.17.3 report-only، PostgreSQL 16 وRedis، اختبار pytest الكامل، migrations، Compose، Restic smoke، وPostgreSQL backup/restore |
 | Full Git history secret scan | Gitleaks على نطاق PR، وفحص كل refs والتاريخ الكامل والأرشيفات |
-| Browser E2E (registration and browser session) | Playwright + Chromium على نسخة Vite production preview مع FastAPI وPostgreSQL وRedis مؤقتة؛ التسجيل والجلسة واستعادتها والخروج، ثم فتح درس وإكماله والتحقق من بقاء التقدم بعد reload |
+| Browser E2E (registration and browser session) | Playwright + Chromium على نسخة Vite production preview مع FastAPI وPostgreSQL وRedis مؤقتة؛ التسجيل والجلسة الآمنة واستعادتها والخروج، وإكمال الدرس واستعادة التقدم، وتسليم Quiz وحفظ المحاولة، ثم إخفاء أدوات الإدارة عن الطالب، وإظهار إدارة المحتوى للمعلم والمسؤول، وإنشاء فصلين والتحقق من 403 عند عبور ملكية الفصل، والسماح للمسؤول بالوصول المصرح. حسابات الأدوار مؤقتة والترقية محصورة في قاعدة `lumen_e2e` المحلية المؤقتة. دورة نشر الدروس من Content Manager قيد الاختبار في PR #78.
 
 نتيجة التحقق لـ P6.6:
 
@@ -27,6 +27,9 @@
 - CI ما بعد دمج PR #73 على `main` هو [#41920779594](https://github.com/HVA09/lumen-learning-platform/actions/runs/41920779594) ونجح بجميع الوظائف الأربع على commit `2d8721efbd581952cb16c3b6d64904a6ef5f6256`. Backend **423 passed, 20 warnings**؛ Frontend **80 passed عبر 16 ملفًا**؛ Browser E2E أثبت إكمال الدرس واستمرار التقدم بعد reload؛ Ruff **0 diagnostics**؛ production audit **0 vulnerabilities**؛ full dependency audit **2 Low و4 Moderate**؛ Gitleaks full-history نجح.
 - PR #75 وCI [#41925605855](https://github.com/HVA09/lumen-learning-platform/actions/runs/41925605855): أضافا رحلة Quiz حقيقية في المتصفح؛ بدء المحاولة لا يكشف مفاتيح الإجابة، والتسليم الفارغ ينتج الدرجة صفرًا وتغذية راجعة من الخادم، ثم يظهر نفس attempt في سجل المحاولات بعد إعادة التحميل. الوظائف الأربع نجحت.
 - CI بعد دمج PR #75 على `main`: [#41938791393](https://github.com/HVA09/lumen-learning-platform/actions/runs/41938791393) نجح على `1c94e4f73695b675d8929daf25b35c8d718aac5d` بالوظائف الأربع. Backend **423 passed, 20 warnings**؛ Frontend **80 passed عبر 16 ملفًا**؛ Ruff **0 diagnostics**؛ production audit **0 vulnerabilities**؛ full dependency audit **2 Low و4 Moderate وصفر High/Critical**؛ Browser E2E وGitleaks full-history نجحا.
+- PR #77 وCI [#41940578786](https://github.com/HVA09/lumen-learning-platform/actions/runs/41940578786): نجحت الوظائف الأربع. Browser E2E أنشأ حسابات مؤقتة للمعلمَين والمسؤول، وفحص إخفاء عناصر الإدارة من الطالب، وصول المعلم إلى Content Manager وإنشاء فصل، عزل قوائم الفصول، ومنع قراءة الفصل الآخر برمز 403، ثم التحقق من وصول المسؤول المصرح.
+- CI بعد دمج PR #77 على `main`: [#41941142454](https://github.com/HVA09/lumen-learning-platform/actions/runs/41941142454) نجح على `451572c1253351e0b4406ed21480b659b2862406` في الوظائف الأربع (Backend، Frontend/build، Browser E2E، Gitleaks).
+- PR #78 قيد التحقق: يضيف رحلة Content Manager لإنشاء درس غير منشور والتحقق من اختفائه عن الطالب، ثم نشره من واجهة المعلم والتحقق من ظهوره في قائمة الطالب. لا تُسجل هذه التغطية كمكتملة حتى تنجح جميع وظائف CI.
 
 نتيجة خط الأساس المدمج:
 
@@ -110,7 +113,7 @@
 | Type checking | لا يوجد TypeScript أو typecheck job | لا يوجد فحص أنواع آلي للواجهة |
 | Lint للخلفية | Ruff 0.17.3 report-only | 0 diagnostics بعد PR #52 و#53؛ لا توجد بوابة منع، ولا حاجة لإعادة تصنيف F401 في baseline الحالي |
 | تغطية الاختبارات | مجموعات اختبارات ناجحة | لا يوجد coverage baseline أو تقرير اتجاهات |
-| Browser E2E | Playwright/Chromium عبر PR #70/#73/#75 | السيناريو يغطي التسجيل وHttpOnly cookies وعدم كشف tokens في `document.cookie` أو localStorage، استعادة الجلسة والخروج، فتح درس وإكماله وحفظ `completed=true` بعد reload، ثم بدء Quiz تدريبي دون كشف `correct_answer`/`answer_key`، وتسليم محاولة بلا إجابات والتحقق من الدرجة `0%` والتغذية الراجعة التي يعيدها الخادم، ثم إثبات ظهور المحاولة في سجل الخادم بعد reload. CI PR #75 #41925605855 وCI بعد الدمج على main #41938791393 نجحا. لا يثبت هذا الاختبار بعد صحة درجات الإجابات الصحيحة/حالات النجاح، أو تغطية teacher/admin والملفات والإشعارات/WebSocket وRTL/LTR والانقطاع/العودة.
+| Browser E2E | Playwright/Chromium عبر PR #70/#73/#75/#77 | يغطي HttpOnly cookies والجلسة، الدرس والتقدم بعد reload، Quiz غير المجاب وحفظ السجل، وقيود الواجهة/API للطالب والمعلم والمسؤول. PR #77 يثبت 403 للطالب على المحتوى/الإدارة، و403 للمعلم عند قراءة فصل معلم آخر، ونجاح المسؤول في الوصول الإداري المسموح. لا يثبت حتى الآن دورة نشر الدرس الكاملة (PR #78 قيد CI)، أو إدارة الأسئلة من الواجهة، أو تصحيح Quiz بإجابات صحيحة وحدود النجاح، أو الملفات والإشعارات/WebSocket وRTL/LTR والانقطاع/العودة.
 | الأداء | PR #59/#62/#64/#65 فصلت الميزات الثقيلة؛ PR #67 خفّض Workbox precache من 35/1328.16 KiB إلى 8/378.63 KiB | لا توجد ميزانية أداء رقمية أو RUM/قياسات Core Web Vitals ميدانية؛ CacheFirst لا يجعل API/WebSocket تعمل دون اتصال |
 | أمن اعتماديات التطوير | الإنتاج: 0 vulnerabilities؛ أحدث تدقيق كامل: 2 Low و4 Moderate؛ تشغيل سابق سجّل 2 Low و8 Moderate | التنبيهات تخص أدوات بناء PWA/Workbox والاعتماديات الانتقالية؛ اختلاف العدد بين التشغيلات موثق في ADR-033؛ المعالجة تتطلب تحديثًا متوافقًا وإعادة توليد lockfile واختبارات كاملة |
 | المراقبة | إعدادات تشغيل موجودة جزئيًا | لا يوجد تحقق حي من telemetry على استضافة إنتاجية |
@@ -200,11 +203,13 @@
 
 ## 8. نقطة الاستئناف
 
-- آخر تغيير برمجي مدمج على `main`: PR #75 عند `1c94e4f73695b675d8929daf25b35c8d718aac5d`. CI PR #75 #41925605855 وCI بعد الدمج على main #41938791393 نجحا 4/4.
-- P6.6: Playwright يغطي التسجيل والجلسة الآمنة، إكمال الدرس واستعادة التقدم، وتسليم Quiz تدريبي بلا إجابات والتحقق من نتيجة الخادم وسجل المحاولات بعد reload. لم تُختبر بعد درجات إجابات صحيحة وعتبات النجاح، ولا تدفقات teacher/admin.
-- نتائج main #41938791393: Backend **423 passed, 20 warnings**؛ Frontend **80 passed عبر 16 ملفًا**؛ Ruff **0 diagnostics**؛ production audit **0 vulnerabilities**؛ full dependency audit **2 Low و4 Moderate، وصفر High/Critical**؛ Gitleaks وBrowser E2E نجحا.
+- آخر تغيير برمجي مدمج على `main`: PR #77 عند `451572c1253351e0b4406ed21480b659b2862406`. CI PR #77 #41940578786 وCI بعد الدمج #41941142454 نجحا 4/4.
+- P6.6 يغطي الآن التسجيل والجلسة الآمنة، إكمال الدرس وحفظ التقدم، Quiz وتاريخ المحاولات، وصلاحيات الطالب/المعلم/admin وعزل الفصول بين المعلمين. حسابات الأدوار المؤقتة تُرفع صلاحيتها فقط في قاعدة `lumen_e2e` المحلية المؤقتة مع حارس database URL؛ لا يوجد API لتغيير الدور في التطبيق.
+- CI #41941142454: الوظائف الأربع نجحت بعد الدمج. لا توجد تغييرات منتجة في PR #77 خارج `frontend/e2e/smoke_test.py`.
+- PR #78 قيد CI لاختبار إنشاء مسودة درس غير منشورة ثم نشرها من Content Manager وظهورها للطالب؛ لم تدمج بعد.
 1. P6.0 موثق، وP5.4 مكتملة ومدمجة.
 2. PR #49 أدخل Ruff؛ PR #52 و#53 أتما معالجة baseline، والنتيجة الحالية **0 diagnostic(s)**. Ruff يبقى report-only؛ لا تحوّله إلى شرط دمج دون قرار منفصل.
 3. ESLint لم يُعتمد في main؛ PR #55 كان تجربة مؤقتة مغلقة، وPR #56 دمج الإصلاحات المؤكدة، وPR #57 وثّق الحالة. لا يوجد اتصال npm registry في بيئة التنفيذ الحالية (فشل DNS إلى `registry.npmjs.org`) ولا حزم ESLint في cache؛ لا تحرر lockfile يدويًا. عند توفر registry، ثبّت الإصدارات وولّد lockfile بواسطة npm ثم أثبت نجاح `npm ci`.
 4. أُنجز تحسين P6.5 عبر PR #59/#62/#64/#65/#67. القياسات الحالية أحجام build فقط؛ يلزم قياس أول درس/معادلة/اختبار على هاتف واتصال بطيء قبل تحديد budgets.
-5. لا يوجد نشر إنتاجي مثبت. اختبار Restic الحالي يستخدم مستودعًا مؤقتًا في CI وليس وجهة تخزين خارجية حقيقية.
+5. بعد PR #78، أكمل إدارة الأسئلة ودرجات Quiz الصحيحة وحالات النجاح، ثم اختبارات الملفات بعد التأكد من ClamAV fail-closed، ثم الإشعارات/WebSocket وRTL/LTR والاتصال.
+6. لا يوجد نشر إنتاجي مثبت. اختبار Restic الحالي يستخدم مستودعًا مؤقتًا في CI وليس وجهة تخزين خارجية حقيقية.
