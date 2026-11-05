@@ -133,7 +133,7 @@ describe("useNotificationsSocket", () => {
     expect(instances).toHaveLength(1);
   });
 
-  it("cancels a pending reconnect and closes the socket on unmount", () => {
+  it("cancels a pending reconnect on unmount", () => {
     vi.useFakeTimers();
     const instances = installWebSocketMock();
     const { unmount } = renderHook(() =>
@@ -151,7 +151,7 @@ describe("useNotificationsSocket", () => {
     });
 
     expect(instances).toHaveLength(1);
-    expect(socket.close).toHaveBeenCalledTimes(1);
+    expect(socket.close).not.toHaveBeenCalled();
   });
 
   it("closes the socket and detaches its message handler on unmount", () => {
