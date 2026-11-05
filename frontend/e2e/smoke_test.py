@@ -16,6 +16,84 @@ API_URL = os.environ.get("LUMEN_E2E_API_URL", "http://127.0.0.1:8000").rstrip("/
 SCREENSHOT = Path(os.environ.get("RUNNER_TEMP", "/tmp")) / "lumen-browser-e2e-failure.png"
 
 
+def _register_browser_user(browser, email: str, password: str):
+    """Register an isolated browser user through the real sign-up form."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844},
+        locale="ar",
+    )
+    page = context.new_page()
+    try:
+        response = page.goto(BASE_URL, wait_until="domcontentloaded")
+        assert response is not None and response.ok, (
+            f"Frontend did not load successfully: {response.status if response else 'no response'}"
+        )
+        expect(page.get_by_placeholder("البريد الإلكتروني")).to_be_visible(timeout=30_000)
+        page.get_by_role("button", name="ليس لديك حساب؟ أنشئ واحدًا").click()
+        page.get_by_placeholder("البريد الإلكتروني").fill(email)
+        page.get_by_placeholder("كلمة المرور (8 أحرف على الأقل)").fill(password)
+        page.get_by_role("button", name="إنشاء حساب").click()
+        expect(page.get_by_text("إتقانك الإجمالي", exact=True)).to_be_visible(
+            timeout=45_000
+        )
+        return context, page
+    except Exception:
+        context.close()
+        raise
+
+
+def _promote_e2e_user(email: str, role: str) -> None:
+    """Assign a role only inside the disposable local lumen_e2e CI database."""
+    from sqlalchemy.engine import make_url
+
+    database_url = os.environ.get("DATABASE_URL", "")
+    parsed_url = make_url(database_url) if database_url else None
+    if (
+        parsed_url is None
+        or parsed_url.database != "lumen_e2e"
+        or parsed_url.host not in {"localhost", "127.0.0.1"}
+    ):
+        raise RuntimeError(
+            "Role fixtures may only modify the local PostgreSQL database named lumen_e2e"
+        )
+
+    backend_path = Path(__file__).resolve().parents[2] / "backend"
+    if not backend_path.is_dir():
+        raise RuntimeError(f"Backend package not found at {backend_path}")
+    backend_path_text = str(backend_path)
+    if backend_path_text not in sys.path:
+        sys.path.insert(0, backend_path_text)
+
+    from app.config import settings
+    from app.database import SessionLocal, normalize_database_url
+    from app.models.user import User, UserRole
+
+    if normalize_database_url(settings.DATABASE_URL) != normalize_database_url(database_url):
+        raise RuntimeError("The application database URL does not match the guarded E2E database")
+
+    try:
+        target_role = UserRole(role)
+    except ValueError as exc:
+        raise ValueError(f"Unsupported E2E role: {role}") from exc
+
+    with SessionLocal() as session:
+        user = session.query(User).filter(User.email == email).one_or_none()
+        if user is None:
+            raise AssertionError(f"Registered E2E user {email!r} was not found in the test database")
+        user.role = target_role
+        session.commit()
+
+
+def _browser_access_token(context) -> str:
+    cookie = next(
+        (item for item in context.cookies() if item["name"] == "lumen_access"),
+        None,
+    )
+    assert cookie is not None, "Expected the browser session access cookie"
+    assert cookie["httpOnly"] is True, "The access cookie must remain HttpOnly"
+    return cookie["value"]
+
+
 def run_smoke_test() -> None:
     email = f"browser-e2e-{uuid.uuid4().hex[:12]}@example.com"
     password = "BrowserE2E-Pass-2026"
@@ -279,6 +357,277 @@ def run_smoke_test() -> None:
                 timeout=30_000
             )
             page.get_by_role("button", name="✕", exact=True).click()
+
+            # Students must not see teacher/admin controls, and direct API access
+            # to teacher content or administration endpoints must remain forbidden.
+            expect(page.get_by_role("button", name="الإدارة", exact=True)).to_have_count(0)
+            expect(page.get_by_role("button", name="إدارة المحتوى", exact=True)).to_have_count(0)
+            student_headers = {
+                "Authorization": f"Bearer {_browser_access_token(context)}"
+            }
+            student_questions = page.request.get(
+                f"{API_URL}/content/topics/{topic_id}/questions",
+                headers=student_headers,
+            )
+            assert student_questions.status == 403, (
+                f"Student content access returned HTTP {student_questions.status}"
+            )
+            student_admin = page.request.get(
+                f"{API_URL}/admin/stats",
+                headers=student_headers,
+            )
+            assert student_admin.status == 403, (
+                f"Student admin access returned HTTP {student_admin.status}"
+            )
+
+            role_contexts = []
+            try:
+                teacher_a_email = f"browser-e2e-teacher-a-{uuid.uuid4().hex[:10]}@example.com"
+                teacher_a_context, teacher_a_page = _register_browser_user(
+                    browser, teacher_a_email, password
+                )
+                role_contexts.append(teacher_a_context)
+                _promote_e2e_user(teacher_a_email, "teacher")
+                teacher_a_page.reload(wait_until="domcontentloaded")
+                expect(
+                    teacher_a_page.get_by_text("إتقانك الإجمالي", exact=True)
+                ).to_be_visible(timeout=45_000)
+                expect(
+                    teacher_a_page.get_by_role(
+                        "button", name="إدارة المحتوى", exact=True
+                    )
+                ).to_be_visible()
+                expect(
+                    teacher_a_page.get_by_role(
+                        "button", name="الإدارة", exact=True
+                    )
+                ).to_have_count(0)
+
+                # The teacher content manager must be reachable from the real UI.
+                teacher_a_page.get_by_role(
+                    "button", name="إدارة المحتوى", exact=True
+                ).click()
+                expect(
+                    teacher_a_page.get_by_role(
+                        "heading", name="إدارة المحتوى", exact=True
+                    )
+                ).to_be_visible(timeout=30_000)
+                expect(
+                    teacher_a_page.get_by_role("button", name="الدروس", exact=True)
+                ).to_be_visible()
+                teacher_a_page.get_by_role(
+                    "button", name="✕", exact=True
+                ).click()
+
+                # Create a class through the teacher UI, not a database fixture.
+                teacher_a_class_name = f"E2E Teacher A {uuid.uuid4().hex[:6]}"
+                with teacher_a_page.expect_response(
+                    lambda response: response.request.method == "POST"
+                    and response.url.endswith("/classes"),
+                    timeout=30_000,
+                ) as teacher_a_class_info:
+                    teacher_a_page.get_by_role(
+                        "button", name="الفصول", exact=True
+                    ).click()
+                    teacher_a_page.get_by_placeholder(
+                        "اسم الفصل الجديد (مثلاً: رياضيات — الصف العاشر)"
+                    ).fill(teacher_a_class_name)
+                    teacher_a_page.get_by_role(
+                        "button", name="إنشاء", exact=True
+                    ).click()
+                teacher_a_class_response = teacher_a_class_info.value
+                assert teacher_a_class_response.status == 201, (
+                    f"Teacher A class creation returned HTTP {teacher_a_class_response.status}"
+                )
+                teacher_a_class = teacher_a_class_response.json()
+                teacher_a_class_id = teacher_a_class["id"]
+                assert teacher_a_class.get("invite_code"), (
+                    "Teacher A should receive the invite code for their own class"
+                )
+                expect(
+                    teacher_a_page.get_by_text(teacher_a_class_name, exact=True)
+                ).to_be_visible(timeout=30_000)
+                teacher_a_page.get_by_role(
+                    "button", name="✕", exact=True
+                ).click()
+
+                teacher_a_headers = {
+                    "Authorization": f"Bearer {_browser_access_token(teacher_a_context)}"
+                }
+                teacher_a_questions = teacher_a_page.request.get(
+                    f"{API_URL}/content/topics/{topic_id}/questions",
+                    headers=teacher_a_headers,
+                )
+                assert teacher_a_questions.status == 200, (
+                    f"Teacher content access returned HTTP {teacher_a_questions.status}"
+                )
+                teacher_questions = teacher_a_questions.json()
+                assert teacher_questions and "correct_answer" in teacher_questions[0], (
+                    "Teacher content access should return the authorized question answer key"
+                )
+
+                teacher_b_email = f"browser-e2e-teacher-b-{uuid.uuid4().hex[:10]}@example.com"
+                teacher_b_context, teacher_b_page = _register_browser_user(
+                    browser, teacher_b_email, password
+                )
+                role_contexts.append(teacher_b_context)
+                _promote_e2e_user(teacher_b_email, "teacher")
+                teacher_b_page.reload(wait_until="domcontentloaded")
+                expect(
+                    teacher_b_page.get_by_text("إتقانك الإجمالي", exact=True)
+                ).to_be_visible(timeout=45_000)
+                expect(
+                    teacher_b_page.get_by_role(
+                        "button", name="إدارة المحتوى", exact=True
+                    )
+                ).to_be_visible()
+                expect(
+                    teacher_b_page.get_by_role(
+                        "button", name="الإدارة", exact=True
+                    )
+                ).to_have_count(0)
+
+                teacher_b_class_name = f"E2E Teacher B {uuid.uuid4().hex[:6]}"
+                with teacher_b_page.expect_response(
+                    lambda response: response.request.method == "POST"
+                    and response.url.endswith("/classes"),
+                    timeout=30_000,
+                ) as teacher_b_class_info:
+                    teacher_b_page.get_by_role(
+                        "button", name="الفصول", exact=True
+                    ).click()
+                    teacher_b_page.get_by_placeholder(
+                        "اسم الفصل الجديد (مثلاً: رياضيات — الصف العاشر)"
+                    ).fill(teacher_b_class_name)
+                    teacher_b_page.get_by_role(
+                        "button", name="إنشاء", exact=True
+                    ).click()
+                teacher_b_class_response = teacher_b_class_info.value
+                assert teacher_b_class_response.status == 201, (
+                    f"Teacher B class creation returned HTTP {teacher_b_class_response.status}"
+                )
+                teacher_b_class = teacher_b_class_response.json()
+                teacher_b_class_id = teacher_b_class["id"]
+                expect(
+                    teacher_b_page.get_by_text(teacher_b_class_name, exact=True)
+                ).to_be_visible(timeout=30_000)
+                teacher_b_page.get_by_role(
+                    "button", name="✕", exact=True
+                ).click()
+
+                teacher_b_headers = {
+                    "Authorization": f"Bearer {_browser_access_token(teacher_b_context)}"
+                }
+                teacher_a_classes = teacher_a_page.request.get(
+                    f"{API_URL}/classes", headers=teacher_a_headers
+                )
+                teacher_b_classes = teacher_b_page.request.get(
+                    f"{API_URL}/classes", headers=teacher_b_headers
+                )
+                assert teacher_a_classes.status == 200
+                assert [item["id"] for item in teacher_a_classes.json()] == [
+                    teacher_a_class_id
+                ], "Teacher A must only see their own class"
+                assert teacher_b_classes.status == 200
+                assert [item["id"] for item in teacher_b_classes.json()] == [
+                    teacher_b_class_id
+                ], "Teacher B must only see their own class"
+
+                teacher_b_outside_class = teacher_b_page.request.get(
+                    f"{API_URL}/classes/{teacher_a_class_id}",
+                    headers=teacher_b_headers,
+                )
+                assert teacher_b_outside_class.status == 403, (
+                    "Teacher B must not read Teacher A's class roster"
+                )
+                teacher_a_outside_class = teacher_a_page.request.get(
+                    f"{API_URL}/classes/{teacher_b_class_id}",
+                    headers=teacher_a_headers,
+                )
+                assert teacher_a_outside_class.status == 403, (
+                    "Teacher A must not read Teacher B's class roster"
+                )
+
+                student_outside_class = page.request.get(
+                    f"{API_URL}/classes/{teacher_a_class_id}",
+                    headers=student_headers,
+                )
+                assert student_outside_class.status == 403, (
+                    "A student must not read a teacher's class roster"
+                )
+
+                admin_email = f"browser-e2e-admin-{uuid.uuid4().hex[:10]}@example.com"
+                admin_context, admin_page = _register_browser_user(
+                    browser, admin_email, password
+                )
+                role_contexts.append(admin_context)
+                _promote_e2e_user(admin_email, "admin")
+                admin_page.reload(wait_until="domcontentloaded")
+                expect(
+                    admin_page.get_by_text("إتقانك الإجمالي", exact=True)
+                ).to_be_visible(timeout=45_000)
+                expect(
+                    admin_page.get_by_role("button", name="الإدارة", exact=True)
+                ).to_be_visible()
+                expect(
+                    admin_page.get_by_role(
+                        "button", name="إدارة المحتوى", exact=True
+                    )
+                ).to_be_visible()
+
+                admin_page.get_by_role(
+                    "button", name="الإدارة", exact=True
+                ).click()
+                expect(
+                    admin_page.get_by_role(
+                        "heading", name="لوحة الإدارة", exact=True
+                    )
+                ).to_be_visible(timeout=30_000)
+                admin_page.get_by_role(
+                    "button", name="✕", exact=True
+                ).click()
+
+                admin_headers = {
+                    "Authorization": f"Bearer {_browser_access_token(admin_context)}"
+                }
+                admin_stats = admin_page.request.get(
+                    f"{API_URL}/admin/stats", headers=admin_headers
+                )
+                assert admin_stats.status == 200, (
+                    f"Admin stats returned HTTP {admin_stats.status}"
+                )
+                admin_users = admin_page.request.get(
+                    f"{API_URL}/admin/users", headers=admin_headers
+                )
+                assert admin_users.status == 200, (
+                    f"Admin user list returned HTTP {admin_users.status}"
+                )
+                admin_classes = admin_page.request.get(
+                    f"{API_URL}/classes", headers=admin_headers
+                )
+                assert admin_classes.status == 200
+                admin_class_ids = {item["id"] for item in admin_classes.json()}
+                assert {teacher_a_class_id, teacher_b_class_id}.issubset(admin_class_ids), (
+                    "Admin must see both teachers' classes"
+                )
+                admin_class_detail = admin_page.request.get(
+                    f"{API_URL}/classes/{teacher_a_class_id}",
+                    headers=admin_headers,
+                )
+                assert admin_class_detail.status == 200, (
+                    "Admin must be allowed to inspect a teacher's class roster"
+                )
+                admin_questions = admin_page.request.get(
+                    f"{API_URL}/content/topics/{topic_id}/questions",
+                    headers=admin_headers,
+                )
+                assert admin_questions.status == 200, (
+                    "Admin must be allowed to read managed question content"
+                )
+
+            finally:
+                for role_context in role_contexts:
+                    role_context.close()
 
             # Logout is asynchronous in the UI: wait for the server to revoke the session.
             with page.expect_response(
