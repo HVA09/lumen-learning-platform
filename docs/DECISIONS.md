@@ -450,7 +450,7 @@
 - PR #77: CI #41940578786 وmain بعد الدمج #41941142454 نجحا بالوظائف الأربع.
 - PR #80: CI #41943697271 وmain بعد الدمج #41947786739 نجحا بالوظائف الأربع.
 - PR #81: CI #41948823950 وmain بعد الدمج #41949251573 نجحا بالوظائف الأربع.
-- PR #82: CI #41949826358 نجح بالوظائف الأربع على الرأس 7b42ff9ba5b0338bbc7fa8d3888f459605c36dbe. CI بعد الدمج #41950657568 على commit cf15149abe546627ee36feba65fcf48dbab3ba64: Frontend/build وBrowser E2E وGitleaks نجحت؛ Backend كان قيد التنفيذ عند إعداد هذا التوثيق. سجّل نتيجة الوظيفة الخلفية بعد اكتمالها.
+- PR #82: CI #41949826358 نجح بالوظائف الأربع على الرأس 7b42ff9ba5b0338bbc7fa8d3888f459605c36dbe. CI بعد الدمج #41950657568 على commit cf15149abe546627ee36feba65fcf48dbab3ba64 نجح بالوظائف الأربع: Backend 423 passed و20 warnings؛ Ruff 0 diagnostics؛ Frontend 80 passed عبر 16 ملفًا؛ production audit 0 vulnerabilities؛ full dependency audit 2 Low و4 Moderate وصفر High/Critical؛ Browser E2E وGitleaks وmigrations وPostgreSQL backup/restore نجحت.
 
 ### الحدود والضمانات
 
