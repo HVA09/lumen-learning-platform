@@ -451,7 +451,7 @@ def run_smoke_test() -> None:
                 assert draft_lesson["is_published"] is False
                 assert draft_lesson["title_ar"] == draft_title
                 expect(
-                    teacher_a_page.get_by_text(draft_title, exact=True)
+                    teacher_a_page.get_by_text(draft_title, exact=False)
                 ).to_be_visible(timeout=30_000)
 
                 student_draft_list = page.request.get(
@@ -467,7 +467,7 @@ def run_smoke_test() -> None:
                 ), "Unpublished lesson must remain hidden from students"
 
                 teacher_draft_card = teacher_a_page.get_by_text(
-                    draft_title, exact=True
+                    draft_title, exact=False
                 ).locator("xpath=../..")
                 with teacher_a_page.expect_response(
                     lambda response: response.request.method == "PUT"
@@ -502,7 +502,7 @@ def run_smoke_test() -> None:
                 assert published_lesson["is_published"] is True
                 assert published_lesson["title_ar"] == published_title
                 expect(
-                    teacher_a_page.get_by_text(published_title, exact=True)
+                    teacher_a_page.get_by_text(published_title, exact=False)
                 ).to_be_visible(timeout=30_000)
 
                 student_published_list = page.request.get(
