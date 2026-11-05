@@ -1,7 +1,7 @@
 # الخطة المعمارية الحالية والمراحل التنفيذية لمنصة Lumen
 
 آخر تحديث: **2026-11-05**  
-آخر تغيير برمجي على main: PR #91 عند Squash commit `d7962c2553a5af206eaa27cd27dbae560cfcef94`. أضاف اختبار Frontend في `frontend/src/hooks/useDirection.test.jsx` لإثبات RTL/LTR والعودة إلى العربية دون تغيير سلوك التطبيق أو الترجمات أو API أو DB. CI على PR [#42104050543](https://github.com/HVA09/lumen-learning-platform/actions/runs/42104050543) نجح 4/4؛ CI بعد الدمج على main [#42105382640](https://github.com/HVA09/lumen-learning-platform/actions/runs/42105382640) كان pending عند آخر تحقق.
+آخر تغيير برمجي على main: PR #91 عند Squash commit `d7962c2553a5af206eaa27cd27dbae560cfcef94`. أضاف اختبار Frontend في `frontend/src/hooks/useDirection.test.jsx` لإثبات RTL/LTR والعودة إلى العربية دون تغيير سلوك التطبيق أو الترجمات أو API أو DB. CI على PR [#42104050543](https://github.com/HVA09/lumen-learning-platform/actions/runs/42104050543) نجح 4/4؛ CI بعد الدمج على main [#42105382640](https://github.com/HVA09/lumen-learning-platform/actions/runs/42105382640) اكتمل بنجاح 4/4.
 PR #39–#46 و#48 و#49 و#51–#59 و#62 و#64–#84 و#87–#89 و#91 مدمجة (باستثناء PR #55 و#86 المغلقين دون دمج). PR #59/#62/#64 حسّنت code splitting، وPR #65 أضاف Vite preload recovery، وPR #67 قلّص precache من 35 ملفًا/1328.16 KiB إلى 8 ملفات/378.63 KiB. تغطية Browser E2E تشمل الآن التسجيل والجلسة، التقدم والنشر، Quiz وسجل المحاولات وحدّي النجاح والرسوب، وإدارة السؤال، وفحص ClamAV الحقيقي. PR #87 أكمل اختبار تعدد جلسات الإشعارات وإعادة اتصال WebSocket؛ وPR #91 أضاف اختبار تبديل سمات المستند RTL/LTR. المتبقي هو اختبار فقدان الشبكة وعودتها؛ ولا يدل اختبار الاتجاه على اكتمال ترجمة كل النصوص.
 
 > الغرض هو تنظيم النظام تدريجيًا دون إعادة كتابة، أو تغيير سلوك الميزات، أو تعريض بيانات المستخدمين والترحيلات للخطر.
@@ -138,7 +138,7 @@ PR #39–#46 و#48 و#49 و#51–#59 و#62 و#64–#84 و#87–#89 و#91 مدم�
 | P3 | استخراج وحدة نقية ثانية صغيرة | مكتمل — PR #32 مدمج؛ CI #534 على PR وCI #535 على main ناجحان |
 | P4 | فصل حدود خدمات Learning/Progress/SRS/Gamification | منفذ جزئيًا: Progress عبر PR #34/#35، وReview/SRS عبر PR #37، وGamification scoring عبر PR #40؛ تبقى الحدود الأخرى وفق الأولوية والتحليل |
 | P5 | تنظيم Frontend تدريجيًا | P5.1–P5.4 مكتملة ومدمجة؛ PR #46 نقل الإشعارات إلى `features/notifications` واختُبر قبل الدمج وبعده |
-| P6 | الجودة والأداء والمراقبة | Ruff 0 diagnostics report-only؛ ESLint لم يبدأ بسبب قيد npm registry؛ code splitting في #59/#62/#64، وpreload recovery في #65، وسياسة PWA في #67 خفّضت precache 71.5% إلى 8 entries/378.63 KiB. P6.6 عبر #70/#73/#75/#77/#80/#81/#82/#84/#87/#88/#89/#91: التسجيل والجلسة، التقدم والنشر، Quiz وسجل المحاولات، الأدوار وعزل الفصول، إدارة السؤال، ClamAV الحقيقي، إعادة اتصال WebSocket وتعدد جلسات الإشعارات، ونتيجة بوابة أسفل الحد مع حفظ الرسوب وHTTP 429 للتهدئة (#88)، واختبار Backend يثبت بقاء الموضوع التابع مقفلاً تحت العتبة (#89)، واختبار تبديل اتجاه المستند RTL/LTR (#91). CI للـ PR #91 #42104050543 نجح 4/4؛ CI بعد الدمج على main #42105382640 كان pending عند آخر تحقق. المتبقي: الانقطاع/العودة وقياسات RUM/Typecheck/Coverage |
+| P6 | الجودة والأداء والمراقبة | Ruff 0 diagnostics report-only؛ ESLint لم يبدأ بسبب قيد npm registry؛ code splitting في #59/#62/#64، وpreload recovery في #65، وسياسة PWA في #67 خفّضت precache 71.5% إلى 8 entries/378.63 KiB. P6.6 عبر #70/#73/#75/#77/#80/#81/#82/#84/#87/#88/#89/#91: التسجيل والجلسة، التقدم والنشر، Quiz وسجل المحاولات، الأدوار وعزل الفصول، إدارة السؤال، ClamAV الحقيقي، إعادة اتصال WebSocket وتعدد جلسات الإشعارات، ونتيجة بوابة أسفل الحد مع حفظ الرسوب وHTTP 429 للتهدئة (#88)، واختبار Backend يثبت بقاء الموضوع التابع مقفلاً تحت العتبة (#89)، واختبار تبديل اتجاه المستند RTL/LTR (#91). CI للـ PR #91 #42104050543 نجح 4/4؛ CI بعد الدمج على main #42105382640 اكتمل بنجاح 4/4. المتبقي: الانقطاع/العودة وقياسات RUM/Typecheck/Coverage |
 | P7 | الإطلاق | بعد إغلاق متطلبات الاستضافة والأمن والتشغيل |
 
 ## 6. بوابات القبول لكل تغيير
@@ -162,7 +162,7 @@ PR #39–#46 و#48 و#49 و#51–#59 و#62 و#64–#84 و#87–#89 و#91 مدم�
 
 ## 8. نقطة الاستئناف
 
-- آخر تغيير برمجي على main: PR #91 عند `d7962c2553a5af206eaa27cd27dbae560cfcef94`. CI على PR [#42104050543](https://github.com/HVA09/lumen-learning-platform/actions/runs/42104050543) نجح 4/4؛ CI بعد الدمج على main [#42105382640](https://github.com/HVA09/lumen-learning-platform/actions/runs/42105382640) كان pending عند آخر تحقق. PR #89 السابق لديه CI بعد الدمج ناجح 4/4 في #42102276661.
+- آخر تغيير برمجي على main: PR #91 عند `d7962c2553a5af206eaa27cd27dbae560cfcef94`. CI على PR [#42104050543](https://github.com/HVA09/lumen-learning-platform/actions/runs/42104050543) نجح 4/4؛ CI بعد الدمج على main [#42105382640](https://github.com/HVA09/lumen-learning-platform/actions/runs/42105382640) اكتمل بنجاح 4/4. PR #89 السابق لديه CI بعد الدمج ناجح 4/4 في #42102276661.
 - P4: فواصل Progress وReview وGamification scoring منفذة عبر PR #34/#35/#37/#40.
 - P5.1–P5.4 مدمجة: WebSocket (#41)، خريطة Frontend (#42)، session (#43)، notification state (#44)، ثم نقل Notifications إلى features/notifications (#46).
 - P6.1: Ruff 0.17.3 report-only، 0 diagnostic(s)؛ ESLint لم يُعتمد بعد.
