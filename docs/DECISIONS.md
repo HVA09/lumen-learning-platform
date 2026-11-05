@@ -532,7 +532,7 @@
 ## ADR-040 — إعادة محاولة تهيئة الجلسة بعد عودة الاتصال
 
 - التاريخ: 2026-11-05
-- الحالة: **منفذ ومُدمج — PR #95 عند Squash commit `80be944a39ffd683daa4ee24cabe48a3bd9067c7`. CI على PR [#42108841308](https://github.com/HVA09/lumen-learning-platform/actions/runs/42108841308) نجح 4/4؛ CI بعد الدمج على main [#42113922307](https://github.com/HVA09/lumen-learning-platform/actions/runs/42113922307) قيد التحقق عند تحديث السجل.**
+- الحالة: **منفذ ومُدمج — PR #95 عند Squash commit `80be944a39ffd683daa4ee24cabe48a3bd9067c7`. CI على PR [#42108841308](https://github.com/HVA09/lumen-learning-platform/actions/runs/42108841308) نجح 4/4؛ CI بعد الدمج على main [#42113922307](https://github.com/HVA09/lumen-learning-platform/actions/runs/42113922307) اكتمل بنجاح 4/4.**
 - الجهة: معالجة فجوة P6.6 ظهرت في مراجعة `useSession`: إذا فشل طلب `getCurrentUser` الأول بسبب انقطاع شبكة، تنتهي التهيئة وتعرض الواجهة شاشة الدخول، ولا توجد محاولة تلقائية عند عودة الاتصال.
 - القرار: يستمع `useSession` إلى حدث المتصفح `online` ويعيد محاولة تهيئة الجلسة فقط إذا لم تُحسم حالة الجلسة. يستخدم `useRef` لمنع إعادة التهيئة بعد تسجيل الدخول أو الخروج، وflag محلي لمنع طلبات bootstrap المتزامنة، مع اصطفاف محاولة واحدة إذا وصل `online` أثناء طلب قائم. يتوقف عن retry بعد نجاح التهيئة ويزيل event listener عند unmount. يظل مسار 401 الحالي (refresh ثم إعادة طلب المستخدم) كما هو.
 - حدود الأمان والموثوقية: لا نعيد إرسال طلبات الكتابة أو mutations تلقائيًا لأن نتيجة الطلب قد تكون غير معلومة بعد انقطاع الاتصال، ما قد يكرر إنشاء سجل أو تسليم إجابة. هذا ليس وضع Offline؛ API وWebSocket يتطلبان اتصالًا فعليًا. لا يتغير HttpOnly/CSRF أو API أو DB أو dependencies.
