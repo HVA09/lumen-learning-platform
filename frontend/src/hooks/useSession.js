@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { setAuthSessionActive } from "../lib/api";
 import { logoutUser, refreshSession } from "../lib/authApi";
 import { getCurrentUser } from "../lib/usersApi";
@@ -11,6 +11,7 @@ export default function useSession({ onSessionExpired } = {}) {
   const [authenticated, setAuthenticated] = useState(false);
   const [authReady, setAuthReady] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const sessionResolvedRef = useRef(false);
 
   const refreshCurrentUser = useCallback(async () => {
     try {
@@ -24,12 +25,14 @@ export default function useSession({ onSessionExpired } = {}) {
   }, []);
 
   const markAuthenticated = useCallback(() => {
+    sessionResolvedRef.current = true;
     setAuthSessionActive(true);
     setAuthenticated(true);
     void refreshCurrentUser();
   }, [refreshCurrentUser]);
 
   const logout = useCallback(() => {
+    sessionResolvedRef.current = true;
     setAuthSessionActive(false);
     // Revoke the server session and clear HttpOnly cookies; UI logout is immediate.
     logoutUser().catch(() => {});
@@ -46,10 +49,9 @@ export default function useSession({ onSessionExpired } = {}) {
   useEffect(() => {
     let mounted = true;
     let bootstrapInFlight = false;
-    let sessionEstablished = false;
 
     const bootstrapSession = async () => {
-      if (!mounted || bootstrapInFlight || sessionEstablished) return;
+      if (!mounted || bootstrapInFlight || sessionResolvedRef.current) return;
 
       bootstrapInFlight = true;
       try {
@@ -63,7 +65,7 @@ export default function useSession({ onSessionExpired } = {}) {
         }
 
         if (!mounted) return;
-        sessionEstablished = true;
+        sessionResolvedRef.current = true;
         setCurrentUser(user);
         setAuthSessionActive(true);
         setAuthenticated(true);
@@ -77,7 +79,7 @@ export default function useSession({ onSessionExpired } = {}) {
 
     const handleOnline = () => {
       // A transient startup network failure must not require a manual page reload.
-      if (!sessionEstablished) void bootstrapSession();
+      if (!sessionResolvedRef.current) void bootstrapSession();
     };
 
     window.addEventListener("online", handleOnline);
