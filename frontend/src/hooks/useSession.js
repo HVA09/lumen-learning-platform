@@ -45,28 +45,47 @@ export default function useSession({ onSessionExpired } = {}) {
 
   useEffect(() => {
     let mounted = true;
+    let bootstrapInFlight = false;
+    let sessionEstablished = false;
 
-    getCurrentUser()
-      .catch(async (error) => {
-        if (error.response?.status !== 401) throw error;
-        await refreshSession();
-        return getCurrentUser();
-      })
-      .then((user) => {
+    const bootstrapSession = async () => {
+      if (!mounted || bootstrapInFlight || sessionEstablished) return;
+
+      bootstrapInFlight = true;
+      try {
+        let user;
+        try {
+          user = await getCurrentUser();
+        } catch (error) {
+          if (error.response?.status !== 401) throw error;
+          await refreshSession();
+          user = await getCurrentUser();
+        }
+
         if (!mounted) return;
+        sessionEstablished = true;
         setCurrentUser(user);
         setAuthSessionActive(true);
         setAuthenticated(true);
-      })
-      .catch(() => {
+      } catch {
         if (mounted) setAuthSessionActive(false);
-      })
-      .finally(() => {
+      } finally {
+        bootstrapInFlight = false;
         if (mounted) setAuthReady(true);
-      });
+      }
+    };
+
+    const handleOnline = () => {
+      // A transient startup network failure must not require a manual page reload.
+      if (!sessionEstablished) void bootstrapSession();
+    };
+
+    window.addEventListener("online", handleOnline);
+    void bootstrapSession();
 
     return () => {
       mounted = false;
+      window.removeEventListener("online", handleOnline);
     };
   }, []);
 
