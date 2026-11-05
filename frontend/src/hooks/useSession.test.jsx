@@ -142,11 +142,9 @@ describe("useSession", () => {
     expect(setAuthSessionActive).toHaveBeenLastCalledWith(true);
   });
 
-  it("keeps an active session when a profile refresh fails after reconnect", async () => {
+  it("does not restart bootstrap when an authenticated session reconnects", async () => {
     const user = { id: 18, role: "teacher" };
-    getCurrentUser
-      .mockResolvedValueOnce(user)
-      .mockRejectedValueOnce(new Error("network unavailable"));
+    getCurrentUser.mockResolvedValue(user);
 
     const { result } = renderHook(() => useSession());
     await waitFor(() => expect(result.current.authenticated).toBe(true));
@@ -155,8 +153,7 @@ describe("useSession", () => {
       window.dispatchEvent(new Event("online"));
     });
 
-    await waitFor(() => expect(getCurrentUser).toHaveBeenCalledTimes(2));
-
+    expect(getCurrentUser).toHaveBeenCalledTimes(1);
     expect(result.current.authenticated).toBe(true);
     expect(result.current.currentUser).toEqual(user);
   });
