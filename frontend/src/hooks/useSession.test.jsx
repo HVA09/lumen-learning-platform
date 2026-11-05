@@ -132,10 +132,11 @@ describe("useSession", () => {
 
     await act(async () => {
       rejectInitialRequest(new Error("network unavailable"));
-      await waitFor(() => {
-        expect(result.current.authenticated).toBe(true);
-        expect(result.current.currentUser).toEqual(user);
-      });
+    });
+
+    await waitFor(() => {
+      expect(result.current.authenticated).toBe(true);
+      expect(result.current.currentUser).toEqual(user);
     });
 
     expect(getCurrentUser).toHaveBeenCalledTimes(2);
