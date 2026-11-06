@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   incomingNotification: null,
   notificationsEnabled: null,
   socketEnabled: null,
+  topicAchievements: null,
 }));
 
 vi.mock("./hooks/useSession", () => ({
@@ -110,16 +111,19 @@ vi.mock("./components/Toast", () => ({
 }));
 
 vi.mock("./components/TopicPanel", () => ({
-  default: ({ topicId, isTeacher, onClose, onManageContent }) => (
-    <section
-      data-testid="topic-panel"
-      data-topic-id={String(topicId)}
-      data-is-teacher={String(isTeacher)}
-    >
-      <button onClick={onClose}>close-topic</button>
-      <button onClick={() => onManageContent(topicId)}>manage-topic-content</button>
-    </section>
-  ),
+  default: ({ topicId, isTeacher, onClose, onManageContent, onAchievements }) => {
+    mocks.topicAchievements = onAchievements;
+    return (
+      <section
+        data-testid="topic-panel"
+        data-topic-id={String(topicId)}
+        data-is-teacher={String(isTeacher)}
+      >
+        <button onClick={onClose}>close-topic</button>
+        <button onClick={() => onManageContent(topicId)}>manage-topic-content</button>
+      </section>
+    );
+  },
 }));
 
 vi.mock("./components/AccountSettings", () => ({
@@ -228,6 +232,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.useRealTimers();
   window.history.replaceState({}, "", "/");
 });
 
@@ -454,6 +459,58 @@ describe("App integration", () => {
 
     await user.click(screen.getByRole("button", { name: "fake-authenticate" }));
     expect(await screen.findByRole("status")).toHaveTextContent("تم تسجيل الدخول بنجاح");
+
+    await user.click(screen.getByRole("button", { name: "dismiss-toast" }));
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+
+  it("closes the global content manager from its close callback", async () => {
+    setAuthenticatedUser("teacher");
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "open-content" }));
+    expect(await screen.findByTestId("content-manager")).toHaveAttribute("data-topic-id", "all");
+
+    await user.click(screen.getByRole("button", { name: "close-content-manager" }));
+    await waitFor(() => expect(screen.queryByTestId("content-manager")).not.toBeInTheDocument());
+  });
+
+  it("shows achievement notifications in their scheduled order", async () => {
+    setAuthenticatedUser("student");
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "select-topic" }));
+    await screen.findByTestId("topic-panel");
+    expect(mocks.topicAchievements).toEqual(expect.any(Function));
+
+    vi.useFakeTimers();
+    act(() => {
+      mocks.topicAchievements([
+        { title_ar: "أول إنجاز" },
+        { title_ar: "إنجاز ثانٍ" },
+      ]);
+      vi.advanceTimersByTime(0);
+    });
+    expect(screen.getByRole("status")).toHaveTextContent("🏆 فتحت إنجاز: أول إنجاز");
+
+    act(() => {
+      vi.advanceTimersByTime(1_200);
+    });
+    expect(screen.getByRole("status")).toHaveTextContent("🏆 فتحت إنجاز: إنجاز ثانٍ");
+  });
+
+  it("dismisses an incoming notification toast from the authenticated app shell", async () => {
+    setAuthenticatedUser("student");
+    const user = userEvent.setup();
+    render(<App />);
+
+    act(() => {
+      mocks.incomingNotification({ id: 22, title: "تم نشر محتوى جديد" });
+    });
+    expect(await screen.findByRole("status")).toHaveTextContent("تم نشر محتوى جديد");
 
     await user.click(screen.getByRole("button", { name: "dismiss-toast" }));
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
