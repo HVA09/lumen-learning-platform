@@ -194,3 +194,11 @@ PR #39–#46 و#48 و#49 و#51–#59 و#62 و#64–#84 و#87–#89 و#91 و#95 �
 - PR #102 لا يزال مفتوحًا وغير مدمج. PR #100 هو PR المستقل لقياس Backend (89%، 431 passed). لا تعتبر أي رقم baseline مدمجًا قبل تحقق دمج PR المقابل.
 - التسلسل التالي: API adapters مع mocks، ثم تدفقات App/Admin/Content/Files؛ بعد ذلك SMTP fail-safe وLTI/OIDC وملفات/ClamAV. تبقى Typecheck وRUM/Core Web Vitals وقياسات الهاتف غير مكتملة.
 
+## P6 — اختبارات رفع الملفات وClamAV
+
+- PR #105 يضيف اختبارات fail-safe حول transport في `malware_scanner.py`: invalid configuration، connection error، timeout، file IO/stream failure، malformed response، read truncation، unknown scanner status، وwriter cleanup.
+- يختبر Router حصة التخزين المتبقية بعد القراءة والفحص، مع التأكد من HTTP 413 وحذف الملف المؤقت وعدم إنشاء metadata إضافية.
+- اختبارات INSTREAM القائمة تستخدم loopback محليًا وتؤكد bounded chunks، clean result، malware detection، وscanner ERROR. لا يتصل CI بماسح خارجي؛ لا يتغير scanner runtime أو إعدادات الإنتاج.
+- PR #105 فوق PR #100؛ تُقبل هذه المرحلة بعد CI 4/4، ثم تُراجع التغطية الناتجة في `malware_scanner.py` و`routers/files.py` وتُسجّل بدون threshold جديد.
+- اختبار موارد ClamAV على المضيف الفعلي يظل شرطًا مستقلًا قبل الإنتاج.
+

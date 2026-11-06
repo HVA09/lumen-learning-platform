@@ -181,3 +181,11 @@
 - أولويات الاختبار بعد القياس: Frontend API adapters، App/Admin/Content Manager/Files، ثم SMTP fail-safe وLTI/OIDC/JWKS/SSRF ومسارات الملفات/ClamAV. استخدم mocks وخدمات CI المؤقتة، ولا تفتح ClamAV على الإنترنت.
 - تظل ميزانية المشروع صفرًا؛ لا موارد مدفوعة أو دفع إلكتروني، ولا نشر إنتاجي قبل استكمال شروط P7.
 
+## متابعة أمن الملفات وClamAV — PR #105
+
+- PR #105 يضيف اختبارات fail-safe لـ `backend/app/services/malware_scanner.py` عبر `backend/tests/test_malware_scanner_fail_safe.py`، ويضيف اختبارًا لتجاوز الحصة المتبقية والتنظيف في `backend/tests/test_files.py`.
+- تغطي الحالات إعدادات scanner غير الصالحة، فشل الاتصال، timeout، فشل IO أثناء فتح الملف أو إرساله، ردود ClamAV مجهولة/مبتورة وغير UTF-8، terminator الملف الفارغ، وإغلاق socket writer دائمًا.
+- اختبار رفع إضافي يبدأ بحساب لديه ملف يستهلك معظم الحصة، ثم يرسل ملفًا آخر يتجاوز المساحة المتبقية بعد scan؛ المتوقع HTTP 413 مع حذف temporary file والإبقاء على attachment السابق.
+- لا تعديل على runtime أو API أو DB أو migrations أو إعدادات تشغيل ClamAV؛ الاختبارات mocked أو loopback فقط.
+- PR #105 مبني على رأس PR #100 الحالي `a6a9012103a7da39b5df2fe025da919da7e00c43`. CI على PR #100 [#42227309269](https://github.com/HVA09/lumen-learning-platform/actions/runs/42227309269) اكتمل بنجاح 4/4؛ PR #105 يحتاج CI مستقلًا قبل اعتماد نتائج التغطية.
+
