@@ -187,5 +187,5 @@
 
 - PR #101: [test(backend): cover SMTP transport failure paths](https://github.com/HVA09/lumen-learning-platform/pull/101)، أعيد تأسيس فرعه على رأس PR #100 الحالي `a6a9012103a7da39b5df2fe025da919da7e00c43` بدل الاعتماد على رأسه السابق `5c840464e66543a21e3398491da6ca7095896442`.
 - التغيير يضيف اختبارات FakeSMTP في `backend/tests/test_email_service.py` فقط: نجاح TLS/auth/send، إرسال دون بيانات مصادقة، وأربع حالات فشل للنقل مع التحقق من عدم تسجيل جسم الرسالة.
-- تشغيل CI السابق [#42126717163](https://github.com/HVA09/lumen-learning-platform/actions/runs/42126717163) نجح 4/4 على الفرع القديم: Backend **437 passed, 20 warnings**، وتغطية `email_service.py` **92%**. يجب انتظار CI الجديد على الرأس المعاد تأسيسه قبل اعتماد الرقم كقياس حديث.
+- CI على الرأس المعاد تأسيسه `7cc9f05ef264c25d95009c276a2ec275b5d69a25` نجح 4/4 في [#42227584326](https://github.com/HVA09/lumen-learning-platform/actions/runs/42227584326): Backend **437 passed, 20 warnings in 182.81s**، إجمالي Backend coverage **89%**، و`email_service.py` **92%**.
 - لا تغيير في runtime أو API أو قاعدة البيانات أو migrations أو اعتماديات الإنتاج أو إعدادات SMTP؛ لا اتصال بمزود بريد حقيقي.

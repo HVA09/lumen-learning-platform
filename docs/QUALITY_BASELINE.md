@@ -272,6 +272,6 @@
 
 - المصدر: PR [#101](https://github.com/HVA09/lumen-learning-platform/pull/101)، واختبارات في `backend/tests/test_email_service.py` تستخدم FakeSMTP دون اتصال خارجي.
 - تغطي الاختبارات ترتيب STARTTLS ثم المصادقة ثم الإرسال، ومسار عدم وجود بيانات مصادقة، وأربع حالات فشل (الاتصال، STARTTLS، المصادقة، الإرسال). تتحقق من إغلاق جلسة SMTP الوهمية وعدم تسجيل محتوى الرسالة عند الفشل.
-- على الرأس السابق `5a48f2c8f37a2de46cc815b5af48bc0fcf4e14a7` نجح CI [#42126717163](https://github.com/HVA09/lumen-learning-platform/actions/runs/42126717163) 4/4؛ Backend **437 passed, 20 warnings**، ووصلت تغطية `app/services/email_service.py` إلى **92%** مقارنة بخط الأساس السابق 62%.
-- كان PR #101 مكدسًا على رأس أقدم من PR #100، ولذلك يعاد تأسيسه على رأس PR #100 الحالي. تُعد نتيجة 92% مؤقتة إلى أن يكتمل CI على الرأس المعاد تأسيسه.
+- بعد إعادة تأسيس الفرع على رأس PR #100 الحالي، نجح CI [#42227584326](https://github.com/HVA09/lumen-learning-platform/actions/runs/42227584326) **4/4** على commit `7cc9f05ef264c25d95009c276a2ec275b5d69a25`: Backend **437 passed, 20 warnings in 182.81s**، وإجمالي Backend coverage **89%** (4,375 statements؛ 398 missed؛ 942 branches؛ 142 partial). بلغت `app/services/email_service.py` **92%** (44 statements؛ 3 missed؛ 8 branches؛ 1 partial)، مقارنة بخط الأساس السابق 62%.
+- شمل النجاح Frontend tests/build وBrowser E2E وFull Git-history secret scan. يبقى الاختبار محاكيًا؛ لا يوجد SMTP حقيقي أو تحقق من تسليم البريد.
 - لا يثبت ذلك تسليم بريد حقيقي أو جاهزية SMTP الإنتاجية؛ لا تتغير خدمة التشغيل أو بيانات SMTP أو إعدادات الإنتاج.
