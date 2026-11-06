@@ -241,3 +241,91 @@ def test_fetch_platform_public_key_rejects_invalid_or_unmatched_jwks(
                 "https://moodle.example.test/jwks", "platform-key"
             )
         )
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        None,
+        "",
+        "x" * 2001,
+        "https://user:password@moodle.example.test/jwks",
+        "https://moodle.example.test/jwks?token=value",
+        "https://moodle.example.test/jwks#fragment",
+        "https://moodle.example.test:invalid/jwks",
+        "http://moodle.example.test/jwks",
+        "https://service.local/jwks",
+        "https://192.168.1.10/jwks",
+    ],
+)
+def test_lti_endpoint_validator_rejects_malformed_or_unsafe_urls(monkeypatch, url):
+    monkeypatch.setattr(lti_service.settings, "ENVIRONMENT", "production")
+
+    with pytest.raises(ValueError):
+        lti_service.validate_lti_platform_endpoint_url(url)
+
+
+def test_lti_resolved_address_validator_rejects_private_ipv4_mapped_ipv6():
+    with pytest.raises(ValueError, match="non-public IP"):
+        lti_service._validate_lti_resolved_addresses(["::ffff:192.168.1.20"])
+
+
+def test_lti_endpoint_pin_formats_public_ipv6_literal(monkeypatch):
+    monkeypatch.setattr(lti_service.settings, "ENVIRONMENT", "production")
+
+    pinned_url, headers, extensions = lti_service._pin_lti_endpoint_url(
+        "https://moodle.example.test/jwks",
+        ["2606:4700:4700::1111"],
+    )
+
+    assert pinned_url == "https://[2606:4700:4700::1111]/jwks"
+    assert headers == {"Host": "moodle.example.test"}
+    assert extensions == {"sni_hostname": "moodle.example.test"}
+
+
+def test_fetch_platform_public_key_propagates_http_status_errors(monkeypatch):
+    _stub_jwks_http(monkeypatch, FakeJWKSResponse(status_code=503))
+
+    with pytest.raises(RuntimeError, match="HTTP 503"):
+        asyncio.run(
+            lti_service.fetch_platform_public_key(
+                "https://moodle.example.test/jwks", "platform-key"
+            )
+        )
+
+
+def test_fetch_platform_public_key_rejects_non_utf8_json(monkeypatch):
+    _stub_jwks_http(monkeypatch, FakeJWKSResponse(b"\xff"))
+
+    with pytest.raises(ValueError, match="valid JSON"):
+        asyncio.run(
+            lti_service.fetch_platform_public_key(
+                "https://moodle.example.test/jwks", "platform-key"
+            )
+        )
+
+
+def test_platform_id_token_without_kid_is_rejected_before_network_fetch():
+    from jose import jwt
+
+    platform = SimpleNamespace(
+        jwks_url="https://moodle.example.test/jwks",
+        client_id="test-client",
+        issuer="https://moodle.example.test",
+        deployment_id="deployment-1",
+    )
+    token = jwt.encode({"sub": "student"}, "local-test-key", algorithm="HS256")
+
+    with pytest.raises(ValueError, match="missing kid"):
+        asyncio.run(
+            lti_service.verify_platform_id_token(
+                token,
+                platform,
+                expected_nonce="expected-nonce",
+                expected_target_link_uri="https://lumen.example.test/lti/launch",
+            )
+        )
+
+
+def test_long_to_base64url_rejects_negative_integer():
+    with pytest.raises(ValueError, match="non-negative"):
+        lti_service.long_to_base64url(-1)
