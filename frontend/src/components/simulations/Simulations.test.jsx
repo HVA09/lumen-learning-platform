@@ -24,10 +24,14 @@ function createCanvasContext() {
 }
 
 let canvasContexts = [];
-let cachedRunPythonAsync = null;
+const runPythonAsyncMock = vi.fn();
 
 beforeEach(() => {
   canvasContexts = [];
+  runPythonAsyncMock.mockReset().mockResolvedValue("55");
+  window.loadPyodide = vi.fn().mockResolvedValue({
+    runPythonAsync: runPythonAsyncMock,
+  });
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(() => {
     const context = createCanvasContext();
     canvasContexts.push(context);
@@ -183,10 +187,7 @@ describe("interactive simulation calculations", () => {
 
   it("runs the Python exercise through a mocked Pyodide runtime", async () => {
     const user = userEvent.setup();
-    const runPythonAsync = vi.fn().mockResolvedValue("55");
-    cachedRunPythonAsync = runPythonAsync;
-    const loadPyodide = vi.fn().mockResolvedValue({ runPythonAsync });
-    window.loadPyodide = loadPyodide;
+    const loadPyodide = window.loadPyodide;
 
     render(<PythonLabSim />);
 
@@ -202,8 +203,7 @@ describe("interactive simulation calculations", () => {
 
   it("rejects a Python challenge when the output does not match the expected answer", async () => {
     const user = userEvent.setup();
-    expect(cachedRunPythonAsync).not.toBeNull();
-    cachedRunPythonAsync.mockReset().mockResolvedValue("54");
+    runPythonAsyncMock.mockReset().mockResolvedValue("54");
 
     render(<PythonLabSim />);
     await user.click(screen.getByRole("button", { name: /شغّل الكود/ }));
@@ -215,8 +215,7 @@ describe("interactive simulation calculations", () => {
 
   it("shows a Python execution error when the runtime rejects the code", async () => {
     const user = userEvent.setup();
-    expect(cachedRunPythonAsync).not.toBeNull();
-    cachedRunPythonAsync.mockReset().mockRejectedValue(new Error("execution interrupted"));
+    runPythonAsyncMock.mockReset().mockRejectedValue(new Error("execution interrupted"));
 
     render(<PythonLabSim />);
     await user.click(screen.getByRole("button", { name: /شغّل الكود/ }));
