@@ -4,7 +4,7 @@
 
 ## نقطة الاستئناف — 2026-11-05
 
-- آخر تغيير برمجي مدمج على `main`: PR #97 عند `fc25ba75987403a85154e55fc70f329d38ee6371`؛ يختبر استعادة جلسة المتعلم بعد انقطاع الشبكة وعودتها دون reload. CI بعد الدمج [#42115046453](https://github.com/HVA09/lumen-learning-platform/actions/runs/42115046453) نجح 4/4.
+- آخر تغيير اختبار/جودة مدمج على `main`: PR #100 عند Squash commit `2f77979fc735ea69690474bed60fce8a0c206fc7`، ويضيف Backend coverage report-only واختبارات للمهام الخلفية. آخر تغيير سلوكي للواجهة PR #97 عند `fc25ba75987403a85154e55fc70f329d38ee6371`.
 - PR #87 أضاف إعادة اتصال WebSocket للإشعارات بانقطاع مؤقت بتأخير تصاعدي محدود (1–30 ثانية)، مع عدم إعادة المحاولة لرموز الإغلاق النهائية 1008 و4001، وتنظيف المؤقتات ومعالجات الأحداث عند إلغاء المكوّن. أضاف اختبارات Frontend واختبار Backend يثبت وصول الإشعار نفسه إلى جلستين مستقلتين للمستخدم نفسه وحفظه في سجل الإشعارات. PR CI #41959167152 وCI بعد الدمج على main [#42091787403](https://github.com/HVA09/lumen-learning-platform/actions/runs/42091787403) نجحا 4/4.
 - PR #88 أضاف Browser E2E لمحاولة بوابة أقل من الحد (7/10 عند عتبة 80%)، والتحقق من تصحيح الخادم وحفظ نتيجة الرسوب في السجل ورفض إعادة المحاولة فورًا بـ HTTP 429. CI للـ PR [#42092155512](https://github.com/HVA09/lumen-learning-platform/actions/runs/42092155512) نجح 4/4؛ PR مدمج.
 - CI بعد PR #88 على main [#42092874266](https://github.com/HVA09/lumen-learning-platform/actions/runs/42092874266) اكتمل بنجاح 4/4 على commit `92b05ca09c489857328647f42f61a39c969dea0f`.
@@ -13,7 +13,7 @@
 - اكتملت تغطية تبديل `dir` و`lang` بين العربية والإنجليزية والعودة عبر PR #91؛ لا يعني ذلك أن كل نصوص التطبيق مترجمة.
 - PR #95 مدمج عند `80be944a39ffd683daa4ee24cabe48a3bd9067c7`؛ يعيد محاولة تهيئة الجلسة بعد عودة الاتصال، ويمنع إعادة التهيئة بعد login/logout، مع خمسة اختبارات مركزة. CI PR #42108841308 وما بعد الدمج #42113922307 نجحا 4/4.
 - PR #97 مدمج: Browser E2E يعطّل أول GET /users/me بسبب انقطاع الشبكة، ثم يعيد المتصفح Online ويتحقق من استجابة 200 وعودة لوحة التعلم دون reload. لا يعني ذلك أن API أو التطبيق يعملان دون اتصال أو يعيدان إرسال طلبات الكتابة.
-- PR #100 مفتوح: قياس Backend report-only واختبارات المهام الخلفية. CI #42124352248 نجح 4/4 على `bfc29eb7a02187b7830f30bda5e3a6b46960e6f4`؛ 431 Backend tests passed، 20 warnings، Coverage 89%. لا يوجد حد أدنى مفروض حتى مراجعة خط الأساس.
+- PR #100 مدمج في `main` عبر `2f77979fc735ea69690474bed60fce8a0c206fc7`. القياس المدمج report-only: 431 Backend tests passed، 20 warnings، Coverage 89% على رأس PR السابق للدمج؛ لا يوجد حد أدنى مفروض.
 - لا يوجد نشر إنتاجي مثبت؛ لا تنشئ موارد مدفوعة أو تتجاوز CI أو branch protection. المرجع التفصيلي للحالة والخطوات هو docs/PROJECT_STATUS.md، وللقرارات docs/DECISIONS.md، وللتحقق docs/QUALITY_BASELINE.md.
 
 ## الهدف
@@ -80,19 +80,19 @@ https://github.com/HVA09/lumen-learning-platform
 
 ## ملحق استمرارية — آخر تحقق 2026-11-06
 
-- `main` الحالي الذي بُني عليه آخر العمل: `fc25ba75987403a85154e55fc70f329d38ee6371`.
+- `main` بعد دمج PR #100: `2f77979fc735ea69690474bed60fce8a0c206fc7`.
 - PR #95 وPR #97 مدمجان؛ استعادة جلسة المستخدم بعد عودة الشبكة واختبار المتصفح Offline → Online دون reload مكتملان، وتشغيل main CI #42115046453 نجح 4/4.
-- PR #100 مفتوح، وليس جزءًا من `main` حتى الآن: [test(backend): report coverage and verify background tasks](https://github.com/HVA09/lumen-learning-platform/pull/100)، الفرع `chore/backend-coverage-baseline`، الرأس `bfc29eb7a02187b7830f30bda5e3a6b46960e6f4`.
+- PR #100 مدمج في `main`: [test(backend): report coverage and verify background tasks](https://github.com/HVA09/lumen-learning-platform/pull/100)، Squash commit `2f77979fc735ea69690474bed60fce8a0c206fc7`.
 - أحدث تشغيل PR CI [#42124352248](https://github.com/HVA09/lumen-learning-platform/actions/runs/42124352248) نجح 4/4. Backend **431 passed, 20 warnings**، وCoverage **89%**. اختبارات `test_tasks.py` السبعة نجحت، ورفعت `app/tasks.py` إلى 92%.
 - قياس التغطية report-only؛ لا حد أدنى ولا تعديل لإعدادات الإنتاج. لا تعتبر نتيجة PR مدمجة قبل التحقق من merge commit وحالة `main).
-- الخطوة التالية بعد PR #100: اختبارات آمنة للبريد الإلكتروني SMTP، خدمات LTI/OIDC، والملفات/ClamAV. لا تفعّل مزود دفع أو خدمة مدفوعة، ولا تنشر موارد تحتاج بطاقة.
+- الخطوة الحالية: التحقق من CI بعد دمج #100، وإصلاح/إكمال اختبارات SMTP وLTI/OIDC/SSRF وملفات/ClamAV على فروع مستقلة. PR #105 لديه إصلاح لاختبار حصة الملفات وCI جارٍ؛ لا تدمجه قبل نجاح الوظائف الأربع.
 - لا يوجد نشر إنتاجي مثبت؛ نجاح CI لا يثبت SMTP فعليًا أو LMS sandbox أو موارد ClamAV على مضيف حقيقي.
 
 ## نقطة استئناف محدثة — 2026-11-06
 
-1. `main` ما زال عند `fc25ba75987403a85154e55fc70f329d38ee6371`؛ PR #95 و#97 مدمجان، ولا يوجد نشر إنتاجي مثبت.
+1. `main` بعد PR #100 عند `2f77979fc735ea69690474bed60fce8a0c206fc7`؛ PR #95 و#97 و#100 مدمجة، ولا يوجد نشر إنتاجي مثبت.
 2. PR #100: Backend report-only coverage؛ رأس الفرع وقت كتابة التحديث `5c840464e66543a21e3398491da6ca7095896442`. قياس رأس الاختبارات `bfc29eb7a02187b7830f30bda5e3a6b46960e6f4`: **431 passed, 20 warnings, 89%**؛ CI على رأس الاختبارات #42124352248 ورأس الوثائق #42125492215 نجح 4/4.
 3. PR #102: Frontend V8 coverage report-only؛ رأس `58dbf951d478705240e3e5746dee0546967d9e52`؛ **91 passed عبر 17 ملفًا**، التغطية **31.80% statements / 35.72% branches / 28.82% functions / 32.05% lines**؛ CI #42207211737 نجح 4/4.
-4. كلا PRs #100 و#102 مفتوحان وغير مدمجين. لا توجد مراجعة مسجلة لـ PR #102. لا تدّعِ أن أي baseline صار مدمجًا قبل تأكيد merge commit على main.
+4. PR #100 مدمج، بينما PR #102 ما زال مفتوحًا. لا تدّعِ أن قياس Frontend صار baseline مدمجًا قبل تحقق دمجه على `main`.
 5. الخطوة التالية: اختبارات Frontend مركزة لوحدات API ثم App/Admin/ContentManager/Files، ثم Backend SMTP وLTI/OIDC وFiles/ClamAV. حافظ على عدم تغيير API/DB/migrations في مرحلة الاختبار، وعلى شرط الميزانية صفر.
 
