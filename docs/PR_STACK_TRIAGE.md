@@ -1,6 +1,16 @@
 # خريطة طلبات الدمج ومسارات التكامل — Lumen
 
 آخر تحقق: **2026-11-04**.
+
+## لقطة التكامل المعتمدة — 2026-11-06 15:34 UTC
+
+- `main` HEAD: `3cbff17cba6b7b27cd2c86ce986a17926db800f9`. Main CI بعد PR #117 [#42243421397](https://github.com/HVA09/lumen-learning-platform/actions/runs/42243421397) نجح 4/4.
+- **مدمج:** PR #113 عند `ae5bb5bbc3f31e23dcad368379799881167956e7` (ملفات/ClamAV tests)، وPR #117 عند `3cbff17cba6b7b27cd2c86ce986a17926db800f9` (SMTP/LTI security tests). PR CI #828 و#829 وmain CI #831 كلها 4/4.
+- **مفتوح وقيد التحقق:** PR #119 (Frontend coverage/workflow) على base #117؛ وظيفة الواجهة 142/142، Browser E2E وGitleaks نجحتا، Backend قيد التنفيذ في CI #42243595538.
+- **مفتوح وقيد التحقق:** PR #121 (إزالة import واحد unused)؛ Frontend/build وGitleaks نجحا في CI #42243988940، Backend وBrowser E2E قيد التنفيذ.
+- **مغلق دون دمج:** PR #114 و#115 و#116 و#118 نسخ سابقة؛ PR #120 نسخة مكررة أغلقت لصالح #119. لا تعِد فتحها ما دامت الفروع الحالية تغطي تغييراتها.
+- عند دمج PR #119 أو #121، أعد فحص أحدث main وCI بعد الدمج، ثم حدّث هذه الخريطة. لا تتجاوز حماية الفرع أو أي شرط GitHub إلزامي.
+
 المرجع: المستودع `HVA09/lumen-learning-platform`، والفرع الأساسي `main`.
 
 ## 1. الحالة الحالية
