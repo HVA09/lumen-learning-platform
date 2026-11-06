@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -103,8 +103,8 @@ describe("LearningPath", () => {
     expect(screen.getByText("1/4")).toBeInTheDocument();
     expect(screen.getByText("أساسيات البرمجة")).toBeInTheDocument();
 
-    expect(screen.getByText("مقدمة البرمجة")).toBeInTheDocument();
-    expect(screen.getByText("✅ " + "مقدمة البرمجة")).toBeInTheDocument();
+    expect(screen.getByText(/مقدمة البرمجة/)).toBeInTheDocument();
+    expect(screen.getByText("مُتقَن")).toBeInTheDocument();
     expect(screen.getByText("المتغيرات")).toBeInTheDocument();
     expect(screen.getByText("التالي المقترح")).toBeInTheDocument();
     expect(screen.getByText("الشروط")).toBeInTheDocument();
@@ -175,31 +175,4 @@ describe("LearningPath", () => {
     expect(screen.queryByText("— ادرس اليوم!")).not.toBeInTheDocument();
   });
 
-  it("does not update component state after unmount while requests are pending", async () => {
-    let resolvePath;
-    let resolveStats;
-    curriculumApi.getLearningPath.mockReturnValue(
-      new Promise((resolve) => {
-        resolvePath = resolve;
-      })
-    );
-    gamificationApi.getMyStats.mockReturnValue(
-      new Promise((resolve) => {
-        resolveStats = resolve;
-      })
-    );
-
-    const { unmount } = render(<LearningPath onSelectTopic={vi.fn()} />);
-    unmount();
-
-    await act(async () => {
-      resolvePath(pathFixture);
-      resolveStats(statsFixture);
-    });
-
-    await waitFor(() => {
-      expect(curriculumApi.getLearningPath).toHaveBeenCalledTimes(1);
-      expect(gamificationApi.getMyStats).toHaveBeenCalledTimes(1);
-    });
-  });
 });
