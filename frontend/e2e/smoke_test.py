@@ -129,7 +129,7 @@ def _exercise_notifications_websocket_network_recovery(browser) -> None:
           window.WebSocket = new Proxy(NativeWebSocket, {
             construct(target, args) {
               const socket = Reflect.construct(target, args);
-              if (String(args[0]).replace(/\\/$/, "").endsWith("/ws/notifications")) {
+              if (String(args[0]).endsWith("/ws/notifications")) {
                 window.__lumenNotificationSockets.push(socket);
               }
               return socket;
