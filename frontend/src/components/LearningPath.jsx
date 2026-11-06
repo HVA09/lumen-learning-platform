@@ -70,16 +70,31 @@ export default function LearningPath({ onSelectTopic }) {
   const [stats, setStats] = useState(null);
   const [error, setError] = useState("");
 
-  const refresh = () => {
-    Promise.all([getLearningPath(), getMyStats()])
-      .then(([pathData, statsData]) => {
-        setPath(pathData);
-        setStats(statsData);
-      })
-      .catch(() => setError("تعذر تحميل مسار التعلّم"));
-  };
+  useEffect(() => {
+    let active = true;
 
-  useEffect(refresh, []);
+    // The learning path is core content; streak statistics are optional.
+    // A failure in gamification must not hide the learner's curriculum.
+    getLearningPath()
+      .then((pathData) => {
+        if (active) setPath(pathData);
+      })
+      .catch(() => {
+        if (active) setError("تعذر تحميل مسار التعلّم");
+      });
+
+    getMyStats()
+      .then((statsData) => {
+        if (active) setStats(statsData);
+      })
+      .catch(() => {
+        if (active) setStats(null);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   if (error) {
     return (
