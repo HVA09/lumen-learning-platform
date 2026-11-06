@@ -152,6 +152,9 @@ def _exercise_notifications_websocket_network_recovery(browser) -> None:
             "close", lambda _websocket: initial_socket_closures.append(initial_socket.url)
         )
         page.wait_for_timeout(500)
+        assert not initial_socket.is_closed(), (
+            "The initial notification WebSocket did not stay connected after registration"
+        )
         assert not initial_socket_closures, (
             "The initial notification WebSocket closed before the network outage"
         )
