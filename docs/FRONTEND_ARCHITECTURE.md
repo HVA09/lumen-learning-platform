@@ -22,7 +22,7 @@ frontend/src/
 ├── components/
 │   ├── AppHeader.jsx
 │   ├── LearningPath.jsx (+ test)
-│   ├── LabPanel.jsx (+ test planned)
+│   ├── LabPanel.jsx (+ test)
 │   ├── صفحات ولوحات التطبيق (+ اختبارات للمكونات المغطاة)
 │   └── simulations/
 ├── features/
@@ -155,7 +155,7 @@ src/
 
 | التاريخ | العنصر | الحالة |
 |---|---|---|
-| 2026-11-06 | مراجعة خريطة الواجهة بعد P6 | تحديث خط الأساس إلى `b25c7a960b92b3571227fe47b3e16ec4b2efbfa5`، وإثبات ملكية الإشعارات داخل `features/notifications`، وإضافة اختبارات `App.jsx` و`LearningPath.jsx` إلى خريطة الاختبارات |
+| 2026-11-06 | مراجعة خريطة الواجهة بعد P6 | تحديث خط الأساس إلى `d08bf60d14cd51a3f6492fe8d18857cc5de1de44`، وإثبات ملكية الإشعارات داخل `features/notifications`، وإضافة اختبارات `App.jsx` و`LearningPath.jsx` و`LabPanel.jsx` إلى خريطة الاختبارات |
 | 2026-11-03 | `useNotificationsSocket` واختباراته | PR #41 مدمج في `main`؛ commit `9481c7927cd06653c584f3b11faa4e1d842259b9`؛ CI PR وCI بعد الدمج ناجحان |
 | 2026-11-03 | `useSession` واختباراته | PR #43 مدمج في `main`؛ commit `9a2a23c071f31f8553b3b1eef9f67195f3b08f07`؛ CI PR وCI بعد الدمج ناجحان |
 | 2026-11-03 | `useNotifications` وحالة الإشعارات واختباراته | PR #44 مدمج في `main`؛ commit `aec9584df78009b07c8bed35b48742d7b7a60ede`؛ CI على الرأس المعاد تأسيسه وCI بعد الدمج ناجحان |
