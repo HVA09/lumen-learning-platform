@@ -305,5 +305,5 @@
 | `LearningPath.jsx`, `LabPanel.jsx` والمحاكاة | 0% | أضف اختبارات قواعد التعليم والحسابات والسلوك |
 
 - لا ترفع التغطية باستثناء ملفات أو اختبارات شكلية. لا يوجد `coverage.thresholds` مفروض؛ راجع الوحدات والمخاطر قبل إنشاء gate.
-- CI بعد دمج PR #117 على `main` [#42243421397](https://github.com/HVA09/lumen-learning-platform/actions/runs/42243421397) نجح 4/4. CI ما بعد PR #119 [#42244364141](https://github.com/HVA09/lumen-learning-platform/actions/runs/42244364141) كان قيد التنفيذ عند تحرير هذا التحديث؛ حدّث النتيجة بعد انتهائه.
+- CI بعد دمج PR #117 على `main` [#42243421397](https://github.com/HVA09/lumen-learning-platform/actions/runs/42243421397) نجح 4/4. CI ما بعد PR #119 على `main` [#42244364141](https://github.com/HVA09/lumen-learning-platform/actions/runs/42244364141) اكتمل بنجاح 4/4.
 - ما زالت RUM/Core Web Vitals الميدانية وTypecheck/ESLint وقياسات هاتف واتصال بطيء غير مكتملة. لا يوجد نشر إنتاجي أو تكامل SMTP/LMS خارجي مثبت.
