@@ -27,6 +27,9 @@ import {
   setupTwoFactor,
 } from "./authApi";
 
+const testPassword = "unit-test-password";
+const replacementPassword = "replacement-value";
+
 describe("auth API adapters", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -37,10 +40,10 @@ describe("auth API adapters", () => {
     const data = { id: 7, email: "learner@example.com" };
     mocks.api.post.mockResolvedValueOnce({ data });
 
-    await expect(registerUser("learner@example.com", "StrongPass123")).resolves.toEqual(data);
+    await expect(registerUser("learner@example.com", testPassword)).resolves.toEqual(data);
     expect(mocks.api.post).toHaveBeenCalledWith("/auth/register", {
       email: "learner@example.com",
-      password: "StrongPass123",
+      password: testPassword,
     });
   });
 
@@ -48,10 +51,10 @@ describe("auth API adapters", () => {
     const data = { authenticated: true, csrf_token: "csrf-login" };
     mocks.api.post.mockResolvedValueOnce({ data });
 
-    await expect(loginUser("learner@example.com", "StrongPass123", "123456")).resolves.toEqual(data);
+    await expect(loginUser("learner@example.com", testPassword, "123456")).resolves.toEqual(data);
     expect(mocks.api.post).toHaveBeenCalledWith("/auth/login", {
       email: "learner@example.com",
-      password: "StrongPass123",
+      password: testPassword,
       totp_code: "123456",
     });
     expect(mocks.setCsrfToken).toHaveBeenCalledWith("csrf-login");
@@ -63,10 +66,10 @@ describe("auth API adapters", () => {
       data: { authenticated: false, requires_2fa: true },
     });
 
-    await loginUser("learner@example.com", "StrongPass123");
+    await loginUser("learner@example.com", testPassword);
     expect(mocks.api.post).toHaveBeenCalledWith("/auth/login", {
       email: "learner@example.com",
-      password: "StrongPass123",
+      password: testPassword,
       totp_code: null,
     });
     expect(mocks.setCsrfToken).not.toHaveBeenCalled();
@@ -107,7 +110,7 @@ describe("auth API adapters", () => {
 
   it("maps password-reset, email-verification, and two-factor requests", async () => {
     await requestPasswordReset("learner@example.com");
-    await confirmPasswordReset("reset-token", "NewStrongPass123");
+    await confirmPasswordReset("reset-token", replacementPassword);
     await confirmEmailVerification("verification-token");
     await requestEmailVerification();
     await setupTwoFactor();
@@ -118,7 +121,7 @@ describe("auth API adapters", () => {
       ["/auth/password-reset/request", { email: "learner@example.com" }],
       ["/auth/password-reset/confirm", {
         token: "reset-token",
-        new_password: "NewStrongPass123",
+        new_password: replacementPassword,
       }],
       ["/auth/verify-email/confirm", { token: "verification-token" }],
       ["/auth/verify-email/request"],
@@ -132,6 +135,6 @@ describe("auth API adapters", () => {
     const error = new Error("network unavailable");
     mocks.api.post.mockRejectedValueOnce(error);
 
-    await expect(registerUser("learner@example.com", "StrongPass123")).rejects.toBe(error);
+    await expect(registerUser("learner@example.com", testPassword)).rejects.toBe(error);
   });
 });
