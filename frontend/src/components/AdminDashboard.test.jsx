@@ -140,7 +140,9 @@ describe("AdminDashboard", () => {
     await user.click(within(studentRow).getByRole("button", { name: "تعطيل" }));
     expect(adminApi.updateUser).toHaveBeenCalledWith(student.id, { is_active: false });
 
-    await user.click(within(studentRow).getByRole("button", { name: "حذف" }));
+    await screen.findByText(student.email);
+    const refreshedStudentRow = screen.getByText(student.email).parentElement.parentElement;
+    await user.click(within(refreshedStudentRow).getByRole("button", { name: "حذف" }));
     expect(confirm).toHaveBeenCalledWith(`حذف المستخدم ${student.email}؟`);
     expect(adminApi.deleteUser).toHaveBeenCalledWith(student.id);
   });
