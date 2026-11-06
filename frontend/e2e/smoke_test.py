@@ -121,9 +121,9 @@ def _exercise_notifications_websocket_network_recovery(browser) -> None:
         locale="ar",
     )
     page = context.new_page()
-    notification_socket = lambda websocket: websocket.url.rstrip("/").endswith(
-        "/ws/notifications"
-    )
+    def is_notification_socket(websocket) -> bool:
+        return websocket.url.rstrip("/").endswith("/ws/notifications")
+
     initial_socket_closures: list[str] = []
     reconnected_socket_closures: list[str] = []
     socket_errors: list[str] = []
@@ -139,8 +139,8 @@ def _exercise_notifications_websocket_network_recovery(browser) -> None:
         page.get_by_placeholder("البريد الإلكتروني").fill(email)
         page.get_by_placeholder("كلمة المرور (8 أحرف على الأقل)").fill(password)
 
-        with page.expect_event(
-            "websocket", predicate=notification_socket, timeout=45_000
+        with page.expect_websocket(
+            predicate=is_notification_socket, timeout=45_000
         ) as initial_socket_info:
             page.get_by_role("button", name="إنشاء حساب").click()
             expect(page.get_by_text("إتقانك الإجمالي", exact=True)).to_be_visible(
@@ -169,8 +169,8 @@ def _exercise_notifications_websocket_network_recovery(browser) -> None:
             "The notification WebSocket did not close after the browser went offline"
         )
 
-        with page.expect_event(
-            "websocket", predicate=notification_socket, timeout=15_000
+        with page.expect_websocket(
+            predicate=is_notification_socket, timeout=15_000
         ) as reconnected_socket_info:
             context.set_offline(False)
 
@@ -186,6 +186,9 @@ def _exercise_notifications_websocket_network_recovery(browser) -> None:
             "socketerror", lambda error: socket_errors.append(str(error))
         )
         page.wait_for_timeout(500)
+        assert not reconnected_socket.is_closed(), (
+            "The replacement notification WebSocket did not remain connected after recovery"
+        )
         assert not reconnected_socket_closures, (
             "The reconnected notification WebSocket closed immediately after recovery"
         )
