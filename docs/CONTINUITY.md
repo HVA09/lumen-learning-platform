@@ -4,7 +4,7 @@
 
 ## نقطة الاستئناف — 2026-11-05
 
-- آخر تغيير اختبار/جودة مدمج على `main`: PR #100 عند Squash commit `2f77979fc735ea69690474bed60fce8a0c206fc7`، ويضيف Backend coverage report-only واختبارات للمهام الخلفية. آخر تغيير سلوكي للواجهة PR #97 عند `fc25ba75987403a85154e55fc70f329d38ee6371`.
+- رأس `main` الحالي بعد PR #123 هو `53a1912773dbbaf4a854ec7d110dc4fd46a2b6a3`. PR #100 و#109 و#113 و#117 و#119 و#123 مدمجة؛ Backend 480 passed و90%، وFrontend 142 passed عبر 24 ملفًا و50.34% statements. لا يوجد نشر إنتاجي مثبت.
 - PR #87 أضاف إعادة اتصال WebSocket للإشعارات بانقطاع مؤقت بتأخير تصاعدي محدود (1–30 ثانية)، مع عدم إعادة المحاولة لرموز الإغلاق النهائية 1008 و4001، وتنظيف المؤقتات ومعالجات الأحداث عند إلغاء المكوّن. أضاف اختبارات Frontend واختبار Backend يثبت وصول الإشعار نفسه إلى جلستين مستقلتين للمستخدم نفسه وحفظه في سجل الإشعارات. PR CI #41959167152 وCI بعد الدمج على main [#42091787403](https://github.com/HVA09/lumen-learning-platform/actions/runs/42091787403) نجحا 4/4.
 - PR #88 أضاف Browser E2E لمحاولة بوابة أقل من الحد (7/10 عند عتبة 80%)، والتحقق من تصحيح الخادم وحفظ نتيجة الرسوب في السجل ورفض إعادة المحاولة فورًا بـ HTTP 429. CI للـ PR [#42092155512](https://github.com/HVA09/lumen-learning-platform/actions/runs/42092155512) نجح 4/4؛ PR مدمج.
 - CI بعد PR #88 على main [#42092874266](https://github.com/HVA09/lumen-learning-platform/actions/runs/42092874266) اكتمل بنجاح 4/4 على commit `92b05ca09c489857328647f42f61a39c969dea0f`.
@@ -96,3 +96,15 @@ https://github.com/HVA09/lumen-learning-platform
 4. PR #100 مدمج، بينما PR #102 ما زال مفتوحًا. لا تدّعِ أن قياس Frontend صار baseline مدمجًا قبل تحقق دمجه على `main`.
 5. الخطوة التالية: اختبارات Frontend مركزة لوحدات API ثم App/Admin/ContentManager/Files، ثم Backend SMTP وLTI/OIDC وFiles/ClamAV. حافظ على عدم تغيير API/DB/migrations في مرحلة الاختبار، وعلى شرط الميزانية صفر.
 
+
+
+## نقطة استئناف مؤكدة — 2026-11-06 بعد دمج PR #119
+
+- `main`: `53a1912773dbbaf4a854ec7d110dc4fd46a2b6a3`.
+- PR #113 دمج اختبارات ملفات/ClamAV: CI #42241558869 نجح 4/4، 447 Backend passed.
+- PR #117 دمج اختبارات SMTP وLTI DNS/JWKS: CI #42242688194 نجح 4/4، 480 Backend passed، 21 warnings، 90% coverage.
+- PR #119 دمج خط أساس Frontend V8 report-only واختبارات API/files/admin/content: CI #42243595538 نجح 4/4؛ 142 اختبارًا عبر 24 ملفًا، statements 50.34%، branches 53.53%، functions 47.98%، lines 50.63%.
+- CI بعد PR #117 على `main` [#42243421397](https://github.com/HVA09/lumen-learning-platform/actions/runs/42243421397) وبعد PR #119 [#42244364141](https://github.com/HVA09/lumen-learning-platform/actions/runs/42244364141) نجحا 4/4. PR #123 أزال import غير مستخدم؛ CI [#42244746449](https://github.com/HVA09/lumen-learning-platform/actions/runs/42244746449) نجح 4/4، وتشغيل `main` بعده [#42245438258](https://github.com/HVA09/lumen-learning-platform/actions/runs/42245438258) قيد التنفيذ عند آخر تحقق.
+- لا تغييرات runtime/API/DB/migrations في PRs #113/#117/#119. لا يوجد threshold للتغطية. SMTP وLTI tests تستخدم test doubles؛ لا تثبت تكامل مزود بريد أو LMS خارجي فعلي.
+- التالي: `App.jsx` integration tests، ثم `LearningPath` و`LabPanel` والمحاكاة؛ بعد ذلك RUM/Core Web Vitals وTypecheck وقياسات الهاتف. P7 والنشر الإنتاجي ما زالا غير مكتملين.
+- حافظ على قيود الميزانية صفر، وعدم طلب بطاقة أو تفعيل دفع، وعدم تجاوز CI أو branch protection.
