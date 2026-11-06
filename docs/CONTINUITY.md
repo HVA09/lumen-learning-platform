@@ -108,3 +108,28 @@ https://github.com/HVA09/lumen-learning-platform
 - لا تغييرات runtime/API/DB/migrations في PRs #113/#117/#119. لا يوجد threshold للتغطية. SMTP وLTI tests تستخدم test doubles؛ لا تثبت تكامل مزود بريد أو LMS خارجي فعلي.
 - التالي: `App.jsx` integration tests، ثم `LearningPath` و`LabPanel` والمحاكاة؛ بعد ذلك RUM/Core Web Vitals وTypecheck وقياسات الهاتف. P7 والنشر الإنتاجي ما زالا غير مكتملين.
 - حافظ على قيود الميزانية صفر، وعدم طلب بطاقة أو تفعيل دفع، وعدم تجاوز CI أو branch protection.
+
+
+## نقطة استئناف مؤكدة — 2026-11-06 بعد PR #141
+
+- `main`: `1f76de769a224fb01c5ac66e9bccede331650dac`.
+- PR #129: اختبار StrictMode لـ session bootstrap؛ PR CI #42247388390 نجح 4/4.
+- PR #133: reconnect فوري لـ notifications عند حدث `online` مع إلغاء backoff timer؛ PR CI #42248648649 نجح 4/4.
+- PR #136: فصل تحميل LearningPath عن بيانات streak الاختيارية، واختبارات التحميل وحالات الموضوع وإلغاء تحديث الحالة بعد unmount؛ CI #42250578866 نجح 4/4.
+- PR #137: اختبارات lazy simulation routing وfallback في LabPanel؛ CI #42251617174 نجح 4/4.
+- PR #138: تحديث خريطة بنية Frontend؛ CI #42252349059 نجح 4/4.
+- PR #140: حسابات math/physics/circuits وتحدي Python؛ CI #42253279488 نجح 4/4، وmain CI #42254119108 نجح 4/4.
+- PR #141: animation/failure paths؛ CI #42265153710 نجح 4/4، وتم الدمج عند `1f76de769a224fb01c5ac66e9bccede331650dac`. main CI بعد الدمج #42265976307 كان قيد التنفيذ عند آخر تحقق.
+- Frontend في PR CI #42265153710: 187 passed / 28 files؛ 70.83% statements، 65.26% branches، 60.16% functions، 71.85% lines.
+- Backend في PR CI #42265153710: 480 passed، 21 warnings، 90% coverage؛ migrations وPostgreSQL backup/restore integration checks نجحت.
+- لا يعني نجاح هذه الفحوص اختبارًا على هاتف حقيقي أو قياس RUM/Core Web Vitals أو نشرًا إنتاجيًا.
+
+### الاستئناف التالي
+
+1. تحقق من اكتمال main CI #42265976307 بعد PR #141.
+2. حدّث QUALITY_BASELINE وPROJECT_STATUS وARCHITECTURE_PLAN وDECISIONS بالأرقام والقرارات الجديدة.
+3. أكمل P6 بقياس ميداني للأداء وتجربة هاتف واتصال بطيء، وتقييم ESLint أو فحص JS ساكن دون فرض gate عشوائي.
+4. أعد تقييم سلسلة LTI/AGS #16–#23 من commit graph حديث؛ هذه الفروع ما زالت متراكبة على bases قديمة ولا تدمج مباشرة.
+5. أبقِ P7 مفتوحة حتى إثبات الاستضافة وHTTPS وSMTP وClamAV والنسخ الاحتياطي والاستعادة على مضيف إنتاجي مجاني مناسب.
+
+- لا موارد مدفوعة أو طلب بطاقة. لا تتجاوز حماية الفرع أو فحوص CI والأمن.
