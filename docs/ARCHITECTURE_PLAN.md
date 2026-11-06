@@ -186,3 +186,11 @@ PR #39–#46 و#48 و#49 و#51–#59 و#62 و#64–#84 و#87–#89 و#91 و#95 �
 - تبقى RUM/Core Web Vitals الميدانية وقياسات الهاتف/الاتصال البطيء غير مكتملة. P7 غير جاهزة: لا استضافة إنتاجية مثبتة ولا SMTP حقيقي ولا وجهة Restic خارجية.
 - لا Microservices، ولا تغيير API/DB/migrations في مرحلة التغطية، ولا تفعيل دفع إلكتروني، ولا موارد مدفوعة.
 
+## تحديث P6 — قياس تغطية Frontend (2026-11-06)
+
+- PR #102 أضاف `@vitest/coverage-v8@5.0.5` المطابق لـ Vitest 5.0.5، وسكربت `npm run test:coverage`، ونطاقًا صريحًا لملفات JS/JSX داخل `frontend/src`. القياس report-only ولا يفرض threshold.
+- CI [#42207211737](https://github.com/HVA09/lumen-learning-platform/actions/runs/42207211737) نجح 4/4 على الرأس `58dbf951d478705240e3e5746dee0546967d9e52`: 91 Frontend tests عبر 17 ملفًا؛ statements 31.80%، branches 35.72%، functions 28.82%، lines 32.05%.
+- فجوات الاختبار الأوضح: App، AdminDashboard، ContentManager، FilesPanel، وبعض API adapters والمحاكاة. لا تستبعد هذه الوحدات من التغطية؛ أضف اختبارات مركزة حسب المخاطر.
+- PR #102 لا يزال مفتوحًا وغير مدمج. PR #100 هو PR المستقل لقياس Backend (89%، 431 passed). لا تعتبر أي رقم baseline مدمجًا قبل تحقق دمج PR المقابل.
+- التسلسل التالي: API adapters مع mocks، ثم تدفقات App/Admin/Content/Files؛ بعد ذلك SMTP fail-safe وLTI/OIDC وملفات/ClamAV. تبقى Typecheck وRUM/Core Web Vitals وقياسات الهاتف غير مكتملة.
+

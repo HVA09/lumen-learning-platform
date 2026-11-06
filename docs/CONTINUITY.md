@@ -88,3 +88,11 @@ https://github.com/HVA09/lumen-learning-platform
 - الخطوة التالية بعد PR #100: اختبارات آمنة للبريد الإلكتروني SMTP، خدمات LTI/OIDC، والملفات/ClamAV. لا تفعّل مزود دفع أو خدمة مدفوعة، ولا تنشر موارد تحتاج بطاقة.
 - لا يوجد نشر إنتاجي مثبت؛ نجاح CI لا يثبت SMTP فعليًا أو LMS sandbox أو موارد ClamAV على مضيف حقيقي.
 
+## نقطة استئناف محدثة — 2026-11-06
+
+1. `main` ما زال عند `fc25ba75987403a85154e55fc70f329d38ee6371`؛ PR #95 و#97 مدمجان، ولا يوجد نشر إنتاجي مثبت.
+2. PR #100: Backend report-only coverage؛ رأس الفرع وقت كتابة التحديث `5c840464e66543a21e3398491da6ca7095896442`. قياس رأس الاختبارات `bfc29eb7a02187b7830f30bda5e3a6b46960e6f4`: **431 passed, 20 warnings, 89%**؛ CI على رأس الاختبارات #42124352248 ورأس الوثائق #42125492215 نجح 4/4.
+3. PR #102: Frontend V8 coverage report-only؛ رأس `58dbf951d478705240e3e55fc70f329d38ee6371`؛ **91 passed عبر 17 ملفًا**، التغطية **31.80% statements / 35.72% branches / 28.82% functions / 32.05% lines**؛ CI #42207211737 نجح 4/4.
+4. كلا PRs #100 و#102 مفتوحان وغير مدمجين. لا توجد مراجعة مسجلة لـ PR #102. لا تدّعِ أن أي baseline صار مدمجًا قبل تأكيد merge commit على main.
+5. الخطوة التالية: اختبارات Frontend مركزة لوحدات API ثم App/Admin/ContentManager/Files، ثم Backend SMTP وLTI/OIDC وFiles/ClamAV. حافظ على عدم تغيير API/DB/migrations في مرحلة الاختبار، وعلى شرط الميزانية صفر.
+
