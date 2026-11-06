@@ -77,10 +77,20 @@ export default function useNotificationsSocket({ enabled, onNotification }) {
       };
     };
 
+    const handleOnline = () => {
+      // Do not create a duplicate socket when there is no pending reconnect.
+      if (!active || reconnectTimer === null) return;
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+      connect();
+    };
+
+    window.addEventListener("online", handleOnline);
     connect();
 
     return () => {
       active = false;
+      window.removeEventListener("online", handleOnline);
       if (reconnectTimer !== null) {
         clearTimeout(reconnectTimer);
       }
