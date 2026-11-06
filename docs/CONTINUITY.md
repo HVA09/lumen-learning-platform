@@ -104,7 +104,7 @@ https://github.com/HVA09/lumen-learning-platform
 - PR #113 دمج اختبارات ملفات/ClamAV: CI #42241558869 نجح 4/4، 447 Backend passed.
 - PR #117 دمج اختبارات SMTP وLTI DNS/JWKS: CI #42242688194 نجح 4/4، 480 Backend passed، 21 warnings، 90% coverage.
 - PR #119 دمج خط أساس Frontend V8 report-only واختبارات API/files/admin/content: CI #42243595538 نجح 4/4؛ 142 اختبارًا عبر 24 ملفًا، statements 50.34%، branches 53.53%، functions 47.98%، lines 50.63%.
-- CI بعد PR #117 على `main` [#42243421397](https://github.com/HVA09/lumen-learning-platform/actions/runs/42243421397) نجح 4/4. تشغيل `main` بعد PR #119 [#42244364141](https://github.com/HVA09/lumen-learning-platform/actions/runs/42244364141) كان قيد التنفيذ عند آخر تحقق.
+- CI بعد PR #117 على `main` [#42243421397](https://github.com/HVA09/lumen-learning-platform/actions/runs/42243421397) نجح 4/4. تشغيل `main` بعد PR #119 [#42244364141](https://github.com/HVA09/lumen-learning-platform/actions/runs/42244364141) اكتمل بنجاح 4/4.
 - لا تغييرات runtime/API/DB/migrations في PRs #113/#117/#119. لا يوجد threshold للتغطية. SMTP وLTI tests تستخدم test doubles؛ لا تثبت تكامل مزود بريد أو LMS خارجي فعلي.
 - التالي: `App.jsx` integration tests، ثم `LearningPath` و`LabPanel` والمحاكاة؛ بعد ذلك RUM/Core Web Vitals وTypecheck وقياسات الهاتف. P7 والنشر الإنتاجي ما زالا غير مكتملين.
 - حافظ على قيود الميزانية صفر، وعدم طلب بطاقة أو تفعيل دفع، وعدم تجاوز CI أو branch protection.
