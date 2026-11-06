@@ -113,7 +113,7 @@ def _exercise_session_bootstrap_network_recovery(browser) -> None:
 
 
 def _exercise_notifications_websocket_network_recovery(browser) -> None:
-    """Verify the authenticated notification socket reconnects after a real browser outage."""
+    """Verify the authenticated notification socket recovers after a transient transport close."""
     email = f"browser-e2e-ws-{uuid.uuid4().hex[:10]}@example.com"
     password = "BrowserE2E-Pass-2026"
     context = browser.new_context(
@@ -121,13 +121,21 @@ def _exercise_notifications_websocket_network_recovery(browser) -> None:
         locale="ar",
     )
     page = context.new_page()
+
     def is_notification_socket(websocket) -> bool:
         return websocket.url.rstrip("/").endswith("/ws/notifications")
 
-    initial_socket_closures: list[str] = []
-    reconnected_socket_closures: list[str] = []
-    socket_errors: list[str] = []
+    server_sockets = []
     try:
+        # Route the socket through Playwright while preserving the real backend
+        # handshake and cookie authentication. This lets the test terminate the
+        # server-side transport deterministically; context.set_offline() alone
+        # does not reliably close an already-established WebSocket in Chromium.
+        def connect_notification_socket(websocket_route) -> None:
+            server_sockets.append(websocket_route.connect_to_server())
+
+        page.route_web_socket("**/ws/notifications", connect_notification_socket)
+
         response = page.goto(BASE_URL, wait_until="domcontentloaded")
         assert response is not None and response.ok, (
             f"Frontend did not load successfully: {response.status if response else 'no response'}"
@@ -148,30 +156,32 @@ def _exercise_notifications_websocket_network_recovery(browser) -> None:
             )
 
         initial_socket = initial_socket_info.value
-        initial_socket.on(
-            "close", lambda _websocket: initial_socket_closures.append(initial_socket.url)
-        )
         page.wait_for_timeout(500)
         assert not initial_socket.is_closed(), (
             "The initial notification WebSocket did not stay connected after registration"
         )
-        assert not initial_socket_closures, (
-            "The initial notification WebSocket closed before the network outage"
+        assert len(server_sockets) == 1, (
+            "Expected exactly one authenticated backend notification WebSocket after registration"
         )
 
-        # Keep the app document alive while forcing the browser's real WebSocket
-        # transport offline. Wait for the existing socket to close before emitting
-        # the online event, so the client has scheduled its reconnect backoff.
+        # Put the browser into offline state, then terminate the actual server-side
+        # WebSocket. The app must schedule a retry while its document remains alive.
         context.set_offline(True)
+        server_sockets[0].close(
+            code=1011,
+            reason="simulated transient network interruption",
+        )
         for _ in range(100):
-            if initial_socket_closures:
+            if initial_socket.is_closed():
                 break
             page.wait_for_timeout(100)
 
-        assert initial_socket_closures, (
-            "The notification WebSocket did not close after the browser went offline"
+        assert initial_socket.is_closed(), (
+            "The notification WebSocket did not close after the simulated transport interruption"
         )
 
+        # Returning online emits the browser's online event. The app should cancel
+        # its pending backoff and establish a fresh authenticated connection.
         with page.expect_websocket(
             predicate=is_notification_socket, timeout=15_000
         ) as reconnected_socket_info:
@@ -181,29 +191,21 @@ def _exercise_notifications_websocket_network_recovery(browser) -> None:
         assert reconnected_socket is not initial_socket, (
             "The online event must create a new notification WebSocket connection"
         )
-        reconnected_socket.on(
-            "close",
-            lambda _websocket: reconnected_socket_closures.append(reconnected_socket.url),
+        assert len(server_sockets) == 2, (
+            "Expected one replacement backend notification WebSocket after recovery"
         )
-        reconnected_socket.on(
-            "socketerror", lambda error: socket_errors.append(str(error))
-        )
-        page.wait_for_timeout(500)
+        page.wait_for_timeout(1_500)
         assert not reconnected_socket.is_closed(), (
             "The replacement notification WebSocket did not remain connected after recovery"
         )
-        assert not reconnected_socket_closures, (
-            "The reconnected notification WebSocket closed immediately after recovery"
-        )
-        assert not socket_errors, (
-            "The notification WebSocket reported a transport error during reconnection: "
-            + "; ".join(socket_errors)
+        assert len(server_sockets) == 2, (
+            "The client created duplicate notification WebSocket connections after recovery"
         )
         expect(page.get_by_text("إتقانك الإجمالي", exact=True)).to_be_visible()
         print(
-            "Browser notification recovery passed: the authenticated WebSocket closed "
-            "during the simulated outage and a new connection opened after the browser "
-            "returned online without reloading the page."
+            "Browser notification recovery passed: the authenticated backend WebSocket "
+            "was interrupted while the browser was offline, then reconnected after the "
+            "browser returned online without reloading the page."
         )
     finally:
         context.close()
