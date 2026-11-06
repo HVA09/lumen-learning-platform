@@ -113,31 +113,35 @@ def _exercise_session_bootstrap_network_recovery(browser) -> None:
 
 
 def _exercise_notifications_websocket_network_recovery(browser) -> None:
-    """Verify an authenticated notification socket reconnects after a transient drop."""
+    """Verify an authenticated notification socket reconnects after a transient close."""
     email = f"browser-e2e-ws-{uuid.uuid4().hex[:10]}@example.com"
     password = "BrowserE2E-Pass-2026"
     context = browser.new_context(
         viewport={"width": 390, "height": 844},
         locale="ar",
     )
-    socket_routes = []
-    server_sockets = []
-
-    def route_notification_socket(websocket_route) -> None:
-        # Keep the real backend handshake and connection, while allowing the test
-        # to terminate the client transport deterministically.
-        server_socket = websocket_route.connect_to_server()
-        socket_routes.append(websocket_route)
-        server_sockets.append(server_socket)
-
-    context.route_web_socket(re.compile(r"/ws/notifications$"), route_notification_socket)
     page = context.new_page()
+    page.add_init_script(
+        """
+        (() => {
+          const NativeWebSocket = window.WebSocket;
+          window.__lumenNotificationSockets = [];
+          window.WebSocket = new Proxy(NativeWebSocket, {
+            construct(target, args) {
+              const socket = Reflect.construct(target, args);
+              if (String(args[0]).replace(/\\/$/, "").endsWith("/ws/notifications")) {
+                window.__lumenNotificationSockets.push(socket);
+              }
+              return socket;
+            },
+          });
+        })();
+        """
+    )
 
     def is_notification_socket(websocket) -> bool:
         return websocket.url.rstrip("/").endswith("/ws/notifications")
 
-    initial_socket_closures: list[str] = []
-    reconnected_socket_closures: list[str] = []
     try:
         response = page.goto(BASE_URL, wait_until="domcontentloaded")
         assert response is not None and response.ok, (
@@ -159,15 +163,17 @@ def _exercise_notifications_websocket_network_recovery(browser) -> None:
             )
 
         initial_socket = initial_socket_info.value
+        page.wait_for_timeout(500)
+        assert not initial_socket.is_closed(), (
+            "The initial authenticated notification WebSocket did not stay connected"
+        )
+        assert page.evaluate("window.__lumenNotificationSockets.length") == 1, (
+            "Expected exactly one browser notification WebSocket after registration"
+        )
+
+        initial_socket_closures: list[str] = []
         initial_socket.on(
             "close", lambda _websocket: initial_socket_closures.append(initial_socket.url)
-        )
-        page.wait_for_timeout(300)
-        assert len(socket_routes) == 1, (
-            f"Expected one routed notification socket, found {len(socket_routes)}"
-        )
-        assert not initial_socket.is_closed(), (
-            "The initial notification WebSocket did not stay connected after registration"
         )
 
         navigation_events = []
@@ -179,13 +185,16 @@ def _exercise_notifications_websocket_network_recovery(browser) -> None:
         )
         navigation_count = len(navigation_events)
 
-        # Playwright's offline emulation does not reliably terminate an already
-        # established WebSocket. Close the routed client transport with a transient
-        # code, while keeping the upstream server handshake real. The browser then
-        # observes a genuine WebSocket close event and schedules its retry timer.
-        server_sockets[0].close(
-            code=1011,
-            reason="simulated transient network interruption",
+        # Close the real browser WebSocket with a retryable application code.
+        # This makes the browser deliver its native close event and lets the hook
+        # schedule its backoff timer. Then emit a real offline -> online transition
+        # before that timer expires; the online handler must reconnect immediately.
+        page.evaluate(
+            """() => {
+              const sockets = window.__lumenNotificationSockets;
+              if (sockets.length !== 1) throw new Error("Unexpected notification socket count");
+              sockets[0].close(4000, "simulated transient interruption");
+            }"""
         )
         for _ in range(100):
             if initial_socket_closures or initial_socket.is_closed():
@@ -193,45 +202,37 @@ def _exercise_notifications_websocket_network_recovery(browser) -> None:
             page.wait_for_timeout(100)
 
         assert initial_socket_closures or initial_socket.is_closed(), (
-            "The simulated transient interruption did not close the browser WebSocket"
+            "The browser did not observe the simulated transient WebSocket close"
         )
 
-        # Toggle the browser's network state to emit its real online event while the
-        # retry timer is pending. The online handler should cancel backoff and connect
-        # immediately, without reloading the application document.
+        context.set_offline(True)
+        page.wait_for_timeout(100)
         with page.expect_websocket(
             predicate=is_notification_socket, timeout=15_000
         ) as reconnected_socket_info:
-            context.set_offline(True)
-            page.wait_for_timeout(100)
             context.set_offline(False)
 
         reconnected_socket = reconnected_socket_info.value
         assert reconnected_socket is not initial_socket, (
             "The online event must create a new notification WebSocket connection"
         )
-        assert len(socket_routes) == 2, (
-            f"Expected exactly two routed sockets after recovery, found {len(socket_routes)}"
+        assert page.evaluate("window.__lumenNotificationSockets.length") == 2, (
+            "Expected exactly one replacement browser notification WebSocket"
         )
-        reconnected_socket.on(
-            "close",
-            lambda _websocket: reconnected_socket_closures.append(reconnected_socket.url),
-        )
-        page.wait_for_timeout(500)
+        page.wait_for_timeout(1_500)
         assert not reconnected_socket.is_closed(), (
-            "The replacement notification WebSocket did not remain connected after recovery"
+            "The replacement notification WebSocket did not remain connected"
         )
-        assert not reconnected_socket_closures, (
-            "The reconnected notification WebSocket closed immediately after recovery"
+        assert len(initial_socket_closures) == 1, (
+            "The original WebSocket should close exactly once before recovery"
         )
         assert len(navigation_events) == navigation_count, (
-            "The app navigated or reloaded while reconnecting the notification WebSocket"
+            "The app navigated or reloaded while reconnecting notifications"
         )
         expect(page.get_by_text("إتقانك الإجمالي", exact=True)).to_be_visible()
         print(
-            "Browser notification recovery passed: the authenticated WebSocket was "
-            "interrupted, then a new real server connection opened on the browser online "
-            "event without reloading the page."
+            "Browser notification recovery passed: the authenticated socket closed, "
+            "the browser returned online, and a fresh socket connected without reload."
         )
     finally:
         context.close()
