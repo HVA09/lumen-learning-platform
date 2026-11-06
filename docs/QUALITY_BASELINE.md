@@ -5,7 +5,7 @@
 ## 1. المرجع وحدود هذا التقييم
 
 - المستودع: `HVA09/lumen-learning-platform`.
-- آخر تغيير برمجي مدمج على main: PR #89 عند `06a66e0e70dd2e929ab7a818ad65a96db11465a3`. أضاف اختبار Backend تكامليًا يثبت أن 7/10 (70%) لا تجتاز عتبة البوابة 80%، وأن `passed=false` و`gateway_quiz_passed=false` وأن الموضوع التابع يبقى مقفلاً (403). PR CI بعد تحديث الفرع [#42101543986](https://github.com/HVA09/lumen-learning-platform/actions/runs/42101543986) نجح 4/4. CI بعد الدمج على main [#42102276661](https://github.com/HVA09/lumen-learning-platform/actions/runs/42102276661) اكتمل بنجاح 4/4. CI بعد PR #88 [#42092874266](https://github.com/HVA09/lumen-learning-platform/actions/runs/42092874266) نجح 4/4؛ PR #87 قبله أضاف إعادة اتصال WebSocket واختبار تعدد جلسات الإشعارات؛ CI بعده #42091787403 نجح 4/4.
+- آخر تغيير اختبار/جودة مدمج على `main`: PR #119 عند `f1d5884b8ee0a4c05a1be596502a969018bfcbe0`؛ دمج V8 coverage report-only مع 142 اختبار Frontend / 24 ملفًا. أحدث CI Backend baseline: 480 passed، 21 warnings، 90% coverage عبر PR #117/#119. لم تُفرض عتبة تغطية.
 - هذا الملف يوثق ما هو مفعّل فعليًا في المستودع وCI، ثم يقترح إدخال أدوات الجودة تدريجيًا.
 - هذا التقييم توثيقي فقط؛ لا يضيف اعتماديات أو يغيّر سلوك التطبيق أو شروط CI.
 
@@ -266,3 +266,44 @@
 - PR #102 لا يزال مفتوحًا وغير مدمج عند آخر تحقق. هذا القسم يوثق قياس رأس PR، ولا يدّعي أنه مدمج على `main`.
 - فحص كامل التاريخ على رأس التوثيق `e0177a533e958ad9a972797e76eee447173dbfc2` التقط خمس قيم اختبارية قديمة في commit تاريخي من PR #103، لا بيانات اعتماد تشغيلية. القيم أزيلت من ملفات الاختبار الحالية واستبدلت بقيم مركبة غير سرية؛ أضيفت بصمات Gitleaks الخمس الدقيقة فقط إلى `.gitleaksignore`. لم نستثنِ ملفًا أو مسارًا أو قاعدة كشف أو تاريخًا، وتظل فحوص PR وجميع المراجع والتاريخ الكامل مفعّلة.
 
+
+
+## 11. خط أساس الجودة الحالي على main — 2026-11-06 بعد PR #119
+
+- رأس `main` الحالي بعد PR #123: `53a1912773dbbaf4a854ec7d110dc4fd46a2b6a3`.
+- PR [#113](https://github.com/HVA09/lumen-learning-platform/pull/113): اختبارات حصص الملفات وClamAV fail-safe؛ CI [#42241558869](https://github.com/HVA09/lumen-learning-platform/actions/runs/42241558869) نجح 4/4؛ Backend 447 passed و21 warnings.
+- PR [#117](https://github.com/HVA09/lumen-learning-platform/pull/117): اختبارات SMTP وLTI DNS/JWKS؛ CI [#42242688194](https://github.com/HVA09/lumen-learning-platform/actions/runs/42242688194) نجح 4/4؛ Backend 480 passed و21 warnings و90% coverage في 182.86 ثانية.
+- PR [#119](https://github.com/HVA09/lumen-learning-platform/pull/119): تغطية Frontend واختبارات API adapters وFilesPanel وAdminDashboard وContentManager؛ CI [#42243595538](https://github.com/HVA09/lumen-learning-platform/actions/runs/42243595538) نجح 4/4.
+
+### Backend — المقاييس الحالية
+
+| الوحدة | Coverage |
+|---|---:|
+| `app/routers/files.py` | 82% |
+| `app/services/email_service.py` | 92% |
+| `app/services/lti_service.py` | 89% |
+| `app/services/malware_scanner.py` | 93% |
+| `app/tasks.py` | 92% |
+
+- المجموع: 4,375 statements، 347 missed، 942 branches، 134 partially covered، الإجمالي 90%. هذه نتيجة pytest-cov report-only وليست ضمانًا للاكتمال.
+
+### Frontend — المقاييس الحالية
+
+- 142 اختبارًا ناجحًا عبر 24 ملف اختبار.
+- Statements: 50.34% (945/1,877).
+- Branches: 53.53% (553/1,033).
+- Functions: 47.98% (298/621).
+- Lines: 50.63% (883/1,744).
+
+| الوحدة | Statements | الملاحظة |
+|---|---:|---|
+| `App.jsx` | 0% | أولوية الاختبارات التالية: مسارات المصادقة والجلسة والتنقل والأدوار والوحدات المؤجلة |
+| `AdminDashboard.jsx` | 88.23% | تدفقات الإدارة والحماية الأساسية مغطاة؛ أكمل الحالات الطرفية |
+| `ContentManager.jsx` | 75.25% | تغطية إنشاء/إدارة المحتوى تحسنت؛ راجع الفروع غير المغطاة |
+| `FilesPanel.jsx` | 83.82% | تغطية عمليات الملفات الأساسية والأخطاء |
+| `authApi.js`, `filesApi.js`, `quizApi.js`, `usersApi.js` | 100% لكل ملف | adapters مغطاة بالـ mocks |
+| `LearningPath.jsx`, `LabPanel.jsx` والمحاكاة | 0% | أضف اختبارات قواعد التعليم والحسابات والسلوك |
+
+- لا ترفع التغطية باستثناء ملفات أو اختبارات شكلية. لا يوجد `coverage.thresholds` مفروض؛ راجع الوحدات والمخاطر قبل إنشاء gate.
+- CI بعد دمج PR #117 على `main` [#42243421397](https://github.com/HVA09/lumen-learning-platform/actions/runs/42243421397) وبعد PR #119 [#42244364141](https://github.com/HVA09/lumen-learning-platform/actions/runs/42244364141) نجحا 4/4. PR #123 تنظيف import فقط؛ CI [#42244746449](https://github.com/HVA09/lumen-learning-platform/actions/runs/42244746449) نجح 4/4. تشغيل `main` بعد PR #123 [#42245438258](https://github.com/HVA09/lumen-learning-platform/actions/runs/42245438258) ما زال قيد التنفيذ عند كتابة التحديث.
+- ما زالت RUM/Core Web Vitals الميدانية وTypecheck/ESLint وقياسات هاتف واتصال بطيء غير مكتملة. لا يوجد نشر إنتاجي أو تكامل SMTP/LMS خارجي مثبت.
