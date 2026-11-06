@@ -5,7 +5,7 @@
 
 ## 1. الحالة الحالية
 
-- HEAD الحالي لـ `main`: `2453b9124fc4eaa617aa5bb5493ebc0cf1400c9a` بعد PR #67؛ PR CI #41876997024 نجح بالكامل، وmain CI #41886648386 كان قيد التنفيذ عند آخر تحقق.
+- HEAD الحالي لـ `main`: `2453b9124fc4eaa617aa5bb5493ebc0cf1400c9a` بعد PR #67؛ PR CI #41876997024 نجح بالكامل، وmain CI #41886648386 اكتمل بنجاح 4/4 في [CI #42265976307](https://github.com/HVA09/lumen-learning-platform/actions/runs/42265976307).
 - لا نعدّ أي PR مدمجًا إلا بعد التحقق من حالة GitHub والـ merge commit.
 - [CI #41745646366](https://github.com/HVA09/lumen-learning-platform/actions/runs/41745646366) نجح بالكامل على `main` بعد PR #46.
 - [CI #41754238271](https://github.com/HVA09/lumen-learning-platform/actions/runs/41754238271) نجح بالكامل على `main` بعد PR #49.
