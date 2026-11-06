@@ -124,7 +124,8 @@ def _exercise_notifications_websocket_network_recovery(browser) -> None:
     notification_socket = lambda websocket: websocket.url.rstrip("/").endswith(
         "/ws/notifications"
     )
-    closed_sockets: list[str] = []
+    initial_socket_closures: list[str] = []
+    reconnected_socket_closures: list[str] = []
     socket_errors: list[str] = []
     try:
         response = page.goto(BASE_URL, wait_until="domcontentloaded")
@@ -147,19 +148,24 @@ def _exercise_notifications_websocket_network_recovery(browser) -> None:
             )
 
         initial_socket = initial_socket_info.value
-        initial_socket.on("close", lambda: closed_sockets.append(initial_socket.url))
-        initial_socket.on("socketerror", lambda error: socket_errors.append(str(error)))
+        initial_socket.on(
+            "close", lambda _websocket: initial_socket_closures.append(initial_socket.url)
+        )
+        page.wait_for_timeout(500)
+        assert not initial_socket_closures, (
+            "The initial notification WebSocket closed before the network outage"
+        )
 
         # Keep the app document alive while forcing the browser's real WebSocket
         # transport offline. Wait for the existing socket to close before emitting
         # the online event, so the client has scheduled its reconnect backoff.
         context.set_offline(True)
         for _ in range(100):
-            if closed_sockets:
+            if initial_socket_closures:
                 break
             page.wait_for_timeout(100)
 
-        assert closed_sockets, (
+        assert initial_socket_closures, (
             "The notification WebSocket did not close after the browser went offline"
         )
 
@@ -172,8 +178,17 @@ def _exercise_notifications_websocket_network_recovery(browser) -> None:
         assert reconnected_socket is not initial_socket, (
             "The online event must create a new notification WebSocket connection"
         )
-        reconnected_socket.on("socketerror", lambda error: socket_errors.append(str(error)))
+        reconnected_socket.on(
+            "close",
+            lambda _websocket: reconnected_socket_closures.append(reconnected_socket.url),
+        )
+        reconnected_socket.on(
+            "socketerror", lambda error: socket_errors.append(str(error))
+        )
         page.wait_for_timeout(500)
+        assert not reconnected_socket_closures, (
+            "The reconnected notification WebSocket closed immediately after recovery"
+        )
         assert not socket_errors, (
             "The notification WebSocket reported a transport error during reconnection: "
             + "; ".join(socket_errors)
