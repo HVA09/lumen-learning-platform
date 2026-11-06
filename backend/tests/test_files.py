@@ -427,3 +427,45 @@ def test_clamav_instream_protocol_fails_closed_on_scanner_error(tmp_path, monkey
             await server.wait_closed()
 
     asyncio.run(scenario())
+
+def test_upload_rejects_when_actual_file_exceeds_remaining_user_storage(
+    client, tmp_path, monkeypatch, db_session
+):
+    monkeypatch.setattr(app_settings, "UPLOAD_DIR", str(tmp_path))
+    monkeypatch.setattr(app_settings, "MAX_USER_STORAGE_MB", 1)
+    monkeypatch.setattr(app_settings, "MALWARE_SCAN_ENABLED", False)
+
+    token = _register_and_login(client, "remaining-storage@example.com")
+    headers = {"Authorization": f"Bearer {token}"}
+    storage_limit = 1024 * 1024
+    png_signature = b"\x89PNG\r\n\x1a\n"
+    first_payload = png_signature + b"x" * (storage_limit - 10 - len(png_signature))
+
+    first_response = client.post(
+        "/files/upload",
+        files={"file": ("near-limit.png", first_payload, "image/png")},
+        headers=headers,
+    )
+    assert first_response.status_code == 201
+    first_file_id = first_response.json()["id"]
+
+    monkeypatch.setattr(app_settings, "MALWARE_SCAN_ENABLED", True)
+    scanned_paths = []
+
+    async def clean_scan(path):
+        scanned_paths.append(path)
+        assert path.is_file()
+
+    monkeypatch.setattr(files_router, "scan_file_with_clamav", clean_scan)
+    second_response = client.post(
+        "/files/upload",
+        files={"file": ("over-quota.png", PNG_BYTES, "image/png")},
+        headers=headers,
+    )
+
+    assert second_response.status_code == 413
+    assert len(scanned_paths) == 1
+    assert not scanned_paths[0].exists()
+    assert db_session.query(FileAttachment).count() == 1
+    assert client.get(f"/files/{first_file_id}", headers=headers).status_code == 200
+    assert len([path for path in tmp_path.rglob("*") if path.is_file()]) == 1
