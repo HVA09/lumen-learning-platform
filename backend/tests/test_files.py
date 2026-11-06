@@ -7,8 +7,11 @@ import struct
 import zipfile
 
 import pytest
+from sqlalchemy.orm import Session
 
 from app.config import settings as app_settings
+from app.database import get_db
+from app.main import app
 from app.models.file_attachment import FileAttachment
 from app.routers import files as files_router
 from app.services.malware_scanner import MalwareDetected, MalwareScannerUnavailable
@@ -429,8 +432,21 @@ def test_clamav_instream_protocol_fails_closed_on_scanner_error(tmp_path, monkey
     asyncio.run(scenario())
 
 def test_upload_rejects_when_actual_file_exceeds_remaining_user_storage(
-    client, tmp_path, monkeypatch, db_session
+    client, tmp_path, monkeypatch, db_session, request
 ):
+    # Keep request rollbacks inside a savepoint so the earlier successful upload
+    # remains visible while this test exercises the rejected upload.
+    upload_session = Session(
+        bind=db_session.connection(),
+        join_transaction_mode="create_savepoint",
+    )
+
+    def override_get_db():
+        yield upload_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    request.addfinalizer(upload_session.close)
+
     monkeypatch.setattr(app_settings, "UPLOAD_DIR", str(tmp_path))
     monkeypatch.setattr(app_settings, "MAX_USER_STORAGE_MB", 1)
     monkeypatch.setattr(app_settings, "MALWARE_SCAN_ENABLED", False)
@@ -438,7 +454,7 @@ def test_upload_rejects_when_actual_file_exceeds_remaining_user_storage(
     token = _register_and_login(client, "remaining-storage@example.com")
     headers = {"Authorization": f"Bearer {token}"}
     storage_limit = 1024 * 1024
-    png_signature = b"\x89PNG\r\n\x1a\n"
+    png_signature = b"\\x89PNG\\r\\n\\x1a\\n"
     first_payload = png_signature + b"x" * (storage_limit - 10 - len(png_signature))
 
     first_response = client.post(
