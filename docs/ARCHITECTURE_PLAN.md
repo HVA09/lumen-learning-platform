@@ -1,7 +1,7 @@
 # الخطة المعمارية الحالية والمراحل التنفيذية لمنصة Lumen
 
 آخر تحديث: **2026-11-06**  
-آخر تغيير اختبار/جودة مدمج على `main`: PR #100 عند `2f77979fc735ea69690474bed60fce8a0c206fc7`؛ أضاف Backend coverage report-only واختبارات المهام الخلفية. آخر تغيير سلوكي للواجهة PR #97 عند `fc25ba75987403a85154e55fc70f329d38ee6371`.
+آخر تغيير اختبار/جودة مدمج على `main`: PR #119 عند `f1d5884b8ee0a4c05a1be596502a969018bfcbe0`؛ يضيف Frontend V8 coverage report-only واختبارات API adapters وFilesPanel وAdminDashboard وContentManager. Backend baseline الحالي 90% و480 passed؛ Frontend baseline 50.34% statements على 142 اختبارًا / 24 ملفًا.
 PR #95 مدمج عند `80be944a39ffd683daa4ee24cabe48a3bd9067c7` لمعالجة session bootstrap بعد عودة الاتصال، وPR #97 مدمج عند `fc25ba75987403a85154e55fc70f329d38ee6371` لاختبار Browser E2E. CI بعد PR #95 #42113922307 وبعد PR #97 #42115046453 نجحا 4/4.
 PR #39–#46 و#48 و#49 و#51–#59 و#62 و#64–#84 و#87–#89 و#91 و#95 و#97 و#100 مدمجة (باستثناء PR #55 و#86 المغلقين دون دمج). PR #100 دمج خط أساس Backend coverage report-only دون تغيير runtime.
 
@@ -173,6 +173,7 @@ PR #39–#46 و#48 و#49 و#51–#59 و#62 و#64–#84 و#87–#89 و#91 و#95 �
 - PR #95 مدمج: retry محدود لتهيئة الجلسة عند حدث `online` بعد الفشل المؤقت، مع حماية login/logout واختبارات مركزة؛ لا يعيد إرسال mutations ولا يوفر Offline API.
 - PR #97 مدمج: Browser E2E لانقطاع الشبكة وعودتها دون reload. PR #100 مدمج: Backend coverage 89% و431 passed؛ تشغيل main بعد الدمج #42239814878 جارٍ عند إعداد هذا التحديث. PR #102 يقيس Frontend coverage، وPR #101 يختبر SMTP، وPR #103 يضيف API adapter tests، وPR #104 اختبارات LTI/OIDC. PR #105 يعالج تغطية فشل ClamAV وحصة الرفع؛ إعادة تشغيله بعد إصلاح عزل المعاملة جارية. PR #106–#108 توسع تغطية FilesPanel/AdminDashboard/ContentManager. بعد الدمج، أعد قياس coverage على main. المتبقي RUM/Core Web Vitals وTypecheck وقياسات الهاتف. لا يعني RTL/LTR اكتمال الترجمة. لا تفتح منفذ ClamAV عامًا ولا تعتبر CI إثباتًا لكفاية موارد ماسح الإنتاج.
 - سلسلة LTI #16–#23 تحتاج إعادة تأسيس وخطة migration/integration مستقلة؛ لا تدمج مباشرة.
+- PR #123 أزال import غير مستخدم من اختبار ClamAV فقط؛ CI الخاص به [#42244746449](https://github.com/HVA09/lumen-learning-platform/actions/runs/42244746449) نجح 4/4. تشغيل `main` بعد الدمج [#42245438258](https://github.com/HVA09/lumen-learning-platform/actions/runs/42245438258) قيد التنفيذ عند آخر تحقق.
 - لا يوجد نشر إنتاجي مثبت.
 
 
@@ -194,3 +195,15 @@ PR #39–#46 و#48 و#49 و#51–#59 و#62 و#64–#84 و#87–#89 و#91 و#95 �
 - PR #102 لا يزال مفتوحًا وغير مدمج؛ أما PR #100 فقد دمج خط أساس Backend report-only (89%، 431 passed). لا تعتبر قياس Frontend baseline مدمجًا قبل التحقق من دمج PR #102.
 - التسلسل التالي: API adapters مع mocks، ثم تدفقات App/Admin/Content/Files؛ بعد ذلك SMTP fail-safe وLTI/OIDC وملفات/ClamAV. تبقى Typecheck وRUM/Core Web Vitals وقياسات الهاتف غير مكتملة.
 
+
+
+## تحديث P6 — خطوط أساس الاختبارات بعد PR #113/#117/#119 (2026-11-06)
+
+- PR #113 دمج اختبارات مسارات حصص الملفات والتنظيف وفشل ClamAV؛ CI #42241558869 نجح 4/4.
+- PR #117 دمج اختبارات SMTP transport وLTI DNS/JWKS مع اختبارات mock/fail-safe؛ CI #42242688194 نجح 4/4، Backend 480 passed و21 warnings و90% coverage.
+- PR #119 دمج V8 coverage report-only مع اختبارات API adapters وFilesPanel وAdminDashboard وContentManager؛ CI #42243595538 نجح 4/4، Frontend 142 tests عبر 24 ملفًا.
+- مقاييس Backend للوحدات ذات المخاطر: files router 82%، malware scanner 93%، email service 92%، LTI service 89%، tasks 92%.
+- مقاييس Frontend: statements 50.34%، branches 53.53%، functions 47.98%، lines 50.63%. اختبارات `authApi` و`filesApi` و`quizApi` و`usersApi` تغطي هذه adapters بالكامل في تقرير PR #119.
+- فجوات ذات أولوية: `App.jsx` و`LearningPath.jsx` و`LabPanel.jsx` ومحاكاة التعلم ما زالت 0% في التقرير؛ لا تستبعدها من النطاق، بل أضف اختبارات تدفق وسلوك.
+- التالي: اختبارات تركيب App/session/navigation/roles؛ ثم LearningPath/LabPanel/simulations؛ ثم RUM/Core Web Vitals وTypecheck وقياسات هاتف واتصال بطيء. لا تضع budgets قبل قياس فعلي.
+- لا Microservices ولا تعديل API/DB/migrations في مرحلة التغطية. لا نشر مدفوع أو دفع إلكتروني؛ لا يوجد نشر إنتاجي مثبت.
