@@ -181,3 +181,11 @@
 - أولويات الاختبار بعد القياس: Frontend API adapters، App/Admin/Content Manager/Files، ثم SMTP fail-safe وLTI/OIDC/JWKS/SSRF ومسارات الملفات/ClamAV. استخدم mocks وخدمات CI المؤقتة، ولا تفتح ClamAV على الإنترنت.
 - تظل ميزانية المشروع صفرًا؛ لا موارد مدفوعة أو دفع إلكتروني، ولا نشر إنتاجي قبل استكمال شروط P7.
 
+
+
+## متابعة SMTP بعد إعادة تأسيس الفرع — 2026-11-06
+
+- PR #101: [test(backend): cover SMTP transport failure paths](https://github.com/HVA09/lumen-learning-platform/pull/101)، أعيد تأسيس فرعه على رأس PR #100 الحالي `a6a9012103a7da39b5df2fe025da919da7e00c43` بدل الاعتماد على رأسه السابق `5c840464e66543a21e3398491da6ca7095896442`.
+- التغيير يضيف اختبارات FakeSMTP في `backend/tests/test_email_service.py` فقط: نجاح TLS/auth/send، إرسال دون بيانات مصادقة، وأربع حالات فشل للنقل مع التحقق من عدم تسجيل جسم الرسالة.
+- تشغيل CI السابق [#42126717163](https://github.com/HVA09/lumen-learning-platform/actions/runs/42126717163) نجح 4/4 على الفرع القديم: Backend **437 passed, 20 warnings**، وتغطية `email_service.py` **92%**. يجب انتظار CI الجديد على الرأس المعاد تأسيسه قبل اعتماد الرقم كقياس حديث.
+- لا تغيير في runtime أو API أو قاعدة البيانات أو migrations أو اعتماديات الإنتاج أو إعدادات SMTP؛ لا اتصال بمزود بريد حقيقي.
