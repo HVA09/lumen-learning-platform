@@ -394,4 +394,69 @@ describe("App integration", () => {
     expect(await screen.findByTestId("verify-email-page")).toBeInTheDocument();
     expect(screen.queryByTestId("app-header")).not.toBeInTheDocument();
   });
+
+  it.each([
+    ["/reset-password", "reset-password-page"],
+    ["/billing/success", "billing-success-page"],
+    ["/billing/cancel", "billing-cancel-page"],
+    ["/lti-callback", "lti-callback-page"],
+  ])("renders the lazy route %s without mounting the authenticated shell", async (path, testId) => {
+    window.history.replaceState({}, "", path);
+
+    render(<App />);
+
+    expect(await screen.findByTestId(testId)).toBeInTheDocument();
+    expect(screen.queryByTestId("app-header")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "fake-authenticate" })).not.toBeInTheDocument();
+  });
+
+  it("opens and closes the remaining lazy feature panels from the header", async () => {
+    setAuthenticatedUser("teacher");
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "open-account" }));
+    expect(await screen.findByTestId("account-settings")).toHaveAttribute("data-user-id", "7");
+    await user.click(screen.getByRole("button", { name: "close-account" }));
+    await waitFor(() => expect(screen.queryByTestId("account-settings")).not.toBeInTheDocument());
+
+    await user.click(screen.getByRole("button", { name: "open-files" }));
+    expect(await screen.findByTestId("files-panel")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "close-files" }));
+    await waitFor(() => expect(screen.queryByTestId("files-panel")).not.toBeInTheDocument());
+
+    await user.click(screen.getByRole("button", { name: "open-flashcards" }));
+    expect(await screen.findByRole("button", { name: "close-flashcards" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "close-flashcards" }));
+
+    await user.click(screen.getByRole("button", { name: "open-assignments" }));
+    expect(await screen.findByTestId("assignments-panel")).toHaveAttribute("data-is-teacher", "true");
+    await user.click(screen.getByRole("button", { name: "close-assignments" }));
+    await waitFor(() => expect(screen.queryByTestId("assignments-panel")).not.toBeInTheDocument());
+
+    await user.click(screen.getByRole("button", { name: "open-classes" }));
+    expect(await screen.findByTestId("classes-panel")).toHaveAttribute("data-is-teacher", "true");
+    await user.click(screen.getByRole("button", { name: "close-classes" }));
+    await waitFor(() => expect(screen.queryByTestId("classes-panel")).not.toBeInTheDocument());
+
+    await user.click(screen.getByRole("button", { name: "open-leaderboard" }));
+    expect(await screen.findByRole("button", { name: "close-leaderboard" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "close-leaderboard" }));
+
+    await user.click(screen.getByRole("button", { name: "open-progress" }));
+    expect(await screen.findByRole("button", { name: "close-progress" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "close-progress" }));
+  });
+
+  it("clears a success toast when its dismiss callback is used", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "fake-authenticate" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("تم تسجيل الدخول بنجاح");
+
+    await user.click(screen.getByRole("button", { name: "dismiss-toast" }));
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
 });
