@@ -227,7 +227,7 @@ def test_fetch_platform_public_key_rejects_responses_over_one_mib(monkeypatch):
     [
         (b"{not-json", "valid JSON"),
         (b'{"keys":{}}', "keys array"),
-        (b'{"keys":[{"kid":"another-key"}]}', "matching key"),
+        (b'{"keys":[{"kid":"another-key"}]}', "ما لقينا مفتاح مطابق"),
     ],
 )
 def test_fetch_platform_public_key_rejects_invalid_or_unmatched_jwks(
