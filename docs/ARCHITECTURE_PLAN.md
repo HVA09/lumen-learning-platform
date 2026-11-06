@@ -216,7 +216,7 @@ PR #39–#46 و#48 و#49 و#51–#59 و#62 و#64–#84 و#87–#89 و#91 و#95 �
 - PR #136 جعل مسار التعلم الأساسي مستقلًا عن إحصاءات streak الاختيارية، وأبقى المنهج ظاهرًا عند فشل خدمة gamification.
 - PR #137 غطى خريطة lazy simulation loading وfallback وclose في `LabPanel`.
 - PR #140/#141 وسّعا اختبارات المحاكاة للحسابات الصحيحة والخاطئة، animation، أخطاء تحميل Pyodide وتنفيذ Python، ورسائل التحدي غير المطابق.
-- CI للطلبات #129/#133/#136/#137/#138/#140/#141 نجح 4/4. CI بعد دمج #140 على main #42254119108 نجح 4/4. تشغيل main بعد #141 [#42265976307](https://github.com/HVA09/lumen-learning-platform/actions/runs/42265976307) كان قيد التنفيذ عند آخر تحقق.
+- CI للطلبات #129/#133/#136/#137/#138/#140/#141 نجح 4/4. CI بعد دمج #140 على main #42254119108 نجح 4/4. تشغيل main بعد #141 [#42265976307](https://github.com/HVA09/lumen-learning-platform/actions/runs/42265976307) اكتمل بنجاح 4/4 في [CI #42265976307](https://github.com/HVA09/lumen-learning-platform/actions/runs/42265976307).
 - خط أساس Frontend في CI PR #141: 187 tests / 28 files؛ statements 70.83%، branches 65.26%، functions 60.16%، lines 71.85%. `LearningPath.jsx` و`LabPanel.jsx` 100% statements في التقرير؛ `App.jsx` 75%، و`PythonLabSim.jsx` 78.57%.
 - Backend baseline في CI PR #141: 480 passed، 21 warnings، 90% coverage. فحوص migrations وPostgreSQL backup/restore نجحت.
 - التغييرات لا تستدعي إعادة هيكلة المعمارية؛ تبقى Modular Monolith والـ lazy feature boundaries. لا API/DB/migrations أو runtime dependencies جديدة في هذه الدفعة.
