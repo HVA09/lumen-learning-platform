@@ -151,3 +151,12 @@
 6. Ruff 0.17.3 ما زال report-only بنتيجة 0 diagnostic(s). أحدث تدقيق كامل مسجل: 2 Low و4 Moderate وصفر High/Critical، بينما production audit سجل صفرًا؛ لا تستخدم npm audit fix --force دون تحديث واختبار متوافق.
 7. تبقى سلسلة LTI/AGS #16–#23 بحاجة إلى إعادة تأسيس وتحليل تعارضات وترحيلات ثم اختبار Sandbox؛ لا تدمجها مباشرة.
 8. لا يوجد نشر إنتاجي مثبت. ما زالت بوابات P7 تشمل مضيفًا مجانيًا لا يتطلب بطاقة/فاتورة، HTTPS فعليًا، SMTP، تقييم ClamAV على موارد المضيف، أسرار إنتاج خارج Git، ووجهة Restic خارجية مع اختبار استعادة حقيقي.
+
+## تحديث 2026-11-06 — اختبارات LTI/DNS/JWKS
+
+- PR #104: [test(security): cover LTI DNS pinning and JWKS fetch](https://github.com/HVA09/lumen-learning-platform/pull/104)، مكدس على PR #103 للحفاظ على بصمات Gitleaks الدقيقة من ملفات اختبار auth التاريخية دون استثناء مسارات.
+- أضيفت 27 حالة اختبار في `backend/tests/test_lti_network.py` تغطي DNS pinning، رفض non-public IP، loopback test-only، IPv6، Host/SNI، redirects، مهلة JWKS وحد 1 MiB، JSON غير صالح، key ID، وHTTP failures.
+- CI #42228190651 اكتمل **4/4** على الرأس `7a9112806bd8770ebe8244cc84ceca218de76a5e`: Backend **451 passed, 20 warnings in 170.23s**؛ Frontend/build وBrowser E2E وGitleaks نجحت.
+- لا يتضمن ذلك Moodle/Canvas sandbox أو اتصالًا خارجيًا؛ كل DNS/HTTP في الاختبارات الجديدة محاكى.
+- PR #104 مفتوح وغير مدمج. `main` لا يزال عند `fc25ba75987403a85154e55fc70f329d38ee6371`.
+

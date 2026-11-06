@@ -75,3 +75,13 @@ https://github.com/HVA09/lumen-learning-platform
 - إذا بقيت المحادثة مفقودة، راجع مركز مساعدة OpenAI أو حالة الخدمة؛ لا تحذف التطبيق أو بياناته قبل التأكد من تزامن محادثاتك المهمة.
 
 حتى لو تعذر استرجاع محادثة، يبقى سجل التطوير في GitHub هو المرجع الذي يسمح باستمرار العمل.
+
+## استمرارية — اكتمال اختبار LTI DNS/JWKS (2026-11-06)
+
+- PR #104 على `test/lti-dns-jwks-guardrails` مكدس فوق PR #103 حتى ترث فحوص التاريخ .gitleaksignore fingerprints الدقيقة. رأس الكود والاختبارات الذي تم التحقق منه: `7a9112806bd8770ebe8244cc84ceca218de76a5e`.
+- أضاف 27 test cases لـ DNS resolution/pinning وJWKS fetch وموانع SSRF وtimeouts/redirects/response size. CI #42228190651 نجح 4/4؛ Backend **451 passed, 20 warnings**، ونجحت Frontend/build وBrowser E2E وGitleaks.
+- جميع اتصالات الاختبار mocked أو loopback؛ لا يوجد اختبار LMS حقيقي أو اعتماد إنتاج.
+- أُضيفت وثيقة النتائج في PR #104؛ يتطلب رأس الوثائق الجديد إعادة CI قبل اعتباره validated.
+- PR #100 CI #42227309269 نجح 4/4 على `a6a901...`. PR #101 code head CI #42227584326 نجح 4/4؛ docs-only head #690b33cf4b840f4341f1b0a46f65409614c7d820 يجري CI #42228588479.
+- PR #105 اختبارات ملفات/ClamAV في CI run #42229095176 على head `803f1b...`; انتظر نتائج CI قبل اعتمادها.
+

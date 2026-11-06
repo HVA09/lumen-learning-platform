@@ -539,3 +539,13 @@
 - النطاق: `frontend/src/hooks/useSession.js` و`frontend/src/hooks/useSession.test.jsx` فقط في PR #95. الاختبارات الجديدة تغطي retry بعد خطأ شبكة مؤقت، وتنظيف مستمع `online`، ومنع retry بعد تسجيل الدخول أو الخروج صراحةً، وتجاهل استجابة bootstrap متأخرة إذا سبقها خروج المستخدم.
 - الأثر المتوقع: إذا فتحت المنصة أثناء انقطاع مؤقت ثم عاد الاتصال في نفس التبويب، يعاد فحص جلسة HttpOnly دون إجبار المستخدم على reload. لا يغطي ذلك بعد الانقطاع أثناء إرسال عملية كتابة أو قياس جودة الاتصال.
 - التراجع: إعادة `useSession.js` والاختبارات إلى نسختها السابقة؛ لا migration أو تغيير بيانات مطلوب.
+
+## ADR-045 — اختبار حدود DNS وJWKS في تكامل LTI
+
+- التاريخ: 2026-11-06
+- الحالة: **اختبارات مضافة في PR #104؛ CI على رأس الاختبارات نجح 4/4، والدمج غير مثبت.**
+- القرار: اختبار حدود الشبكة في `lti_service` باستخدام fake resolver وfake HTTP client. تشمل الحالات DNS answers الفارغة أو المختلطة أو غير العامة، pinning، Host/SNI، loopback test-only، IPv6، عدم السماح بالتحويلات، bounded response، والتحقق من بنية JWKS وkid.
+- القياس: CI [#42228190651](https://github.com/HVA09/lumen-learning-platform/actions/runs/42228190651) على `7a9112806bd8770ebe8244cc84ceca218de76a5e` نجح 4/4؛ Backend **451 passed, 20 warnings in 170.23s**.
+- النطاق: `backend/tests/test_lti_network.py` فقط من حيث الكود، إضافة إلى تحديثات وثائق الجودة والحالة والاستمرارية والمعمارية والقرار. لا تغيير في runtime/API/DB/migrations أو dependencies أو الإعدادات.
+- لا يوجد اتصال حقيقي بـ Moodle/Canvas؛ يلزم LMS sandbox test منفصل قبل الإنتاج. التراجع بحذف الاختبارات والتوثيق فقط.
+

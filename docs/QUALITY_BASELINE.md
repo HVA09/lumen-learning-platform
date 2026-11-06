@@ -213,3 +213,14 @@
 - P6.5: PR #59/#62/#64/#65/#67 مدمجة؛ خفض precache في #67 بنحو 71.5%. لا توجد قياسات أداء ميدانية.
 - PR #88 دُمج؛ تغطية البوابة في Browser E2E تشمل الحد الأدنى للنجاح وحالة أقل منه، مع حفظ النتيجة وHTTP 429 أثناء مهلة التهدئة. المتبقي: RTL/LTR وفقدان الشبكة وعودتها.
 - لا يوجد نشر إنتاجي مثبت؛ خدمة ClamAV في CI لا تثبت جاهزية الماسح أو موارده على مضيف الإنتاج.
+
+## 13. اختبارات أمان DNS وJWKS لتكامل LTI — PR #104
+
+- أضاف PR [#104](https://github.com/HVA09/lumen-learning-platform/pull/104) ملف `backend/tests/test_lti_network.py` مع **27 اختبار حالة** مركزة على حدود DNS وJWKS.
+- تغطي الاختبارات: اختيار IP عام بعد فحص كل DNS answers، رفض خليط public/private، رفض الإجابات الفارغة وأخطاء resolver، السماح بـ loopback فقط داخل بيئة test، الحفاظ على Host وTLS SNI بعد تثبيت IP، وIPv6/IPv4-mapped addresses.
+- تغطي كذلك: منع JWKS redirects، طلب HTTP بإعدادات timeout و`trust_env=False`، حد 1 MiB، JSON غير صالح/غير UTF-8، شكل JWKS غير الصحيح، key ID غير الموجود، HTTP غير ناجح، ورفض ID token بلا `kid`.
+- CI [#42228190651](https://github.com/HVA09/lumen-learning-platform/actions/runs/42228190651) نجح 4/4 على الرأس `7a9112806bd8770ebe8244cc84ceca218de76a5e`. Backend **451 passed, 20 warnings in 170.23s**؛ Frontend/build وBrowser E2E وFull Git-history secret scan نجحت.
+- كل DNS/HTTP transport في الاختبارات الجديدة mocked؛ لا تتصل بمودل أو Canvas أو خدمة عامة. لا يتغير كود الخدمة أو API أو DB أو migrations أو إعدادات الإنتاج.
+- لم يُعرض قياس coverage في هذا التشغيل؛ فرع PR #104 مكدس على PR #103 الذي يسبُق إدخال أداة قياس Backend من PR #100. لذلك لا ننسب نسبة تغطية جديدة إلى هذا التشغيل.
+- PR #104 لا يزال مفتوحًا ومكدسًا على PR #103؛ بعد دمج الأساس يُعاد توجيهه إلى `main` ويُعاد تشغيل CI. اختبارات Sandbox حقيقية لـ Moodle/Canvas ما زالت شرطًا منفصلًا قبل الإنتاج.
+

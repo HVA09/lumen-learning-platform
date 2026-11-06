@@ -174,3 +174,10 @@ PR #39–#46 و#48 و#49 و#51–#59 و#62 و#64–#84 و#87–#89 و#91 مدم�
 - الخطوة التالية بعده: Browser E2E لانقطاع الشبكة وعودتها، ثم RUM/Typecheck/Coverage. تحقق PR #91 من تبديل سمات RTL/LTR فقط ولا يثبت اكتمال الترجمة. لا تفتح منفذ ClamAV عامًا ولا تعتبر نجاح خدمة CI إثباتًا لكفاية موارد ماسح الإنتاج.
 - سلسلة LTI #16–#23 تحتاج إعادة تأسيس وخطة migration/integration مستقلة؛ لا تدمج مباشرة.
 - لا يوجد نشر إنتاجي مثبت.
+
+## P6 — تحقق LTI DNS/JWKS
+
+- PR #104 يضيف 27 اختبار حالة لـ `lti_service.py` دون تغيير runtime: DNS pinning، fail-closed مع mixed/private answers، resolver errors، loopback test-only، IPv6، تثبيت Host/SNI، JWKS redirects، timeout، حد حجم 1 MiB، malformed JSON، missing key، status errors.
+- CI [#42228190651](https://github.com/HVA09/lumen-learning-platform/actions/runs/42228190651) نجح 4/4: Backend 451 passed و20 warnings؛ Frontend/build وBrowser E2E وGitleaks نجحوا.
+- PR #104 مكدس على PR #103، ولا يثبت تشغيل LMS sandbox. يُعاد توجيهه إلى main ويُعاد التحقق بعد دمج القاعدة.
+
