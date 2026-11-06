@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -17,15 +17,22 @@ function createCanvasContext() {
     stroke: vi.fn(),
     arc: vi.fn(),
     fill: vi.fn(),
+    fillRect: vi.fn(),
     strokeRect: vi.fn(),
     fillText: vi.fn(),
   };
 }
 
+let canvasContexts = [];
+let cachedRunPythonAsync = null;
+
 beforeEach(() => {
-  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(
-    () => createCanvasContext()
-  );
+  canvasContexts = [];
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(() => {
+    const context = createCanvasContext();
+    canvasContexts.push(context);
+    return context;
+  });
 });
 
 afterEach(() => {
@@ -48,6 +55,13 @@ describe("interactive simulation calculations", () => {
     expect(await screen.findByText("صحيح! المعادلة: y = 2x + 1")).toBeInTheDocument();
   });
 
+  it("shows feedback when the selected line does not pass through both targets", async () => {
+    const user = userEvent.setup();
+    render(<LinearFunctionSim />);
+    await user.click(screen.getByRole("button", { name: "تحقّق" }));
+    expect(await screen.findByText("قريب، جرّب تعدّل القيم أكثر")).toBeInTheDocument();
+  });
+
   it("accepts the derivative challenge when x=2 and f'(x)=4", async () => {
     const user = userEvent.setup();
     render(<DerivativeSim />);
@@ -58,6 +72,13 @@ describe("interactive simulation calculations", () => {
     await user.click(screen.getByRole("button", { name: "تحقّق" }));
 
     expect(await screen.findByText("صحيح! عند x=2، الميل = 2×2 = 4")).toBeInTheDocument();
+  });
+
+  it("shows feedback when the selected derivative slope is not the target", async () => {
+    const user = userEvent.setup();
+    render(<DerivativeSim />);
+    await user.click(screen.getByRole("button", { name: "تحقّق" }));
+    expect(await screen.findByText("قريب، جرّب تحرّك النقطة أكثر")).toBeInTheDocument();
   });
 
   it("reaches the 20 metre projectile target at 14 m/s and 45 degrees", async () => {
@@ -72,6 +93,41 @@ describe("interactive simulation calculations", () => {
     await user.click(screen.getByRole("button", { name: "تحقّق" }));
 
     expect(await screen.findByText("أصبت الهدف! 🎯")).toBeInTheDocument();
+  });
+
+  it("shows feedback when the projectile range misses the target", async () => {
+    const user = userEvent.setup();
+    render(<ProjectileSim />);
+    await user.click(screen.getByRole("button", { name: "تحقّق" }));
+    expect(await screen.findByText(/قريب — مداك الحالي/)).toBeInTheDocument();
+  });
+
+  it("animates a launched projectile until it reaches the ground", async () => {
+    const user = userEvent.setup();
+    const frames = [];
+    vi.stubGlobal("requestAnimationFrame", vi.fn((callback) => {
+      frames.push(callback);
+      return frames.length;
+    }));
+    render(<ProjectileSim />);
+
+    const launchButton = screen.getByRole("button", { name: "أطلق" });
+    await user.click(launchButton);
+    expect(launchButton).toBeDisabled();
+    expect(frames).toHaveLength(1);
+
+    await act(async () => {
+      let frameCount = 0;
+      while (frames.length > 0 && frameCount < 150) {
+        const nextFrame = frames.shift();
+        nextFrame(0);
+        frameCount += 1;
+      }
+    });
+
+    expect(frames).toHaveLength(0);
+    expect(launchButton).toBeEnabled();
+    expect(canvasContexts.some((context) => context.fill.mock.calls.length > 0)).toBe(true);
   });
 
   it("computes the equivalent resistance and current for a parallel circuit", async () => {
@@ -90,6 +146,13 @@ describe("interactive simulation calculations", () => {
     expect(await screen.findByText("صحيح! طبّقت قانون أوم بنجاح")).toBeInTheDocument();
   });
 
+  it("shows feedback when the circuit current is not the target", async () => {
+    const user = userEvent.setup();
+    render(<CircuitSim />);
+    await user.click(screen.getByRole("button", { name: "تحقّق" }));
+    expect(await screen.findByText(/التيار حاليًا 1\.20 أمبير/)).toBeInTheDocument();
+  });
+
   it("computes the total current for a series circuit", async () => {
     const user = userEvent.setup();
     render(<CircuitSim />);
@@ -105,9 +168,23 @@ describe("interactive simulation calculations", () => {
     expect(await screen.findByText("صحيح! طبّقت قانون أوم بنجاح")).toBeInTheDocument();
   });
 
+  it("shows a useful error when the Pyodide runtime cannot be loaded", async () => {
+    const user = userEvent.setup();
+    const loadPyodide = vi.fn().mockRejectedValue(new Error("runtime unavailable"));
+    window.loadPyodide = loadPyodide;
+
+    render(<PythonLabSim />);
+    await user.click(screen.getByRole("button", { name: /شغّل الكود/ }));
+
+    expect(await screen.findByText("خطأ بتشغيل الكود: runtime unavailable")).toBeInTheDocument();
+    expect(loadPyodide).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: /شغّل الكود/ })).toBeEnabled();
+  });
+
   it("runs the Python exercise through a mocked Pyodide runtime", async () => {
     const user = userEvent.setup();
     const runPythonAsync = vi.fn().mockResolvedValue("55");
+    cachedRunPythonAsync = runPythonAsync;
     const loadPyodide = vi.fn().mockResolvedValue({ runPythonAsync });
     window.loadPyodide = loadPyodide;
 
@@ -122,4 +199,28 @@ describe("interactive simulation calculations", () => {
     await user.click(screen.getByRole("button", { name: "تحقّق من التحدي" }));
     expect(await screen.findByText("صحيح! 55 = 1+2+...+10")).toBeInTheDocument();
   });
+}
+  it("rejects a Python challenge when the output does not match the expected answer", async () => {
+    const user = userEvent.setup();
+    expect(cachedRunPythonAsync).not.toBeNull();
+    cachedRunPythonAsync.mockReset().mockResolvedValue("54");
+
+    render(<PythonLabSim />);
+    await user.click(screen.getByRole("button", { name: /شغّل الكود/ }));
+    expect(await screen.findByText("54")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "تحقّق من التحدي" }));
+    expect(await screen.findByText('الإخراج الحالي "54" مو مطابق')).toBeInTheDocument();
+  });
+
+  it("shows a Python execution error when the runtime rejects the code", async () => {
+    const user = userEvent.setup();
+    expect(cachedRunPythonAsync).not.toBeNull();
+    cachedRunPythonAsync.mockReset().mockRejectedValue(new Error("execution interrupted"));
+
+    render(<PythonLabSim />);
+    await user.click(screen.getByRole("button", { name: /شغّل الكود/ }));
+    expect(await screen.findByText("خطأ بتشغيل الكود: execution interrupted")).toBeInTheDocument();
+  });
+
 });
