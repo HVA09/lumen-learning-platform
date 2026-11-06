@@ -351,8 +351,9 @@ jobs:
           PGUSER: postgres
           PGPASSWORD: postgres
         run: sh scripts/test_backup_restore_integration.sh
-      - name: Run backend tests
-        run: pytest -v
+      - name: Run backend tests and report coverage
+        # Report-only baseline: do not enforce a minimum until the first measurement is reviewed.
+        run: pytest -v --cov=app --cov-branch --cov-report=term-missing:skip-covered --cov-report=xml:coverage.xml
 
   secret-scan:
     name: Full Git history secret scan

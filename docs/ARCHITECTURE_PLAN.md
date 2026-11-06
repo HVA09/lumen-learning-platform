@@ -1,9 +1,9 @@
 # الخطة المعمارية الحالية والمراحل التنفيذية لمنصة Lumen
 
-آخر تحديث: **2026-11-05**  
-آخر تغيير برمجي على main: PR #91 عند Squash commit `d7962c2553a5af206eaa27cd27dbae560cfcef94`. أضاف اختبار Frontend في `frontend/src/hooks/useDirection.test.jsx` لإثبات RTL/LTR والعودة إلى العربية دون تغيير سلوك التطبيق أو الترجمات أو API أو DB. CI على PR [#42104050543](https://github.com/HVA09/lumen-learning-platform/actions/runs/42104050543) نجح 4/4؛ CI بعد الدمج على main [#42105382640](https://github.com/HVA09/lumen-learning-platform/actions/runs/42105382640) اكتمل بنجاح 4/4.
-PR #95 مفتوح على `fix/p66-session-bootstrap-after-network-recovery` لإعادة محاولة تهيئة الجلسة عند عودة الاتصال بعد فشل مؤقت، مع اختبارات لاستعادة الجلسة، وتنظيف مستمع `online`، وتجميع الحدث أثناء الطلب، ومنع إعادة التهيئة بعد الخروج. التغيير لا يعيد إرسال mutations ولا يضيف Offline API؛ لم يُدمج بعد.
-PR #39–#46 و#48 و#49 و#51–#59 و#62 و#64–#84 و#87–#89 و#91 مدمجة (باستثناء PR #55 و#86 المغلقين دون دمج). PR #59/#62/#64 حسّنت code splitting، وPR #65 أضاف Vite preload recovery، وPR #67 قلّص precache من 35 ملفًا/1328.16 KiB إلى 8 ملفات/378.63 KiB. تغطية Browser E2E تشمل الآن التسجيل والجلسة، التقدم والنشر، Quiz وسجل المحاولات وحدّي النجاح والرسوب، وإدارة السؤال، وفحص ClamAV الحقيقي. PR #87 أكمل اختبار تعدد جلسات الإشعارات وإعادة اتصال WebSocket؛ وPR #91 أضاف اختبار تبديل سمات المستند RTL/LTR. المتبقي هو اختبار فقدان الشبكة وعودتها؛ ولا يدل اختبار الاتجاه على اكتمال ترجمة كل النصوص.
+آخر تحديث: **2026-11-06**  
+آخر تغيير برمجي مدمج على `main`: PR #97 عند `fc25ba75987403a85154e55fc70f329d38ee6371`، ويغطي استعادة جلسة المتعلم بعد انقطاع الشبكة وعودتها دون إعادة تحميل. CI بعد الدمج #42115046453 نجح 4/4.
+PR #95 مدمج عند `80be944a39ffd683daa4ee24cabe48a3bd9067c7` لمعالجة session bootstrap بعد عودة الاتصال، وPR #97 مدمج عند `fc25ba75987403a85154e55fc70f329d38ee6371` لاختبار Browser E2E. CI بعد PR #95 #42113922307 وبعد PR #97 #42115046453 نجحا 4/4.
+PR #39–#46 و#48 و#49 و#51–#59 و#62 و#64–#84 و#87–#89 و#91 و#95 و#97 مدمجة (باستثناء PR #55 و#86 المغلقين دون دمج). PR #100 مفتوح على فرع العمل لقياس تغطية Backend واختبارات المهام الخلفية؛ لا يدخل ضمن main قبل الدمج.
 
 > الغرض هو تنظيم النظام تدريجيًا دون إعادة كتابة، أو تغيير سلوك الميزات، أو تعريض بيانات المستخدمين والترحيلات للخطر.
 
@@ -139,7 +139,7 @@ PR #39–#46 و#48 و#49 و#51–#59 و#62 و#64–#84 و#87–#89 و#91 مدم�
 | P3 | استخراج وحدة نقية ثانية صغيرة | مكتمل — PR #32 مدمج؛ CI #534 على PR وCI #535 على main ناجحان |
 | P4 | فصل حدود خدمات Learning/Progress/SRS/Gamification | منفذ جزئيًا: Progress عبر PR #34/#35، وReview/SRS عبر PR #37، وGamification scoring عبر PR #40؛ تبقى الحدود الأخرى وفق الأولوية والتحليل |
 | P5 | تنظيم Frontend تدريجيًا | P5.1–P5.4 مكتملة ومدمجة؛ PR #46 نقل الإشعارات إلى `features/notifications` واختُبر قبل الدمج وبعده |
-| P6 | الجودة والأداء والمراقبة | Ruff 0 diagnostics report-only؛ ESLint لم يبدأ بسبب قيد npm registry؛ code splitting في #59/#62/#64، وpreload recovery في #65، وسياسة PWA في #67 خفّضت precache 71.5% إلى 8 entries/378.63 KiB. P6.6 عبر #70/#73/#75/#77/#80/#81/#82/#84/#87/#88/#89/#91: التسجيل والجلسة، التقدم والنشر، Quiz وسجل المحاولات، الأدوار وعزل الفصول، إدارة السؤال، ClamAV الحقيقي، إعادة اتصال WebSocket وتعدد جلسات الإشعارات، ونتيجة بوابة أسفل الحد مع حفظ الرسوب وHTTP 429 للتهدئة (#88)، واختبار Backend يثبت بقاء الموضوع التابع مقفلاً تحت العتبة (#89)، واختبار تبديل اتجاه المستند RTL/LTR (#91). CI للـ PR #91 #42104050543 نجح 4/4؛ CI بعد الدمج على main #42105382640 اكتمل بنجاح 4/4. PR #95 قيد CI لإعادة محاولة تهيئة الجلسة عند حدث online بعد فشل شبكة مؤقت (لا retries لعمليات الكتابة)؛ المتبقي: Browser E2E للانقطاع/العودة وقياسات RUM/Typecheck/Coverage |
+| P6 | الجودة والأداء والمراقبة | Ruff 0 diagnostics report-only؛ ESLint لم يُعتمد بعد؛ code splitting في #59/#62/#64، وpreload recovery في #65، وPWA precache في #67 خُفّض 71.5%. اختبارات P6.6 عبر #70–#97 تغطي التسجيل والجلسة والتقدم والنشر والاختبارات والصلاحيات وفحص الملفات والإشعارات وRTL/LTR واستعادة الجلسة. PR #100: Backend coverage **89% / 431 passed** (CI #42223767240 4/4). PR #102: Frontend coverage **31.80% statements** (91 passed/17 files، CI #42207211737 4/4). PR #101: SMTP tests، Backend **437 passed** و`email_service.py` **92%** (CI #42126717163 4/4)، stacked على #100. PR #103: أربعة API adapter test suites؛ Frontend **112 passed/21 files** والبناء وGitleaks PR+all-refs نجحت في #42224962672، وBackend/Browser E2E قيد التنفيذ. جميع هذه PRs مفتوحة وغير مدمجة. المتبقي: إعادة baseline التغطية بعد دمج التغييرات، LTI/OIDC/Files/ClamAV tests، RUM/Core Web Vitals، Typecheck وقياسات الهاتف والاتصال البطيء. |
 | P7 | الإطلاق | بعد إغلاق متطلبات الاستضافة والأمن والتشغيل |
 
 ## 6. بوابات القبول لكل تغيير
@@ -163,14 +163,34 @@ PR #39–#46 و#48 و#49 و#51–#59 و#62 و#64–#84 و#87–#89 و#91 مدم�
 
 ## 8. نقطة الاستئناف
 
-- آخر تغيير برمجي على main: PR #91 عند `d7962c2553a5af206eaa27cd27dbae560cfcef94`. CI على PR [#42104050543](https://github.com/HVA09/lumen-learning-platform/actions/runs/42104050543) نجح 4/4؛ CI بعد الدمج على main [#42105382640](https://github.com/HVA09/lumen-learning-platform/actions/runs/42105382640) اكتمل بنجاح 4/4. PR #89 السابق لديه CI بعد الدمج ناجح 4/4 في #42102276661.
+- آخر تغيير برمجي مدمج على `main`: PR #97 عند `fc25ba75987403a85154e55fc70f329d38ee6371`. CI بعد الدمج #42115046453 نجح 4/4؛ PR #95 السابق مدمج أيضًا وCI بعده #42113922307 نجح 4/4.
 - P4: فواصل Progress وReview وGamification scoring منفذة عبر PR #34/#35/#37/#40.
 - P5.1–P5.4 مدمجة: WebSocket (#41)، خريطة Frontend (#42)، session (#43)، notification state (#44)، ثم نقل Notifications إلى features/notifications (#46).
 - P6.1: Ruff 0.17.3 report-only، 0 diagnostic(s)؛ ESLint لم يُعتمد بعد.
 - P6.5: PR #59/#62/#64/#65/#67 مدمجة؛ precache أصبح 8 entries/378.63 KiB بعد خفض يقارب 71.5%. لا يوجد قياس ميداني بعد.
 - P6.6: Playwright 1.64.1 + Chromium على production preview مع FastAPI وPostgreSQL وRedis مؤقتة. PR #70 تسجيل/جلسة؛ #73 تقدم الدرس؛ #75 Quiz فارغ وحفظ history؛ #77 صلاحيات وعزل الفصول؛ #80 نشر الدرس؛ #81 اجتياز Quiz عند العتبة؛ #82 إدارة السؤال؛ #84 ClamAV الحقيقي؛ #87 إعادة اتصال WebSocket وتعدد جلسات الإشعارات؛ #88 رسوب البوابة تحت الحد وحفظ المحاولة وHTTP 429 للـ cooldown.
 - حسابات الأدوار مؤقتة وترقيتها محصورة في PostgreSQL المحلي lumen_e2e مع guards على المضيف وDATABASE_URL؛ لا endpoint لترقية الأدوار في التطبيق. إعداد ClamAV ورفع الملفات الفعليين خاصان ببيئة CI فقط في PR #84، ولا يتغير إعداد الإنتاج.
-- PR #95 مفتوح: retry محدود لتهيئة الجلسة عند حدث `online` بعد الفشل المؤقت؛ بانتظار CI والدمج. لا توجد إعادة إرسال تلقائية لعمليات الكتابة.
-- الخطوة التالية بعده: Browser E2E لانقطاع الشبكة وعودتها، ثم RUM/Typecheck/Coverage. تحقق PR #91 من تبديل سمات RTL/LTR فقط ولا يثبت اكتمال الترجمة. لا تفتح منفذ ClamAV عامًا ولا تعتبر نجاح خدمة CI إثباتًا لكفاية موارد ماسح الإنتاج.
+- PR #95 مدمج: retry محدود لتهيئة الجلسة عند حدث `online` بعد الفشل المؤقت، مع حماية login/logout واختبارات مركزة؛ لا يعيد إرسال mutations ولا يوفر Offline API.
+- PR #97 مدمج: Browser E2E لانقطاع الشبكة وعودتها دون reload. PR #100 مفتوح: Backend coverage 89% و431 passed؛ آخر CI على رأس الوثائق #42223767240 نجح 4/4. PR #102 يقيس Frontend coverage، وPR #101 يختبر SMTP، وPR #103 يضيف API adapter tests. التالي بعد مراجعة/دمج هذه PRs: إعادة قياس coverage على main، ثم اختبارات LTI/OIDC وFiles/ClamAV، وRUM/Core Web Vitals وTypecheck. لا يعني اختبار RTL/LTR اكتمال الترجمة. لا تفتح منفذ ClamAV عامًا ولا تعتبر نجاح خدمة CI إثباتًا لكفاية موارد ماسح الإنتاج.
 - سلسلة LTI #16–#23 تحتاج إعادة تأسيس وخطة migration/integration مستقلة؛ لا تدمج مباشرة.
 - لا يوجد نشر إنتاجي مثبت.
+
+
+## ملحق الخطة — تحقق 2026-11-06
+
+- أصبح اختبار استعادة الجلسة بعد عودة الاتصال مدمجًا: PR #95 لمعالجة session bootstrap وPR #97 لاختبار Browser E2E. كلاهما على `main`، وCI بعد PR #97 #42115046453 نجح 4/4.
+- أضيف في PR #100 قياس Backend coverage report-only بواسطة `pytest-cov==7.1.0`، مع `--cov-branch` وتقرير XML. لا يُفرض حد أدنى قبل المراجعة.
+- تشغيل PR #100 على الرأس `bfc29eb7a02187b7830f30bda5e3a6b46960e6f4` نجح 4/4. Backend **431 passed, 20 warnings**، coverage **89%**؛ `app/tasks.py` أصبحت 92% بعد سبعة اختبارات مركزة.
+- PR #100 غير مدمج بعد؛ `main` ما زال عند `fc25ba75987403a85154e55fc70f329d38ee6371`. لا تعتبر قياس PR خط أساس مدمجًا قبل دمج موثق.
+- P6 التالية: اختبار SMTP fail-safe وعدم تسريب الرموز، وحالات LTI/OIDC/JWKS/SSRF، ومسارات الملفات وClamAV والمهلات والتنظيف. اختبر باستخدام mocks وخدمات CI مؤقتة، مع عدم فتح ClamAV على الشبكة العامة.
+- تبقى RUM/Core Web Vitals الميدانية وقياسات الهاتف/الاتصال البطيء غير مكتملة. P7 غير جاهزة: لا استضافة إنتاجية مثبتة ولا SMTP حقيقي ولا وجهة Restic خارجية.
+- لا Microservices، ولا تغيير API/DB/migrations في مرحلة التغطية، ولا تفعيل دفع إلكتروني، ولا موارد مدفوعة.
+
+## تحديث P6 — قياس تغطية Frontend (2026-11-06)
+
+- PR #102 أضاف `@vitest/coverage-v8@5.0.5` المطابق لـ Vitest 5.0.5، وسكربت `npm run test:coverage`، ونطاقًا صريحًا لملفات JS/JSX داخل `frontend/src`. القياس report-only ولا يفرض threshold.
+- CI [#42207211737](https://github.com/HVA09/lumen-learning-platform/actions/runs/42207211737) نجح 4/4 على الرأس `58dbf951d478705240e3e5746dee0546967d9e52`: 91 Frontend tests عبر 17 ملفًا؛ statements 31.80%، branches 35.72%، functions 28.82%، lines 32.05%.
+- فجوات الاختبار الأوضح: App، AdminDashboard، ContentManager، FilesPanel، وبعض API adapters والمحاكاة. لا تستبعد هذه الوحدات من التغطية؛ أضف اختبارات مركزة حسب المخاطر.
+- PR #102 لا يزال مفتوحًا وغير مدمج. PR #100 هو PR المستقل لقياس Backend (89%، 431 passed). لا تعتبر أي رقم baseline مدمجًا قبل تحقق دمج PR المقابل.
+- التسلسل التالي: API adapters مع mocks، ثم تدفقات App/Admin/Content/Files؛ بعد ذلك SMTP fail-safe وLTI/OIDC وملفات/ClamAV. تبقى Typecheck وRUM/Core Web Vitals وقياسات الهاتف غير مكتملة.
+
