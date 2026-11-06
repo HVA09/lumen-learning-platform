@@ -2,6 +2,16 @@
 
 آخر تحديث: **2026-11-06**.
 
+
+## تحديث قياس الجودة — 2026-11-06 بعد PR #117
+
+- PR #113 مدمج؛ CI #42242335138 نجح 4/4، Backend **447 passed, 21 warnings**.
+- PR #117 مدمج عند `3cbff17cba6b7b27cd2c86ce986a17926db800f9`؛ CI #42242688194 نجح 4/4، Backend **480 passed, 21 warnings**. إجمالي التغطية **90%** (4,375 statements / 347 missed / 942 branches / 134 partially covered). `email_service.py` **92%**، و`lti_service.py` **89%**.
+- تشغيل `main` بعد الدمج [#42243421397](https://github.com/HVA09/lumen-learning-platform/actions/runs/42243421397) اكتمل بنجاح 4/4. لا توجد عتبة Coverage مفروضة؛ التقرير تشخيصي.
+- PR #119 أعاد تشغيل تغطية الواجهة على رأس `main` بعد PR #117. وظيفة Frontend في CI #42243595538 نجحت: **142 passed / 24 files**؛ statements **50.34%**، branches **53.53%**، functions **47.98%**، lines **50.63%**. بقية الوظائف: Browser E2E وفحص Git history نجحا، Backend كان لا يزال قيد التنفيذ عند وقت كتابة هذا التحديث. PR #119 لم يكن مدمجًا.
+- ظهر في Ruff على PR #117 تشخيص report-only واحد: `F401` للاستيراد غير المستخدم `pathlib.Path` في `backend/tests/test_malware_scanner_fail_safe.py:3`. PR #121 يحذف هذا السطر فقط؛ لا يُسجل الإصلاح مكتملًا قبل نجاح الوظائف الأربع ودمجه.
+- التغييرات أعلاه اختبارات/قياس فقط؛ لا تُعدّل runtime أو API أو DB أو migrations أو إعدادات الإنتاج، ولا تثبت نشرًا أو تكامل SMTP/LMS/ClamAV حيًا.
+
 ## 1. المرجع وحدود هذا التقييم
 
 - المستودع: `HVA09/lumen-learning-platform`.
