@@ -119,7 +119,7 @@ https://github.com/HVA09/lumen-learning-platform
 - PR #137: اختبارات lazy simulation routing وfallback في LabPanel؛ CI #42251617174 نجح 4/4.
 - PR #138: تحديث خريطة بنية Frontend؛ CI #42252349059 نجح 4/4.
 - PR #140: حسابات math/physics/circuits وتحدي Python؛ CI #42253279488 نجح 4/4، وmain CI #42254119108 نجح 4/4.
-- PR #141: animation/failure paths؛ CI #42265153710 نجح 4/4، وتم الدمج عند `1f76de769a224fb01c5ac66e9bccede331650dac`. main CI بعد الدمج #42265976307 كان قيد التنفيذ عند آخر تحقق.
+- PR #141: animation/failure paths؛ CI #42265153710 نجح 4/4، وتم الدمج عند `1f76de769a224fb01c5ac66e9bccede331650dac`. main CI بعد الدمج #42265976307 اكتمل بنجاح 4/4 في [CI #42265976307](https://github.com/HVA09/lumen-learning-platform/actions/runs/42265976307).
 - Frontend في PR CI #42265153710: 187 passed / 28 files؛ 70.83% statements، 65.26% branches، 60.16% functions، 71.85% lines.
 - Backend في PR CI #42265153710: 480 passed، 21 warnings، 90% coverage؛ migrations وPostgreSQL backup/restore integration checks نجحت.
 - لا يعني نجاح هذه الفحوص اختبارًا على هاتف حقيقي أو قياس RUM/Core Web Vitals أو نشرًا إنتاجيًا.
