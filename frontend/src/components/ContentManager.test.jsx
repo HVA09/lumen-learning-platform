@@ -81,7 +81,7 @@ describe("ContentManager", () => {
     render(<ContentManager onClose={vi.fn()} />);
 
     expect(await screen.findByRole("combobox")).toHaveValue("10");
-    expect(screen.getByRole("button", { name: "+ درس جديد" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "+ درس جديد" })).toBeInTheDocument();
     expect(contentApi.listTopicLessonsForTeacher).toHaveBeenCalledWith(10);
   });
 
@@ -100,7 +100,7 @@ describe("ContentManager", () => {
     const user = userEvent.setup();
     render(<ContentManager onClose={vi.fn()} />);
     await screen.findByRole("combobox");
-    await user.click(screen.getByRole("button", { name: "+ درس جديد" }));
+    await user.click(await screen.findByRole("button", { name: "+ درس جديد" }));
 
     await user.type(screen.getByPlaceholderText("عنوان الدرس"), "  مقدمة في التفاضل  ");
     await user.type(
