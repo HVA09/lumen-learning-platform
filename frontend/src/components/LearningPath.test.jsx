@@ -175,4 +175,29 @@ describe("LearningPath", () => {
     expect(screen.queryByText("— ادرس اليوم!")).not.toBeInTheDocument();
   });
 
+  it("ignores pending API responses after the component unmounts", async () => {
+    let resolvePath;
+    let resolveStats;
+    const pathRequest = new Promise((resolve) => {
+      resolvePath = resolve;
+    });
+    const statsRequest = new Promise((resolve) => {
+      resolveStats = resolve;
+    });
+    curriculumApi.getLearningPath.mockReturnValue(pathRequest);
+    gamificationApi.getMyStats.mockReturnValue(statsRequest);
+
+    const { unmount } = render(<LearningPath onSelectTopic={vi.fn()} />);
+    unmount();
+
+    await act(async () => {
+      resolvePath(pathFixture);
+      resolveStats(statsFixture);
+      await Promise.all([pathRequest, statsRequest]);
+    });
+
+    expect(curriculumApi.getLearningPath).toHaveBeenCalledTimes(1);
+    expect(gamificationApi.getMyStats).toHaveBeenCalledTimes(1);
+  });
+
 });
