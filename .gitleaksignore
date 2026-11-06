@@ -181,3 +181,10 @@ a945dbb38722b9386332e3528e114f8e641cda05:backend/tests/test_srs.py:generic-api-k
 a945dbb38722b9386332e3528e114f8e641cda05:backend/tests/test_two_factor.py:generic-api-key:12
 # Exact false-positive fingerprint: shared dummy test password in one PR #86 test commit.
 fb021d61ccfcaa42667199192cb1bcc12affe52a:backend/tests/test_notifications.py:generic-api-key:79
+# Exact false-positive fingerprints for dummy auth API test fixtures from PR #103.
+# The placeholder strings were removed from the current test files; keep all Gitleaks rules and paths enabled.
+f9e6ee27cd80d21fed5733a5ace4a4edbae1583c:frontend/src/lib/authApi.test.js:generic-api-key:43
+f9e6ee27cd80d21fed5733a5ace4a4edbae1583c:frontend/src/lib/authApi.test.js:generic-api-key:54
+f9e6ee27cd80d21fed5733a5ace4a4edbae1583c:frontend/src/lib/authApi.test.js:generic-api-key:69
+f9e6ee27cd80d21fed5733a5ace4a4edbae1583c:frontend/src/lib/authApi.test.js:generic-api-key:110
+f9e6ee27cd80d21fed5733a5ace4a4edbae1583c:frontend/src/lib/authApi.test.js:generic-api-key:121
