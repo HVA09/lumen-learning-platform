@@ -307,3 +307,31 @@
 - لا ترفع التغطية باستثناء ملفات أو اختبارات شكلية. لا يوجد `coverage.thresholds` مفروض؛ راجع الوحدات والمخاطر قبل إنشاء gate.
 - CI بعد دمج PR #117 على `main` [#42243421397](https://github.com/HVA09/lumen-learning-platform/actions/runs/42243421397) وبعد PR #119 [#42244364141](https://github.com/HVA09/lumen-learning-platform/actions/runs/42244364141) نجحا 4/4. PR #123 تنظيف import فقط؛ CI [#42244746449](https://github.com/HVA09/lumen-learning-platform/actions/runs/42244746449) نجح 4/4. تشغيل `main` بعد PR #123 [#42245438258](https://github.com/HVA09/lumen-learning-platform/actions/runs/42245438258) ما زال قيد التنفيذ عند كتابة التحديث.
 - ما زالت RUM/Core Web Vitals الميدانية وTypecheck/ESLint وقياسات هاتف واتصال بطيء غير مكتملة. لا يوجد نشر إنتاجي أو تكامل SMTP/LMS خارجي مثبت.
+
+
+## 12. خط أساس Frontend بعد PR #141 — 2026-11-06
+
+- PR #129/#133/#136/#137/#140/#141 مدمجة في `main`؛ CI الخاص بكل PR نجح 4/4. CI بعد PR #140 على main [#42254119108](https://github.com/HVA09/lumen-learning-platform/actions/runs/42254119108) نجح 4/4. CI بعد PR #141 على main [#42265976307](https://github.com/HVA09/lumen-learning-platform/actions/runs/42265976307) اكتمل بنجاح 4/4 في [CI #42265976307](https://github.com/HVA09/lumen-learning-platform/actions/runs/42265976307).
+- CI PR #141 [#42265153710](https://github.com/HVA09/lumen-learning-platform/actions/runs/42265153710) نجح 4/4، وشغّل 187 اختبار Frontend عبر 28 ملفًا.
+
+| المقياس | النتيجة | المغطى / الإجمالي |
+|---|---:|---:|
+| Statements | 70.83% | 1,341 / 1,893 |
+| Branches | 65.26% | 682 / 1,045 |
+| Functions | 60.16% | 376 / 625 |
+| Lines | 71.85% | 1,261 / 1,755 |
+
+### وحدات بارزة
+
+| الملف | Statements | Branches | Functions | Lines |
+|---|---:|---:|---:|---:|
+| `App.jsx` | 75.00% | 75.00% | 49.05% | 80.18% |
+| `LearningPath.jsx` | 100.00% | 93.54% | 100.00% | 100.00% |
+| `LabPanel.jsx` | 100.00% | 100.00% | 100.00% | 100.00% |
+| `CircuitSim.jsx` | 98.64% | 93.75% | 88.88% | 98.63% |
+| `PythonLabSim.jsx` | 78.57% | 90.00% | 62.50% | 80.00% |
+
+- Backend في CI نفسه: **480 passed، 21 warnings، 90% coverage**؛ migrations وPostgreSQL backup/restore integration smoke tests نجحت.
+- يظل التغطية report-only ولا يوجد `coverage.threshold` مفروض. نتائج mocks تؤكد orchestration والسلوك المحلي ولا تثبت تشغيل Pyodide/CDN حي أو أداء هاتف حقيقي.
+- لا يوجد RUM/Core Web Vitals instrumentation أو `web-vitals` dependency مثبتة. لا يوجد ESLint script/dependency أو TypeScript checker ضمن إعدادات Frontend الحالية؛ المصدر JavaScript/JSX.
+- لا يوجد نشر إنتاجي مثبت. لا تعتبر CI بديلًا عن قياس جهاز حقيقي أو HTTPS/SMTP/ClamAV/backup على المضيف المستهدف.

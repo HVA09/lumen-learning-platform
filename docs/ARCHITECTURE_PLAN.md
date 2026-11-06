@@ -207,3 +207,24 @@ PR #39–#46 و#48 و#49 و#51–#59 و#62 و#64–#84 و#87–#89 و#91 و#95 �
 - فجوات ذات أولوية: `App.jsx` و`LearningPath.jsx` و`LabPanel.jsx` ومحاكاة التعلم ما زالت 0% في التقرير؛ لا تستبعدها من النطاق، بل أضف اختبارات تدفق وسلوك.
 - التالي: اختبارات تركيب App/session/navigation/roles؛ ثم LearningPath/LabPanel/simulations؛ ثم RUM/Core Web Vitals وTypecheck وقياسات هاتف واتصال بطيء. لا تضع budgets قبل قياس فعلي.
 - لا Microservices ولا تعديل API/DB/migrations في مرحلة التغطية. لا نشر مدفوع أو دفع إلكتروني؛ لا يوجد نشر إنتاجي مثبت.
+
+
+## تحديث P6 — تغطية مسار التعلم والمختبر والمحاكاة (2026-11-06)
+
+- PR #129 أضاف اختبار bootstrap تحت `React.StrictMode` المستخدم في entry point.
+- PR #133 حسّن reconnect الفوري لـ notifications عند عودة الاتصال، مع منع إنشاء socket مكرر وإزالة event listener عند unmount.
+- PR #136 جعل مسار التعلم الأساسي مستقلًا عن إحصاءات streak الاختيارية، وأبقى المنهج ظاهرًا عند فشل خدمة gamification.
+- PR #137 غطى خريطة lazy simulation loading وfallback وclose في `LabPanel`.
+- PR #140/#141 وسّعا اختبارات المحاكاة للحسابات الصحيحة والخاطئة، animation، أخطاء تحميل Pyodide وتنفيذ Python، ورسائل التحدي غير المطابق.
+- CI للطلبات #129/#133/#136/#137/#138/#140/#141 نجح 4/4. CI بعد دمج #140 على main #42254119108 نجح 4/4. تشغيل main بعد #141 [#42265976307](https://github.com/HVA09/lumen-learning-platform/actions/runs/42265976307) اكتمل بنجاح 4/4 في [CI #42265976307](https://github.com/HVA09/lumen-learning-platform/actions/runs/42265976307).
+- خط أساس Frontend في CI PR #141: 187 tests / 28 files؛ statements 70.83%، branches 65.26%، functions 60.16%، lines 71.85%. `LearningPath.jsx` و`LabPanel.jsx` 100% statements في التقرير؛ `App.jsx` 75%، و`PythonLabSim.jsx` 78.57%.
+- Backend baseline في CI PR #141: 480 passed، 21 warnings، 90% coverage. فحوص migrations وPostgreSQL backup/restore نجحت.
+- التغييرات لا تستدعي إعادة هيكلة المعمارية؛ تبقى Modular Monolith والـ lazy feature boundaries. لا API/DB/migrations أو runtime dependencies جديدة في هذه الدفعة.
+
+### المتبقي لإغلاق P6
+
+1. قياس RUM/Core Web Vitals على بيئة منشورة قابلة للقياس؛ لا توجد حاليًا instrumentation أو web-vitals dependency مثبتة.
+2. اختبار فعلي على هاتف واتصال بطيء، وتوثيق القياسات قبل تحديد performance budgets.
+3. توسيع فروع `App.jsx` المتبقية ومراجعة المحاكاة حسب المخاطر. التغطية الحالية report-only، ولا يُفرض threshold.
+4. Frontend JavaScript/JSX؛ لا TypeScript checker أو ESLint script/dependency مفعّل حاليًا. ابدأ بتقييم فحص ساكن تدريجي قبل إدخاله إلى CI gate.
+5. P7 منفصلة عن P6: لا نشر إنتاجي مثبت، ولا بد من استضافة مجانية بلا بطاقة، HTTPS، SMTP فعلي، موارد ClamAV كافية، أسرار خارج Git، ونسخ احتياطي خارجي مع استعادة واقعية.
