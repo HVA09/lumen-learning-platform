@@ -199,7 +199,7 @@ describe("interactive simulation calculations", () => {
     await user.click(screen.getByRole("button", { name: "تحقّق من التحدي" }));
     expect(await screen.findByText("صحيح! 55 = 1+2+...+10")).toBeInTheDocument();
   });
-}
+
   it("rejects a Python challenge when the output does not match the expected answer", async () => {
     const user = userEvent.setup();
     expect(cachedRunPythonAsync).not.toBeNull();
