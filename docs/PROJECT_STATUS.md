@@ -200,7 +200,7 @@
 - PR #113 مدمج: اختبارات حصص الملفات وتنظيف الرفع وفشل ClamAV؛ CI #42241558869 نجح 4/4، وBackend 447 passed و21 warnings.
 - PR #117 مدمج: اختبارات SMTP transport وLTI DNS/JWKS؛ CI #42242688194 نجح 4/4، وBackend 480 passed و21 warnings و90% coverage. تغطية الوحدات: `email_service.py` 92%، `lti_service.py` 89%، `malware_scanner.py` 93%، `routers/files.py` 82%، `tasks.py` 92%.
 - PR #119 مدمج: V8 coverage report-only واختبارات API adapters وFilesPanel وAdminDashboard وContentManager؛ CI #42243595538 نجح 4/4. Frontend 142 tests عبر 24 ملفًا؛ statements 50.34%، branches 53.53%، functions 47.98%، lines 50.63%.
-- CI بعد دمج PR #117 على `main` [#42243421397](https://github.com/HVA09/lumen-learning-platform/actions/runs/42243421397) نجح 4/4. CI بعد دمج PR #119 [#42244364141](https://github.com/HVA09/lumen-learning-platform/actions/runs/42244364141) كان قيد التنفيذ عند كتابة هذا الملحق؛ لا يُسجل نجاحه حتى يكتمل.
+- CI بعد PR #117 على `main` [#42243421397](https://github.com/HVA09/lumen-learning-platform/actions/runs/42243421397) نجح 4/4. CI بعد دمج PR #119 على `main` [#42244364141](https://github.com/HVA09/lumen-learning-platform/actions/runs/42244364141) اكتمل بنجاح 4/4.
 - التغييرات في PR #113 و#117 و#119 اختبارات/قياس جودة فقط؛ لم تغيّر سلوك التطبيق أو API أو DB أو migrations أو إعدادات الإنتاج. التغطية report-only ولا يوجد threshold.
 - أُغلقت الطلبات المتداخلة/المكررة #101–#108 و#110–#112 و#114–#116 و#118 بعد نقل التغييرات إلى فروع نظيفة ودمج البدائل؛ PR #113 و#117 و#119 مدمجة.
 
