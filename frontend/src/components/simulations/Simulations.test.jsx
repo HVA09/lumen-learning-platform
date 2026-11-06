@@ -195,7 +195,7 @@ describe("interactive simulation calculations", () => {
 
     expect(await screen.findByText("55")).toBeInTheDocument();
     expect(loadPyodide).toHaveBeenCalledTimes(1);
-    expect(runPythonAsync).toHaveBeenCalledTimes(1);
+    expect(runPythonAsyncMock).toHaveBeenCalledTimes(1);
 
     await user.click(screen.getByRole("button", { name: "تحقّق من التحدي" }));
     expect(await screen.findByText("صحيح! 55 = 1+2+...+10")).toBeInTheDocument();
