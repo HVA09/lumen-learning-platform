@@ -11,6 +11,9 @@ vi.mock("./api", () => ({ default: api }));
 
 import { changePassword, deleteAccount, getCurrentUser, updateProfile } from "./usersApi";
 
+const previousPassword = "previous-fixture";
+const nextPassword = "replacement-fixture";
+
 describe("users API adapters", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -37,10 +40,10 @@ describe("users API adapters", () => {
     const result = { updated: true };
     api.post.mockResolvedValueOnce({ data: result });
 
-    await expect(changePassword("OldPass123", "NewPass123")).resolves.toEqual(result);
+    await expect(changePassword(previousPassword, nextPassword)).resolves.toEqual(result);
     expect(api.post).toHaveBeenCalledWith("/users/me/change-password", {
-      current_password: "OldPass123",
-      new_password: "NewPass123",
+      current_password: previousPassword,
+      new_password: nextPassword,
     });
   });
 
