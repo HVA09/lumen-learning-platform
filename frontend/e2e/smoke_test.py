@@ -183,7 +183,7 @@ def _exercise_notifications_websocket_network_recovery(browser) -> None:
         # established WebSocket. Close the routed client transport with a transient
         # code, while keeping the upstream server handshake real. The browser then
         # observes a genuine WebSocket close event and schedules its retry timer.
-        socket_routes[0].close(
+        server_sockets[0].close(
             code=1011,
             reason="simulated transient network interruption",
         )
