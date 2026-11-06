@@ -111,6 +111,133 @@ def _exercise_session_bootstrap_network_recovery(browser) -> None:
         context.close()
 
 
+
+def _exercise_notifications_websocket_network_recovery(browser) -> None:
+    """Verify an authenticated notification socket reconnects after a transient close."""
+    email = f"browser-e2e-ws-{uuid.uuid4().hex[:10]}@example.com"
+    password = "BrowserE2E-Pass-2026"
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844},
+        locale="ar",
+    )
+    page = context.new_page()
+    page.add_init_script(
+        """
+        (() => {
+          const NativeWebSocket = window.WebSocket;
+          window.__lumenNotificationSockets = [];
+          window.WebSocket = new Proxy(NativeWebSocket, {
+            construct(target, args) {
+              const socket = Reflect.construct(target, args);
+              if (String(args[0]).endsWith("/ws/notifications")) {
+                window.__lumenNotificationSockets.push(socket);
+              }
+              return socket;
+            },
+          });
+        })();
+        """
+    )
+
+    def is_notification_socket(websocket) -> bool:
+        return websocket.url.rstrip("/").endswith("/ws/notifications")
+
+    try:
+        response = page.goto(BASE_URL, wait_until="domcontentloaded")
+        assert response is not None and response.ok, (
+            f"Frontend did not load successfully: {response.status if response else 'no response'}"
+        )
+        expect(page.get_by_placeholder("البريد الإلكتروني")).to_be_visible(
+            timeout=30_000
+        )
+        page.get_by_role("button", name="ليس لديك حساب؟ أنشئ واحدًا").click()
+        page.get_by_placeholder("البريد الإلكتروني").fill(email)
+        page.get_by_placeholder("كلمة المرور (8 أحرف على الأقل)").fill(password)
+
+        with page.expect_websocket(
+            predicate=is_notification_socket, timeout=45_000
+        ) as initial_socket_info:
+            page.get_by_role("button", name="إنشاء حساب").click()
+            expect(page.get_by_text("إتقانك الإجمالي", exact=True)).to_be_visible(
+                timeout=45_000
+            )
+
+        initial_socket = initial_socket_info.value
+        page.wait_for_timeout(500)
+        assert not initial_socket.is_closed(), (
+            "The initial authenticated notification WebSocket did not stay connected"
+        )
+        assert page.evaluate("window.__lumenNotificationSockets.length") == 1, (
+            "Expected exactly one browser notification WebSocket after registration"
+        )
+
+        initial_socket_closures: list[str] = []
+        initial_socket.on(
+            "close", lambda _websocket: initial_socket_closures.append(initial_socket.url)
+        )
+
+        navigation_events = []
+        page.on(
+            "framenavigated",
+            lambda frame: navigation_events.append(frame.url)
+            if frame == page.main_frame
+            else None,
+        )
+        navigation_count = len(navigation_events)
+
+        # Close the real browser WebSocket with a retryable application code.
+        # This makes the browser deliver its native close event and lets the hook
+        # schedule its backoff timer. Then emit a real offline -> online transition
+        # before that timer expires; the online handler must reconnect immediately.
+        page.evaluate(
+            """() => {
+              const sockets = window.__lumenNotificationSockets;
+              if (sockets.length !== 1) throw new Error("Unexpected notification socket count");
+              sockets[0].close(4000, "simulated transient interruption");
+            }"""
+        )
+        for _ in range(100):
+            if initial_socket_closures or initial_socket.is_closed():
+                break
+            page.wait_for_timeout(100)
+
+        assert initial_socket_closures or initial_socket.is_closed(), (
+            "The browser did not observe the simulated transient WebSocket close"
+        )
+
+        context.set_offline(True)
+        page.wait_for_timeout(100)
+        with page.expect_websocket(
+            predicate=is_notification_socket, timeout=15_000
+        ) as reconnected_socket_info:
+            context.set_offline(False)
+
+        reconnected_socket = reconnected_socket_info.value
+        assert reconnected_socket is not initial_socket, (
+            "The online event must create a new notification WebSocket connection"
+        )
+        assert page.evaluate("window.__lumenNotificationSockets.length") == 2, (
+            "Expected exactly one replacement browser notification WebSocket"
+        )
+        page.wait_for_timeout(1_500)
+        assert not reconnected_socket.is_closed(), (
+            "The replacement notification WebSocket did not remain connected"
+        )
+        assert len(initial_socket_closures) == 1, (
+            "The original WebSocket should close exactly once before recovery"
+        )
+        assert len(navigation_events) == navigation_count, (
+            "The app navigated or reloaded while reconnecting notifications"
+        )
+        expect(page.get_by_text("إتقانك الإجمالي", exact=True)).to_be_visible()
+        print(
+            "Browser notification recovery passed: the authenticated socket closed, "
+            "the browser returned online, and a fresh socket connected without reload."
+        )
+    finally:
+        context.close()
+
+
 def _promote_e2e_user(email: str, role: str) -> None:
     """Assign a role only inside the disposable local lumen_e2e CI database."""
     from sqlalchemy.engine import make_url
@@ -250,6 +377,7 @@ def run_smoke_test() -> None:
         browser = playwright.chromium.launch(headless=True)
         try:
             _exercise_session_bootstrap_network_recovery(browser)
+            _exercise_notifications_websocket_network_recovery(browser)
         except Exception:
             browser.close()
             raise
