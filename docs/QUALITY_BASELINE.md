@@ -311,7 +311,7 @@
 
 ## 12. خط أساس Frontend بعد PR #141 — 2026-11-06
 
-- PR #129/#133/#136/#137/#140/#141 مدمجة في `main`؛ CI الخاص بكل PR نجح 4/4. CI بعد PR #140 على main [#42254119108](https://github.com/HVA09/lumen-learning-platform/actions/runs/42254119108) نجح 4/4. CI بعد PR #141 على main [#42265976307](https://github.com/HVA09/lumen-learning-platform/actions/runs/42265976307) كان قيد التنفيذ عند آخر تحقق.
+- PR #129/#133/#136/#137/#140/#141 مدمجة في `main`؛ CI الخاص بكل PR نجح 4/4. CI بعد PR #140 على main [#42254119108](https://github.com/HVA09/lumen-learning-platform/actions/runs/42254119108) نجح 4/4. CI بعد PR #141 على main [#42265976307](https://github.com/HVA09/lumen-learning-platform/actions/runs/42265976307) اكتمل بنجاح 4/4 في [CI #42265976307](https://github.com/HVA09/lumen-learning-platform/actions/runs/42265976307).
 - CI PR #141 [#42265153710](https://github.com/HVA09/lumen-learning-platform/actions/runs/42265153710) نجح 4/4، وشغّل 187 اختبار Frontend عبر 28 ملفًا.
 
 | المقياس | النتيجة | المغطى / الإجمالي |
