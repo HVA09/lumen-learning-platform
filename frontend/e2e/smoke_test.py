@@ -111,6 +111,83 @@ def _exercise_session_bootstrap_network_recovery(browser) -> None:
         context.close()
 
 
+
+def _exercise_notifications_websocket_network_recovery(browser) -> None:
+    """Verify the authenticated notification socket reconnects after a real browser outage."""
+    email = f"browser-e2e-ws-{uuid.uuid4().hex[:10]}@example.com"
+    password = "BrowserE2E-Pass-2026"
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844},
+        locale="ar",
+    )
+    page = context.new_page()
+    notification_socket = lambda websocket: websocket.url.rstrip("/").endswith(
+        "/ws/notifications"
+    )
+    closed_sockets: list[str] = []
+    socket_errors: list[str] = []
+    try:
+        response = page.goto(BASE_URL, wait_until="domcontentloaded")
+        assert response is not None and response.ok, (
+            f"Frontend did not load successfully: {response.status if response else 'no response'}"
+        )
+        expect(page.get_by_placeholder("البريد الإلكتروني")).to_be_visible(
+            timeout=30_000
+        )
+        page.get_by_role("button", name="ليس لديك حساب؟ أنشئ واحدًا").click()
+        page.get_by_placeholder("البريد الإلكتروني").fill(email)
+        page.get_by_placeholder("كلمة المرور (8 أحرف على الأقل)").fill(password)
+
+        with page.expect_event(
+            "websocket", predicate=notification_socket, timeout=45_000
+        ) as initial_socket_info:
+            page.get_by_role("button", name="إنشاء حساب").click()
+            expect(page.get_by_text("إتقانك الإجمالي", exact=True)).to_be_visible(
+                timeout=45_000
+            )
+
+        initial_socket = initial_socket_info.value
+        initial_socket.on("close", lambda: closed_sockets.append(initial_socket.url))
+        initial_socket.on("socketerror", lambda error: socket_errors.append(str(error)))
+
+        # Keep the app document alive while forcing the browser's real WebSocket
+        # transport offline. Wait for the existing socket to close before emitting
+        # the online event, so the client has scheduled its reconnect backoff.
+        context.set_offline(True)
+        for _ in range(100):
+            if closed_sockets:
+                break
+            page.wait_for_timeout(100)
+
+        assert closed_sockets, (
+            "The notification WebSocket did not close after the browser went offline"
+        )
+
+        with page.expect_event(
+            "websocket", predicate=notification_socket, timeout=15_000
+        ) as reconnected_socket_info:
+            context.set_offline(False)
+
+        reconnected_socket = reconnected_socket_info.value
+        assert reconnected_socket is not initial_socket, (
+            "The online event must create a new notification WebSocket connection"
+        )
+        reconnected_socket.on("socketerror", lambda error: socket_errors.append(str(error)))
+        page.wait_for_timeout(500)
+        assert not socket_errors, (
+            "The notification WebSocket reported a transport error during reconnection: "
+            + "; ".join(socket_errors)
+        )
+        expect(page.get_by_text("إتقانك الإجمالي", exact=True)).to_be_visible()
+        print(
+            "Browser notification recovery passed: the authenticated WebSocket closed "
+            "during the simulated outage and a new connection opened after the browser "
+            "returned online without reloading the page."
+        )
+    finally:
+        context.close()
+
+
 def _promote_e2e_user(email: str, role: str) -> None:
     """Assign a role only inside the disposable local lumen_e2e CI database."""
     from sqlalchemy.engine import make_url
@@ -250,6 +327,7 @@ def run_smoke_test() -> None:
         browser = playwright.chromium.launch(headless=True)
         try:
             _exercise_session_bootstrap_network_recovery(browser)
+            _exercise_notifications_websocket_network_recovery(browser)
         except Exception:
             browser.close()
             raise
