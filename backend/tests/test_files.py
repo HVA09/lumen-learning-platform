@@ -454,7 +454,7 @@ def test_upload_rejects_when_actual_file_exceeds_remaining_user_storage(
     token = _register_and_login(client, "remaining-storage@example.com")
     headers = {"Authorization": f"Bearer {token}"}
     storage_limit = 1024 * 1024
-    png_signature = b"\\x89PNG\\r\\n\\x1a\\n"
+    png_signature = b"\x89PNG\r\n\x1a\n"
     first_payload = png_signature + b"x" * (storage_limit - 10 - len(png_signature))
 
     first_response = client.post(
