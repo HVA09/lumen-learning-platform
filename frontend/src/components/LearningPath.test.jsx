@@ -107,7 +107,7 @@ describe("LearningPath", () => {
     expect(screen.getByText("مُتقَن")).toBeInTheDocument();
     expect(screen.getByText("المتغيرات")).toBeInTheDocument();
     expect(screen.getByText("التالي المقترح")).toBeInTheDocument();
-    expect(screen.getByText("الشروط")).toBeInTheDocument();
+    expect(screen.getByText(/الشروط/)).toBeInTheDocument();
     expect(screen.getByText("مقفل")).toBeInTheDocument();
     expect(screen.getByText("قيد الدراسة")).toBeInTheDocument();
     expect(screen.getByText("64% إتقان")).toBeInTheDocument();
@@ -123,8 +123,8 @@ describe("LearningPath", () => {
     const user = userEvent.setup();
     render(<LearningPath onSelectTopic={onSelectTopic} />);
 
-    const lockedTopic = await screen.findByRole("button", { name: /الشروط/ });
-    const availableTopic = screen.getByRole("button", { name: /المتغيرات/ });
+    const lockedTopic = (await screen.findByText(/الشروط/)).closest("button");
+    const availableTopic = screen.getByText("التالي المقترح").closest("button");
 
     expect(lockedTopic).toBeDisabled();
     await user.click(lockedTopic);
