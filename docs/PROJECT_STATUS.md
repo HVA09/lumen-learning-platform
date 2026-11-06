@@ -2,6 +2,21 @@
 
 آخر تحقق: **2026-11-06**.
 
+## نقطة الاستئناف الحالية المعتمدة — 2026-11-06 15:34 UTC
+
+هذا الملخص هو المرجع الأحدث عند اختلافه مع المقاطع التاريخية أدناه. تحقق من GitHub قبل أي دمج جديد.
+
+- **رأس main:** `3cbff17cba6b7b27cd2c86ce986a17926db800f9` بعد دمج PR #117. تشغيل ما بعد الدمج [CI #42243421397](https://github.com/HVA09/lumen-learning-platform/actions/runs/42243421397) نجح في الوظائف الأربع.
+- **PR #113:** مدمج عند `ae5bb5bbc3f31e23dcad368379799881167956e7`. يضيف اختبارات حصص رفع الملفات وسلوك ClamAV fail-closed، دون تغيير كود التشغيل. [CI #42242335138](https://github.com/HVA09/lumen-learning-platform/actions/runs/42242335138) نجح 4/4؛ Backend: 447 passed، 21 warnings.
+- **PR #117:** مدمج عند `3cbff17cba6b7b27cd2c86ce986a17926db800f9`. يضيف اختبارات SMTP failure paths وLTI DNS/JWKS safeguards فقط. [CI #42242688194](https://github.com/HVA09/lumen-learning-platform/actions/runs/42242688194) نجح 4/4؛ Backend: **480 passed، 21 warnings، 90% coverage**؛ `email_service.py` 92% و`lti_service.py` 89%. لا يوجد حد coverage أدنى مفروض.
+- **ملاحظة Ruff:** ظهر تشخيص report-only واحد `F401` في `backend/tests/test_malware_scanner_fail_safe.py:3` بسبب استيراد `pathlib.Path` غير المستخدم. PR #121 يحذف هذا الاستيراد فقط؛ لا تسجل التشخيص صفرًا قبل نجاح CI ودمج الإصلاح.
+- **PR #119 — تغطية Frontend:** مفتوح على `main` الحالي من `3cbff17`، والرأس `0d90a688248cd2c4fdd1bba1ccf0a03c27d1dd19`. في [CI #42243595538](https://github.com/HVA09/lumen-learning-platform/actions/runs/42243595538) نجحت اختبارات Frontend والبناء، وBrowser E2E، وفحص Git history secrets؛ Backend كان قيد التنفيذ عند هذا التحديث. Frontend: **142 passed عبر 24 ملفًا**؛ statements **50.34%**، branches **53.53%**، functions **47.98%**، lines **50.63%**. القياس report-only وليس دمجًا أو إطلاقًا.
+- **PR #121 — تنظيف Ruff:** مفتوح على `main` الحالي، والرأس `ed5241c15df6776d7f2d87bd058ac704f2796da6`. يحذف استيرادًا واحدًا غير مستخدم من ملف اختبار ClamAV ولا يغيّر السلوك. في [CI #42243988940](https://github.com/HVA09/lumen-learning-platform/actions/runs/42243988940) نجح فحص الأسرار واختبار Frontend/build؛ Backend وBrowser E2E كانا قيد التنفيذ عند هذا التحديث.
+- أُغلقت PRs #114 و#115 و#116 و#118 دون دمج لأنها نسخ قديمة/مكررة؛ PR #119 هو المسار المعتمد لتغييرات تغطية الواجهة. أُغلقت PR #120 لأنها نسخة مكررة من #119؛ لا تستأنف هذه الفروع القديمة.
+- **P6:** استكمال التحقق من #119 و#121، ثم إعادة قياس Backend/Frontend بعد دمج التغييرات، ومعالجة فجوات RUM/Core Web Vitals وTypecheck وقياسات الهاتف والاتصال البطيء.
+- **P7 غير جاهزة:** لا يوجد نشر إنتاجي مثبت. الميزانية صفر؛ لا بطاقة أو دفع إلكتروني. ما زالت الاستضافة المجانية دون بطاقة، وHTTPS الفعلي، وSMTP الحقيقي، وتقييم موارد ClamAV على المضيف، وأسرار الإنتاج خارج Git، ووجهة Restic خارجية واختبار استعادة فعلي بوابات مفتوحة.
+
+
 > هذه الوثيقة هي نقطة الاستئناف المعتمدة. تحقّق دائمًا من أحدث commit وGitHub Actions قبل أي تغيير؛ لا تعتمد على تواريخ المحادثات أو حالة قديمة.
 
 ## الملخص التنفيذي
