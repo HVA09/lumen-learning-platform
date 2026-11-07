@@ -337,6 +337,7 @@ try:
 except Exception:
     print("parent-document:blocked")
 """
+        page.set_default_timeout(130_000)
         output = page.evaluate(
             """({frameId, code}) => new Promise((resolve, reject) => {
               const frame = document.getElementById(frameId);
@@ -371,7 +372,6 @@ except Exception:
               );
             })""",
             {"frameId": "lumen-python-isolation-e2e", "code": python_code},
-            timeout=130_000,
         )
 
         assert "worker-document:blocked" in output, output
