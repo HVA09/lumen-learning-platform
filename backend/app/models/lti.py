@@ -138,7 +138,7 @@ class LTIAGSGradeEvent(Base):
         UniqueConstraint("assignment_link_id", "submission_id", "grade_version", name="uq_lti_ags_grade_event_version"),
         CheckConstraint("score_given >= 0 AND score_given <= score_maximum", name="ck_lti_ags_grade_event_score_range"),
         CheckConstraint("score_maximum > 0", name="ck_lti_ags_grade_event_score_maximum"),
-        CheckConstraint("status IN ('pending', 'sent', 'dead')", name="ck_lti_ags_grade_event_status"),
+        CheckConstraint("status IN ('pending', 'sent', 'dead', 'superseded')", name="ck_lti_ags_grade_event_status"),
         Index("ix_lti_ags_grade_events_due", "status", "next_attempt_at"),
     )
 
@@ -149,6 +149,8 @@ class LTIAGSGradeEvent(Base):
     lti_subject: Mapped[str] = mapped_column(String(255), nullable=False)
     score_given: Mapped[float] = mapped_column(nullable=False)
     score_maximum: Mapped[float] = mapped_column(nullable=False)
+    # Latest timestamp reserved for an AGS delivery attempt; retries advance it.
+    score_timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="pending", server_default="pending", nullable=False)
     attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
