@@ -1,11 +1,14 @@
 # الخطة المعمارية الحالية والمراحل التنفيذية لمنصة Lumen
 
-آخر تحديث: **2026-11-06**  
+آخر تحديث: **2026-11-07**  
 آخر تغيير اختبار/جودة مدمج على `main`: PR #119 عند `f1d5884b8ee0a4c05a1be596502a969018bfcbe0`؛ يضيف Frontend V8 coverage report-only واختبارات API adapters وFilesPanel وAdminDashboard وContentManager. Backend baseline الحالي 90% و480 passed؛ Frontend baseline 50.34% statements على 142 اختبارًا / 24 ملفًا.
 PR #95 مدمج عند `80be944a39ffd683daa4ee24cabe48a3bd9067c7` لمعالجة session bootstrap بعد عودة الاتصال، وPR #97 مدمج عند `fc25ba75987403a85154e55fc70f329d38ee6371` لاختبار Browser E2E. CI بعد PR #95 #42113922307 وبعد PR #97 #42115046453 نجحا 4/4.
 PR #39–#46 و#48 و#49 و#51–#59 و#62 و#64–#84 و#87–#89 و#91 و#95 و#97 و#100 مدمجة (باستثناء PR #55 و#86 المغلقين دون دمج). PR #100 دمج خط أساس Backend coverage report-only دون تغيير runtime.
 
 > الغرض هو تنظيم النظام تدريجيًا دون إعادة كتابة، أو تغيير سلوك الميزات، أو تعريض بيانات المستخدمين والترحيلات للخطر.
+
+آخر رأس `main` موثق: `362aac61f3df486027eef014d3f6bc577cc2aa3d` بعد PR #145/#147/#146. أحدث القرارات المعمارية ADR-045 وADR-046 وخطوات P6/P7 في الملحقات الأخيرة أدناه.
+
 
 ## 1. القرار المعماري
 
@@ -228,3 +231,22 @@ PR #39–#46 و#48 و#49 و#51–#59 و#62 و#64–#84 و#87–#89 و#91 و#95 �
 3. توسيع فروع `App.jsx` المتبقية ومراجعة المحاكاة حسب المخاطر. التغطية الحالية report-only، ولا يُفرض threshold.
 4. Frontend JavaScript/JSX؛ لا TypeScript checker أو ESLint script/dependency مفعّل حاليًا. ابدأ بتقييم فحص ساكن تدريجي قبل إدخاله إلى CI gate.
 5. P7 منفصلة عن P6: لا نشر إنتاجي مثبت، ولا بد من استضافة مجانية بلا بطاقة، HTTPS، SMTP فعلي، موارد ClamAV كافية، أسرار خارج Git، ونسخ احتياطي خارجي مع استعادة واقعية.
+
+
+## تحديث معماري — Nginx WebSocket وPython Lab isolation (2026-11-07)
+
+- PR #145 وسّع اختبارات تكامل `App.jsx` لمسارات lazy panels وcallbacks؛ لا runtime/API/DB changes.
+- PR #147 دمج proxy location مشتركة في `backend/nginx/snippets/lumen-locations.conf` مع مسار `/ws/` مستقل لترويسات WebSocket وbuffering off ومهل طويلة، ويستخدمها خادم HTTP وخادم HTTPS المستقبلي. Nginx في CI يختبر REST وWebSocket عبر حاوية فعلية. TLS غير مفعّل حتى توفر دومين وشهادة.
+- PR #146 نقل تنفيذ Python من مستند التطبيق إلى iframe opaque origin وBlob Worker مع CSP صارمة وحدود إدخال/إخراج ومهل وإلغاء؛ اختبار المتصفح يتحقق من Worker-side CSP violation الفعلية. التنفيذ لا يغيّر Modular Monolith ولا يقدم API أو قاعدة بيانات أو migrations جديدة.
+- القيد الأمني المتبقي: Web Worker لا يملك في هذا التصميم حدًا صلبًا لذاكرة يفرضه التطبيق؛ هذه ليست OS-level sandbox ولا حاوية لتشغيل برامج عدائية. راجع `docs/PYTHON_LAB_SECURITY.md` قبل إضافة قدرات إلى المختبر.
+- مرجع الدمج: PR #145 عند `11969f183d18d33028bc37ec53e7ecbf4ee4e11f`، PR #147 عند `d5245af119bc5737fd0e1822b886648013394e14`، PR #146 عند `362aac61f3df486027eef014d3f6bc577cc2aa3d`.
+- CI على PR #146 [#42405345735](https://github.com/HVA09/lumen-learning-platform/actions/runs/42405345735) نجح 4/4. لا يعني ذلك تفعيل TLS/WSS على مضيف حقيقي أو إغلاق جميع مخاطر الكود غير الموثوق.
+
+### بوابات P6/P7 المتبقية
+
+1. قياس RUM/Core Web Vitals ميدانيًا، وتجربة هاتف حقيقي واتصال بطيء.
+2. تقييم ESLint/JS static analysis وtypecheck تدريجيًا دون فرض بوابة قبل وجود baseline متوافق.
+3. اختبار HTTPS/WSS بعد إعداد الدومين والشهادة، وفحص تعافي WebSocket على المضيف.
+4. اختبار التكامل على Moodle/Canvas Sandbox، وSMTP خارجي، وقياس موارد ClamAV على الخادم.
+5. إعداد وجهة Restic خارجية حقيقية مع بيانات اعتماد خارج المستودع واستعادة مجربة. CI يختبر Restic على مستودع مؤقت محلي فقط.
+6. إثبات استضافة مجانية مستدامة بلا بطاقة قبل أي إعلان جاهزية للإنتاج.

@@ -1,11 +1,11 @@
 # خط أساس الجودة والتحقق — المرحلة P6
 
-آخر تحديث: **2026-11-06**.
+آخر تحديث: **2026-11-07**.
 
 ## 1. المرجع وحدود هذا التقييم
 
 - المستودع: `HVA09/lumen-learning-platform`.
-- آخر تغيير اختبار/جودة مدمج على `main`: PR #119 عند `f1d5884b8ee0a4c05a1be596502a969018bfcbe0`؛ دمج V8 coverage report-only مع 142 اختبار Frontend / 24 ملفًا. أحدث CI Backend baseline: 480 passed، 21 warnings، 90% coverage عبر PR #117/#119. لم تُفرض عتبة تغطية.
+- أحدث خط أساس موثق: CI PR #146 [#42405345735](https://github.com/HVA09/lumen-learning-platform/actions/runs/42405345735): Backend 481 passed و21 warnings و90% coverage؛ Frontend 199 passed عبر 29 ملفًا و72.46% statements / 65.82% branches / 64.56% functions / 73.15% lines. تفاصيل القياس في القسم 9؛ تبقى التغطية report-only ولا توجد عتبة مفروضة.
 - هذا الملف يوثق ما هو مفعّل فعليًا في المستودع وCI، ثم يقترح إدخال أدوات الجودة تدريجيًا.
 - هذا التقييم توثيقي فقط؛ لا يضيف اعتماديات أو يغيّر سلوك التطبيق أو شروط CI.
 
@@ -335,3 +335,25 @@
 - يظل التغطية report-only ولا يوجد `coverage.threshold` مفروض. نتائج mocks تؤكد orchestration والسلوك المحلي ولا تثبت تشغيل Pyodide/CDN حي أو أداء هاتف حقيقي.
 - لا يوجد RUM/Core Web Vitals instrumentation أو `web-vitals` dependency مثبتة. لا يوجد ESLint script/dependency أو TypeScript checker ضمن إعدادات Frontend الحالية؛ المصدر JavaScript/JSX.
 - لا يوجد نشر إنتاجي مثبت. لا تعتبر CI بديلًا عن قياس جهاز حقيقي أو HTTPS/SMTP/ClamAV/backup على المضيف المستهدف.
+
+
+## 9. خط أساس الجودة بعد PR #145/#147/#146 — 2026-11-07
+
+### CI على رأس PR #146 بعد إعادة التأسيس
+
+- الرأس: `4ea272d941d0a4042fdefb8f8a8c7267db2304b2`، بقاعدة `main` عند `d5245af119bc5737fd0e1822b886648013394e14`.
+- CI [#42405345735](https://github.com/HVA09/lumen-learning-platform/actions/runs/42405345735) اكتمل بنجاح **4/4**: Backend، Frontend/build، Browser E2E، وFull Git history secret scan.
+- Backend: **481 passed، 21 warnings** في 182.71 ثانية. التغطية **90%**: 4,375 statements، 347 missed، 942 branches، و134 partially covered. لا توجد عتبة coverage مفروضة؛ التقرير report-only.
+- Frontend: **199 passed عبر 29 ملف اختبار**. V8 coverage report-only:
+  - Statements: **72.46%** (1,458 / 2,012).
+  - Branches: **65.82%** (728 / 1,106).
+  - Functions: **64.56%** (410 / 635).
+  - Lines: **73.15%** (1,368 / 1,870).
+- `App.jsx`: 100% statements، 97.5% branches، 100% functions، 100% lines؛ `main.jsx` يبقى entry point غير مختبر مباشرة، ولا ينبغي تفسير 0% له كفشل في التطبيق. لا تُرفع النسبة باستثناء ملفات أو اختبارات شكلية.
+- Browser E2E تحقق من تنفيذ Pyodide داخل Blob Worker فعلي ومنع الوصول إلى DOM والتخزين ومنع طلب API بواسطة CSP enforced، وتعافي WebSocket عبر حاوية Nginx، واستعادة جلسة المتصفح بعد عودة الاتصال، وتدفقات الدروس والاختبارات والملفات وفحص ClamAV.
+
+### تفسير النتائج وحدودها
+
+- مقارنة بآخر خط أساس موثق في PR #141 (187 frontend tests / 70.83% statements / 65.26% branches / 60.16% functions / 71.85% lines)، ارتفع القياس في هذا التشغيل إلى 199 tests و72.46% / 65.82% / 64.56% / 73.15%. هذه نتيجة CI الحالية، وليست performance metric أو ضمانًا لكل رحلة استخدام.
+- CI على main بعد دمج #146 [#42405775181](https://github.com/HVA09/lumen-learning-platform/actions/runs/42405775181) كان قيد التنفيذ عند كتابة هذا التحديث؛ لا تسجل له نجاحًا قبل اكتماله.
+- القياس report-only؛ لا يوجد coverage threshold. لا يزال RUM/Core Web Vitals على هاتف واتصال بطيء غير منفذ، ولا يوجد اختبار WSS/TLS حي أو LMS/SMTP خارجي.

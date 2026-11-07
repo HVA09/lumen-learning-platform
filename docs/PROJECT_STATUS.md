@@ -1,14 +1,16 @@
 # الحالة التنفيذية لمشروع Lumen Learning Platform
 
-آخر تحقق: **2026-11-06**.
+آخر تحقق: **2026-11-07**.
 
 > هذه الوثيقة هي نقطة الاستئناف المعتمدة. تحقّق دائمًا من أحدث commit وGitHub Actions قبل أي تغيير؛ لا تعتمد على تواريخ المحادثات أو حالة قديمة.
+
+> **أحدث نقطة استئناف:** `main` عند `362aac61f3df486027eef014d3f6bc577cc2aa3d` بعد PRs #145/#147/#146. Backend 481 passed، Frontend 199 passed/29 files، وCoverage 90% Backend و72.46% Frontend statements على CI PR #146. راجع آخر ملحق 2026-11-07 أدناه؛ CI على main بعد #146 (#903) كان قيد التنفيذ عند آخر تحقق.
 
 ## الملخص التنفيذي
 
 - المستودع: [HVA09/lumen-learning-platform](https://github.com/HVA09/lumen-learning-platform) — عام.
 - الفرع الأساسي: `main`.
-- آخر تغيير اختبار/جودة مدمج على `main`: PR #119 عند `f1d5884b8ee0a4c05a1be596502a969018bfcbe0`؛ أضاف خط أساس Frontend V8 report-only واختبارات مركزة للـ API adapters والملفات والإدارة والمحتوى. أحدث خط أساس Backend هو 90% مع 480 اختبارًا ناجحًا عبر CI PR #117/#119. لا توجد عتبة تغطية مفروضة ولا نشر إنتاجي مثبت.
+- آخر التغييرات المدمجة على `main` هي PR #145 (تغطية App)، و#147 (Nginx/WebSocket)، و#146 (عزل مختبر Python)؛ آخر merge SHA هو `362aac61f3df486027eef014d3f6bc577cc2aa3d`. خط أساس CI PR #146: Backend 481 passed و90% coverage؛ Frontend 199 passed عبر 29 ملفًا و72.46% statements. لا توجد عتبة تغطية مفروضة ولا نشر إنتاجي مثبت.
 - PR #95 مدمج عند `80be944a39ffd683daa4ee24cabe48a3bd9067c7`: يعيد تهيئة جلسة المتصفح عند عودة الشبكة، ويمنع retry غير الضروري بعد login/logout. CI على PR #42108841308 وبعد الدمج #42113922307 نجحا 4/4.
 - PR #100 مدمج في `main` عبر Squash commit `2f77979fc735ea69690474bed60fce8a0c206fc7`. خط أساس Backend report-only: **431 passed, 20 warnings, 89% coverage** على رأس PR #100؛ لا يوجد حد أدنى مفروض، ولا تغيير في runtime أو API/DB/migrations أو إعدادات الإنتاج.
 - PR #4 و#29–#46 و#48 و#49 و#51–#54 و#56–#59 و#62 و#64–#84 و#87 و#88 و#89 و#91 مدمجة، بما فيها PR #68 و#69 و#76 و#83 التوثيقية وPR #70/#73/#75/#77/#80/#81/#82/#84 لتوسيع Browser E2E. PR #87 أضاف إعادة الاتصال واختبار تعدد جلسات الإشعارات؛ PR #88 أضاف اختبار رسوب البوابة دون الحد وحفظ المحاولة ومهلة إعادة المحاولة. PR #55 و#86 مغلقان دون دمج. PR #59/#62/#64 خفّضت التحميل الأولي، و#65 أضاف Vite preload recovery، و#67 خفّض precache إلى 8 entries/378.63 KiB.
@@ -245,3 +247,25 @@
 5. P7 غير جاهزة: لا يوجد نشر إنتاجي مثبت. ما زالت بوابات الاستضافة المجانية بلا بطاقة، HTTPS، SMTP حي، كفاية موارد ClamAV، الأسرار خارج Git، ووجهة نسخ احتياطي خارجية مع اختبار استعادة فعلية.
 
 - لا تغيير API/DB/migrations أو اعتماديات runtime في PRs #129/#133/#136/#137/#140/#141. الميزانية صفر؛ لا موارد مدفوعة أو دفع إلكتروني، ولا تجاوز لحماية GitHub.
+
+
+## تحقق استمرارية 2026-11-07 — دمج PRs #145 و#147 و#146
+
+هذا الملحق أحدث من نقاط الاستئناف المؤرخة 2026-11-06 أدناه. يعتمد على حالة GitHub وActions التي تم التحقق منها بعد الدمج، ولا يساوي نجاح CI إثبات نشر إنتاجي.
+
+- رأس `main` الحالي: `362aac61f3df486027eef014d3f6bc577cc2aa3d`، وهو merge commit لطلب #146. الفرع الافتراضي `main` محمي.
+- PR [#145](https://github.com/HVA09/lumen-learning-platform/pull/145) مدمج عند `11969f183d18d33028bc37ec53e7ecbf4ee4e11f`؛ أضاف تغطية اختبارية للمسارات المؤجلة ولوحات الميزات والتوست والإنجازات في `App.test.jsx` دون تغيير runtime أو API أو قاعدة البيانات. PR CI [#42295018064](https://github.com/HVA09/lumen-learning-platform/actions/runs/42295018064) نجح 4/4، وmain CI بعد الدمج [#42404350575](https://github.com/HVA09/lumen-learning-platform/actions/runs/42404350575) نجح 4/4.
+- PR [#147](https://github.com/HVA09/lumen-learning-platform/pull/147) مدمج عند `d5245af119bc5737fd0e1822b886648013394e14`؛ رأس الفرع النهائي `6918ebf0ffa347057713a7da5620e5e59a429d29`. أضاف Nginx location مشتركة لـ HTTP وخادم HTTPS المستقبلي، ومسار WebSocket صريحًا `/ws/` مع HTTP/1.1 وترويسات Upgrade/Connection وbuffering معطلاً ومهل خمول تصل إلى ساعة. كما وجّه Browser E2E طلبات REST وWebSocket عبر حاوية Nginx فعلية. PR CI النهائي [#42404937903](https://github.com/HVA09/lumen-learning-platform/actions/runs/42404937903) نجح 4/4، وmain CI بعد الدمج [#42405264997](https://github.com/HVA09/lumen-learning-platform/actions/runs/42405264997) نجح 4/4.
+- PR [#146](https://github.com/HVA09/lumen-learning-platform/pull/146) مدمج عند `362aac61f3df486027eef014d3f6bc577cc2aa3d`؛ رأس فرعه `4ea272d941d0a4042fdefb8f8a8c7267db2304b2` مبني على main بعد #145 و#147. نقل تنفيذ Python الذي يكتبه المتعلم إلى iframe ذي opaque origin وعامل Blob Worker، مع CSP تمنع الوصول إلى API. CI على الرأس المحدث [#42405345735](https://github.com/HVA09/lumen-learning-platform/actions/runs/42405345735) نجح 4/4.
+- نتائج CI لطلب #146: Backend **481 passed, 21 warnings، 90% coverage** (4,375 statements، 347 missed، 942 branches، 134 partially covered؛ زمن pytest 182.71 ثانية). Frontend **199 passed عبر 29 ملفًا**، وcoverage report-only: statements **72.46%**، branches **65.82%**، functions **64.56%**، lines **73.15%**. ارتفعت تغطية `App.jsx` إلى 100% statements و97.5% branches و100% functions/lines.
+- Browser E2E في #146 تحقق من opaque origin، ومنع وصول Worker إلى DOM والتخزين، ومنع fetch من Worker إلى API عبر حدث CSP enforced من `connect-src`، وتعافي WebSocket عبر Nginx، والتعافي من انقطاع الشبكة، وتدفقات التسجيل والدروس والاختبارات والملفات وفحص ClamAV.
+- تشغيل main بعد دمج #146 [#42405775181](https://github.com/HVA09/lumen-learning-platform/actions/runs/42405775181) بدأ عند 19:21 UTC وما زال **قيد التنفيذ عند كتابة هذا التحديث**؛ لا تسجل نجاحه قبل اكتماله.
+
+### القيود الأمنية والتشغيلية التي لم تُغلق
+
+1. إعداد HTTPS والتحويل HTTP→HTTPS ما زالا معطلين عمدًا. اختبار CI يثبت Nginx وWebSocket عبر HTTP محليًا فقط؛ يلزم دومين وشهادة ثم اختبار حي لـ HTTPS وWSS على المضيف المستهدف.
+2. مختبر Python يعزل أصل التطبيق وDOM والتخزين واتصال الشبكة العام، لكنه ليس حاوية نظام تشغيل ولا يفرض حدًا صلبًا لذاكرة Web Worker. لا يُستخدم لتشغيل كود عدائي أو ملفات تتطلب وصولًا عامًا للشبكة؛ راجع `docs/PYTHON_LAB_SECURITY.md`.
+3. لا يوجد نشر إنتاجي مثبت. نجاح CI لا يثبت استضافة مجانية عاملة أو كفاية موارد ClamAV على المضيف أو إرسال SMTP فعليًا أو اتصال Moodle/Canvas Sandbox أو وجود مستودع Restic خارجي واستعادة حقيقية منه.
+4. قياس RUM/Core Web Vitals وتجربة هاتف حقيقي على اتصال بطيء ما زالا غير مكتملين. فحص ESLint/TypeScript لم يصبح بوابة CI معتمدة؛ لا تضف threshold للتغطية دون قرار مبني على قياس ومخاطر.
+
+- لا تغيير API أو DB schema أو migrations في PRs #145/#146/#147. لا موارد مدفوعة أو دفع إلكتروني؛ حافظ على ميزانية صفر، وفحوص CI والأمن وحماية الفرع.
