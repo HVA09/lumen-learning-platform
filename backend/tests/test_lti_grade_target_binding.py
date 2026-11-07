@@ -247,6 +247,7 @@ def test_ags_retry_reserves_a_new_timestamp_for_each_delivery_attempt(client, db
     assert graded.status_code == 200, graded.text
     event = db_session.query(LTIAGSGradeEvent).filter_by(submission_id=submission_id).one()
     event_id = event.id
+    graded_at = db_session.get(AssignmentSubmission, submission_id).graded_at
 
     timestamps = []
     async def fail_once(_platform, _lineitem, payload):
@@ -267,10 +268,10 @@ def test_ags_retry_reserves_a_new_timestamp_for_each_delivery_attempt(client, db
         timestamps.append(payload["timestamp"])
 
     monkeypatch.setattr(lti_service_module, "post_lti_ags_score", succeed)
-    assert asyncio.run(lti_service_module.dispatch_lti_grade_event(db_session, event.id)) is True
+    assert asyncio.run(lti_service_module.dispatch_lti_grade_event(db_session, event_id)) is True
     assert len(timestamps) == 2
     assert timestamps[1] > timestamps[0]
-    event = db_session.get(LTIAGSGradeEvent, event.id)
+    event = db_session.get(LTIAGSGradeEvent, event_id)
     assert event.status == "sent"
     assert event.attempts == 2
     db_session.refresh(submission)
