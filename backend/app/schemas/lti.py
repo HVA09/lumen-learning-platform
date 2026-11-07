@@ -93,6 +93,7 @@ class LTIAGSGradeEventOut(BaseModel):
     submission_id: int
     grade_version: int
     status: str
+    score_timestamp: datetime
     attempts: int
     last_error: str | None
     created_at: datetime
