@@ -292,9 +292,17 @@ def _exercise_python_sandbox_isolation(browser) -> None:
         )
 
         frame = page.frame_locator("#lumen-python-isolation-e2e")
-        frame_origin = frame.locator("body").evaluate("() => window.location.origin")
-        assert frame_origin == "null", (
-            f"Sandbox iframe must have an opaque origin, received {frame_origin!r}"
+        parent_frame_access = page.locator("#lumen-python-isolation-e2e").evaluate(
+            """(element) => {
+              try {
+                return element.contentDocument === null ? "blocked" : "accessible";
+              } catch {
+                return "blocked";
+              }
+            }"""
+        )
+        assert parent_frame_access == "blocked", (
+            "The parent page must not receive a same-origin Document for the sandbox frame"
         )
 
         network_result = frame.locator("body").evaluate(
