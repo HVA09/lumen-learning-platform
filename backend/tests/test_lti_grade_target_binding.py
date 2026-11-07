@@ -256,10 +256,16 @@ def test_ags_retry_reserves_a_new_timestamp_for_each_delivery_attempt(client, db
             raise TimeoutError("simulated uncertain response")
 
     monkeypatch.setattr(lti_service_module, "post_lti_ags_score", fail_once)
+    # This fixture owns an outer transaction. The simulated HTTP timeout does
+    # not abort PostgreSQL, so keep that test transaction intact while the
+    # dispatcher records the retry state after its rollback boundary.
+    monkeypatch.setattr(db_session, "rollback", lambda: None)
     assert asyncio.run(lti_service_module.dispatch_lti_grade_event(db_session, event_id)) is False
 
     event = db_session.get(LTIAGSGradeEvent, event_id)
     assert event.status == "pending"
+    assert event.attempts == 1
+    assert event.last_error == "TimeoutError: AGS delivery failed"
     # A retry must reserve a timestamp later than the uncertain first attempt.
     event.next_attempt_at = datetime.now(timezone.utc) - timedelta(seconds=1)
     db_session.commit()
