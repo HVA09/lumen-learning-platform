@@ -37,9 +37,19 @@ def _register_admin(
     return login_response.cookies.get("lumen_access")
 
 
-def _state_cookie(state: str) -> dict[str, str]:
+def _state_cookie(state: str) -> tuple[str, str]:
     state_hash = hash_opaque_token(state)
-    return {f"lti_state_{state_hash}": state_hash}
+    return f"lti_state_{state_hash}", state_hash
+
+
+def _post_lti_launch(client, state: str, id_token: str, **kwargs):
+    cookie_name, cookie_value = _state_cookie(state)
+    client.cookies.set(cookie_name, cookie_value, path="/lti/launch")
+    return client.post(
+        "/lti/launch",
+        data={"id_token": id_token, "state": state},
+        **kwargs,
+    )
 
 
 def _register_platform(client, admin_token):
@@ -131,13 +141,23 @@ def test_launch_rejects_state_without_initiating_browser_cookie(client, db_sessi
     from urllib.parse import parse_qs, urlparse
     state = parse_qs(urlparse(login_response.headers["location"]).query)["state"][0]
 
+    cookie_name, _ = _state_cookie(state)
+    client.cookies.set("unrelated", "value")
     response = client.post(
         "/lti/launch",
         data={"id_token": "not-used-without-the-state-cookie", "state": state},
-        cookies={"unrelated": "value"},
     )
+    assert cookie_name not in client.cookies
     assert response.status_code == 400
     assert "state" in response.json()["detail"].lower()
+
+    cookie_name, _ = _state_cookie(state)
+    client.cookies.set(cookie_name, "not-the-state-hash", path="/lti/launch")
+    mismatched = client.post(
+        "/lti/launch",
+        data={"id_token": "not-used-with-a-mismatched-state-cookie", "state": state},
+    )
+    assert mismatched.status_code == 400
 
 
 def test_full_launch_flow_creates_user_and_issues_tokens(client, db_session, monkeypatch):
@@ -189,9 +209,8 @@ def test_full_launch_flow_creates_user_and_issues_tokens(client, db_session, mon
     monkeypatch.setattr(lti_service_module, "fetch_platform_public_key", fake_fetch_key)
 
     # 3) نستدعي /lti/launch فعليًا — هذا يتحقق من التوقيع الحقيقي
-    launch_response = client.post(
-        "/lti/launch", data={"id_token": id_token, "state": state},
-        cookies=_state_cookie(state), follow_redirects=False
+    launch_response = _post_lti_launch(
+        client, state, id_token, follow_redirects=False
     )
     assert launch_response.status_code == 302
     cleared_state_cookie = launch_response.headers.get("set-cookie", "").lower()
@@ -219,9 +238,8 @@ def test_full_launch_flow_creates_user_and_issues_tokens(client, db_session, mon
     assert replay.status_code == 401
 
     # وحالة OIDC نفسها لا يمكن استعمالها مجددًا.
-    replay_state = client.post(
-        "/lti/launch", data={"id_token": id_token, "state": state},
-        cookies=_state_cookie(state), follow_redirects=False
+    replay_state = _post_lti_launch(
+        client, state, id_token, follow_redirects=False
     )
     assert replay_state.status_code == 400
 
@@ -261,10 +279,7 @@ def test_launch_rejects_invalid_signature(client, db_session, monkeypatch):
 
     monkeypatch.setattr(lti_service_module, "fetch_platform_public_key", fake_fetch_key)
 
-    response = client.post(
-        "/lti/launch", data={"id_token": bad_token, "state": state},
-        cookies=_state_cookie(state),
-    )
+    response = _post_lti_launch(client, state, bad_token)
     assert response.status_code == 401
 
 
@@ -354,10 +369,7 @@ def test_launch_rejects_signed_target_link_uri_mismatch(client, db_session, monk
         return platform_jwk
 
     monkeypatch.setattr(lti_service_module, "fetch_platform_public_key", fake_fetch_key)
-    response = client.post(
-        "/lti/launch", data={"id_token": id_token, "state": state},
-        cookies=_state_cookie(state),
-    )
+    response = _post_lti_launch(client, state, id_token)
     assert response.status_code == 401
 
 
@@ -414,10 +426,7 @@ def test_launch_rejects_unsupported_lti_message_and_missing_azp(client, db_sessi
     wrong_type_token = jwt.encode(
         wrong_type, pem, algorithm="RS256", headers={"kid": "platform-key-1"}
     )
-    assert client.post(
-        "/lti/launch", data={"id_token": wrong_type_token, "state": state},
-        cookies=_state_cookie(state),
-    ).status_code == 401
+    assert _post_lti_launch(client, state, wrong_type_token).status_code == 401
 
     multiple_audiences = {
         **valid_claims,
@@ -426,10 +435,7 @@ def test_launch_rejects_unsupported_lti_message_and_missing_azp(client, db_sessi
     multiple_audience_token = jwt.encode(
         multiple_audiences, pem, algorithm="RS256", headers={"kid": "platform-key-1"}
     )
-    assert client.post(
-        "/lti/launch", data={"id_token": multiple_audience_token, "state": state},
-        cookies=_state_cookie(state),
-    ).status_code == 401
+    assert _post_lti_launch(client, state, multiple_audience_token).status_code == 401
 
     missing_resource_id = {
         **valid_claims,
@@ -438,19 +444,15 @@ def test_launch_rejects_unsupported_lti_message_and_missing_azp(client, db_sessi
     missing_resource_token = jwt.encode(
         missing_resource_id, pem, algorithm="RS256", headers={"kid": "platform-key-1"}
     )
-    assert client.post(
-        "/lti/launch", data={"id_token": missing_resource_token, "state": state},
-        cookies=_state_cookie(state),
-    ).status_code == 401
+    assert _post_lti_launch(client, state, missing_resource_token).status_code == 401
 
     # The same OIDC state remains available after rejected tokens and accepts
     # only a correctly signed, complete LTI Resource Link Request.
     valid_token = jwt.encode(
         valid_claims, pem, algorithm="RS256", headers={"kid": "platform-key-1"}
     )
-    accepted = client.post(
-        "/lti/launch", data={"id_token": valid_token, "state": state},
-        cookies=_state_cookie(state), follow_redirects=False
+    accepted = _post_lti_launch(
+        client, state, valid_token, follow_redirects=False
     )
     assert accepted.status_code == 302
 
