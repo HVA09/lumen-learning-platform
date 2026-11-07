@@ -152,9 +152,36 @@ jobs:
           cat /tmp/lumen-e2e-api.log
           echo "Backend did not become healthy in time."
           exit 1
+      - name: Start Nginx reverse proxy for browser E2E traffic
+        run: |
+          # Use an isolated CI config: route on 8080 and relax request rates so the
+          # multi-user browser fixtures do not exercise production throttling limits.
+          sed \
+            -e 's/        listen 80;/        listen 8080;/' \
+            -e 's/rate=5r\/m/rate=1000r\/m/' \
+            -e 's/rate=60r\/m/rate=1000r\/m/' \
+            "$GITHUB_WORKSPACE/backend/nginx/nginx.conf" > /tmp/lumen-e2e-nginx.conf
+          grep -q 'listen 8080;' /tmp/lumen-e2e-nginx.conf
+          grep -q 'rate=1000r/m' /tmp/lumen-e2e-nginx.conf
+          docker run --detach --name lumen-e2e-nginx \
+            --network host \
+            --add-host app:127.0.0.1 \
+            --volume "/tmp/lumen-e2e-nginx.conf:/etc/nginx/nginx.conf:ro" \
+            --volume "$GITHUB_WORKSPACE/backend/nginx/snippets:/etc/nginx/snippets:ro" \
+            nginx:alpine
+          for attempt in $(seq 1 30); do
+            if curl --silent --fail http://127.0.0.1:8080/health > /tmp/lumen-e2e-nginx-health.json; then
+              cat /tmp/lumen-e2e-nginx-health.json
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs lumen-e2e-nginx
+          echo "Nginx did not proxy the API health check successfully."
+          exit 1
       - name: Build production frontend against the test API
         env:
-          VITE_API_BASE_URL: http://127.0.0.1:8000
+          VITE_API_BASE_URL: http://127.0.0.1:8080
         run: npm run build --prefix frontend
       - name: Start frontend preview
         run: |
@@ -172,8 +199,15 @@ jobs:
       - name: Run real-browser registration, session, reload, and logout flow
         env:
           LUMEN_E2E_BASE_URL: http://127.0.0.1:4173
-          LUMEN_E2E_API_URL: http://127.0.0.1:8000
+          LUMEN_E2E_API_URL: http://127.0.0.1:8080
+          LUMEN_E2E_WS_PROXY_URL: ws://127.0.0.1:8080
         run: python frontend/e2e/smoke_test.py
+      - name: Collect Nginx logs on browser E2E failure
+        if: failure()
+        run: docker logs lumen-e2e-nginx || true
+      - name: Stop Nginx reverse proxy
+        if: always()
+        run: docker rm --force lumen-e2e-nginx || true
 
   backend:
     name: Backend tests
@@ -224,6 +258,13 @@ jobs:
           python-version: "3.12"
       - name: Install backend and test dependencies
         run: python -m pip install --upgrade pip && pip install -r requirements-dev.txt
+      - name: Validate Nginx reverse-proxy configuration
+        run: |
+          docker run --rm \
+            --add-host app:127.0.0.1 \
+            -v "$GITHUB_WORKSPACE/backend/nginx/nginx.conf:/etc/nginx/nginx.conf:ro" \
+            -v "$GITHUB_WORKSPACE/backend/nginx/snippets:/etc/nginx/snippets:ro" \
+            nginx:alpine nginx -t
       - name: Run Ruff lint baseline (report-only)
         run: |
           set +e

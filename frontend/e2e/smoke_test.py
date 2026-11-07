@@ -14,6 +14,9 @@ from playwright.sync_api import Error, expect, sync_playwright
 
 BASE_URL = os.environ.get("LUMEN_E2E_BASE_URL", "http://127.0.0.1:4173").rstrip("/")
 API_URL = os.environ.get("LUMEN_E2E_API_URL", "http://127.0.0.1:8000").rstrip("/")
+WS_PROXY_URL = os.environ.get("LUMEN_E2E_WS_PROXY_URL", "ws://127.0.0.1:8080").rstrip("/")
+if not WS_PROXY_URL.startswith(("ws://", "wss://")):
+    raise ValueError("LUMEN_E2E_WS_PROXY_URL must use ws:// or wss://")
 SCREENSHOT = Path(os.environ.get("RUNNER_TEMP", "/tmp")) / "lumen-browser-e2e-failure.png"
 
 
@@ -163,9 +166,13 @@ def _exercise_notifications_websocket_network_recovery(browser) -> None:
             )
 
         initial_socket = initial_socket_info.value
+        assert initial_socket.url.startswith(f"{WS_PROXY_URL}/ws/notifications"), (
+            "The browser notification WebSocket must connect through the configured Nginx proxy; "
+            f"received {initial_socket.url}"
+        )
         page.wait_for_timeout(500)
         assert not initial_socket.is_closed(), (
-            "The initial authenticated notification WebSocket did not stay connected"
+            "The initial authenticated notification WebSocket did not stay connected through Nginx"
         )
         assert page.evaluate("window.__lumenNotificationSockets.length") == 1, (
             "Expected exactly one browser notification WebSocket after registration"
@@ -213,6 +220,10 @@ def _exercise_notifications_websocket_network_recovery(browser) -> None:
             context.set_offline(False)
 
         reconnected_socket = reconnected_socket_info.value
+        assert reconnected_socket.url.startswith(f"{WS_PROXY_URL}/ws/notifications"), (
+            "The replacement browser notification WebSocket must reconnect through Nginx; "
+            f"received {reconnected_socket.url}"
+        )
         assert reconnected_socket is not initial_socket, (
             "The online event must create a new notification WebSocket connection"
         )
@@ -231,8 +242,8 @@ def _exercise_notifications_websocket_network_recovery(browser) -> None:
         )
         expect(page.get_by_text("إتقانك الإجمالي", exact=True)).to_be_visible()
         print(
-            "Browser notification recovery passed: the authenticated socket closed, "
-            "the browser returned online, and a fresh socket connected without reload."
+            "Browser notification recovery through Nginx passed: the authenticated socket closed, "
+            "the browser returned online, and a fresh proxied socket connected without reload."
         )
     finally:
         context.close()
