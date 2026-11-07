@@ -14,7 +14,7 @@ from playwright.sync_api import Error, expect, sync_playwright
 
 BASE_URL = os.environ.get("LUMEN_E2E_BASE_URL", "http://127.0.0.1:4173").rstrip("/")
 API_URL = os.environ.get("LUMEN_E2E_API_URL", "http://127.0.0.1:8000").rstrip("/")
-WS_PROXY_URL = os.environ.get("LUMEN_E2E_WS_PROXY_URL", "ws://127.0.0.1:8080").rstrip("/")
+WS_PROXY_URL = os.environ.get("LUMEN_E2E_WS_PROXY_URL", API_URL.replace("https://", "wss://", 1).replace("http://", "ws://", 1)).rstrip("/")
 if not WS_PROXY_URL.startswith(("ws://", "wss://")):
     raise ValueError("LUMEN_E2E_WS_PROXY_URL must use ws:// or wss://")
 SCREENSHOT = Path(os.environ.get("RUNNER_TEMP", "/tmp")) / "lumen-browser-e2e-failure.png"
