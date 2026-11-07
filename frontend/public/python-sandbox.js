@@ -1,5 +1,7 @@
-/* Isolated Pyodide runtime. This document is embedded with sandbox="allow-scripts"
- * and therefore receives an opaque origin. Do not add allow-same-origin.
+/* Isolated Pyodide runtime.
+ * This document is embedded with sandbox="allow-scripts" (opaque origin only).
+ * Pyodide itself runs in a dedicated worker so an infinite loop can be terminated
+ * without blocking the iframe bridge or the authenticated application.
  */
 const CHANNEL = "lumen-python-sandbox";
 const PYODIDE_VERSION = "0.26.4";
@@ -7,7 +9,8 @@ const PYODIDE_ROOT = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/
 const MAX_CODE_LENGTH = 20_000;
 const MAX_OUTPUT_LENGTH = 20_000;
 
-let pyodidePromise = null;
+let worker = null;
+let workerObjectUrl = null;
 let activeRequestId = null;
 
 const parentOrigin = (() => {
@@ -21,33 +24,6 @@ const parentOrigin = (() => {
 function sendToParent(message) {
   if (!parentOrigin || window.parent === window) return;
   window.parent.postMessage({ channel: CHANNEL, ...message }, parentOrigin);
-}
-
-function loadPyodideScript() {
-  if (typeof window.loadPyodide === "function") return Promise.resolve();
-
-  return new Promise((resolve, reject) => {
-    const script = document.createElement("script");
-    script.src = `${PYODIDE_ROOT}pyodide.js`;
-    script.crossOrigin = "anonymous";
-    script.onload = resolve;
-    script.onerror = () => reject(new Error("تعذر تحميل بيئة Python من مصدرها"));
-    document.head.appendChild(script);
-  });
-}
-
-async function getPyodide() {
-  if (!pyodidePromise) {
-    pyodidePromise = (async () => {
-      await loadPyodideScript();
-      return window.loadPyodide({ indexURL: PYODIDE_ROOT });
-    })().catch((error) => {
-      pyodidePromise = null;
-      throw error;
-    });
-  }
-
-  return pyodidePromise;
 }
 
 const CAPTURE_OUTPUT_SCRIPT = `
@@ -85,50 +61,114 @@ if _lumen_output.truncated:
 _lumen_result
 `;
 
-async function runPython(requestId, code) {
-  if (activeRequestId !== null) return;
-  activeRequestId = requestId;
+function buildWorkerSource() {
+  return [
+    `const PYODIDE_ROOT = ${JSON.stringify(PYODIDE_ROOT)};`,
+    `const MAX_OUTPUT_LENGTH = ${MAX_OUTPUT_LENGTH};`,
+    `const CAPTURE_OUTPUT_SCRIPT = ${JSON.stringify(CAPTURE_OUTPUT_SCRIPT)};`,
+    "importScripts(PYODIDE_ROOT + 'pyodide.js');",
+    "const pyodideReadyPromise = loadPyodide({ indexURL: PYODIDE_ROOT });",
+    "let workerBusy = false;",
+    "self.onmessage = async (event) => {",
+    "  const message = event.data || {};",
+    "  const requestId = message.requestId;",
+    "  const code = message.code;",
+    "  if (workerBusy || typeof requestId !== 'string' || typeof code !== 'string' || code.length > 20000) return;",
+    "  workerBusy = true;",
+    "  self.postMessage({ type: 'status', requestId, status: 'loading' });",
+    "  try {",
+    "    const pyodide = await pyodideReadyPromise;",
+    "    self.postMessage({ type: 'status', requestId, status: 'running' });",
+    "    pyodide.globals.set('__lumen_student_code', code);",
+    "    let captured;",
+    "    try { captured = await pyodide.runPythonAsync(CAPTURE_OUTPUT_SCRIPT); }",
+    "    finally { pyodide.globals.delete('__lumen_student_code'); }",
+    "    const rawOutput = typeof captured === 'string' ? captured : (typeof captured?.toJs === 'function' ? captured.toJs() : String(captured ?? ''));",
+    "    if (typeof captured?.destroy === 'function') captured.destroy();",
+    "    self.postMessage({ type: 'complete', requestId, output: String(rawOutput).slice(0, MAX_OUTPUT_LENGTH) });",
+    "  } catch (error) {",
+    "    self.postMessage({ type: 'error', requestId, error: String(error?.message || error || 'تعذر تشغيل كود Python').slice(0, 1000) });",
+    "  } finally {",
+    "    workerBusy = false;",
+    "  }",
+    "};",
+    "self.postMessage({ type: 'worker-ready' });",
+  ].join("\n");
+}
 
+function destroyWorker() {
+  if (worker) {
+    worker.terminate();
+    worker = null;
+  }
+  if (workerObjectUrl) {
+    URL.revokeObjectURL(workerObjectUrl);
+    workerObjectUrl = null;
+  }
+  activeRequestId = null;
+}
+
+function getWorker() {
+  if (worker) return worker;
+
+  const blob = new Blob([buildWorkerSource()], { type: "text/javascript" });
+  workerObjectUrl = URL.createObjectURL(blob);
   try {
-    sendToParent({ type: "status", requestId, status: "loading" });
-    const pyodide = await getPyodide();
-    if (activeRequestId !== requestId) return;
+    worker = new Worker(workerObjectUrl);
+  } catch (error) {
+    URL.revokeObjectURL(workerObjectUrl);
+    workerObjectUrl = null;
+    throw error;
+  }
 
-    sendToParent({ type: "status", requestId, status: "running" });
-    pyodide.globals.set("__lumen_student_code", code);
+  worker.addEventListener("message", (event) => {
+    const message = event.data;
+    if (!message || typeof message !== "object") return;
 
-    let captured;
-    try {
-      captured = await pyodide.runPythonAsync(CAPTURE_OUTPUT_SCRIPT);
-    } finally {
-      pyodide.globals.delete("__lumen_student_code");
+    if (message.type === "worker-ready") {
+      if (workerObjectUrl) {
+        URL.revokeObjectURL(workerObjectUrl);
+        workerObjectUrl = null;
+      }
+      return;
     }
 
-    if (activeRequestId !== requestId) return;
-    const rawOutput =
-      typeof captured === "string"
-        ? captured
-        : typeof captured?.toJs === "function"
-          ? captured.toJs()
-          : String(captured ?? "");
-    if (typeof captured?.destroy === "function") captured.destroy();
+    if (typeof message.requestId !== "string" || message.requestId !== activeRequestId) return;
+    if (message.type === "status") {
+      sendToParent(message);
+      return;
+    }
+    if (message.type === "complete" || message.type === "error") {
+      activeRequestId = null;
+      sendToParent(message);
+    }
+  });
 
-    sendToParent({
-      type: "complete",
-      requestId,
-      output: String(rawOutput).slice(0, MAX_OUTPUT_LENGTH),
-    });
-  } catch (error) {
-    if (activeRequestId === requestId) {
+  worker.addEventListener("error", (event) => {
+    const requestId = activeRequestId;
+    destroyWorker();
+    if (requestId) {
       sendToParent({
         type: "error",
         requestId,
-        error: String(error?.message || error || "تعذر تشغيل كود Python").slice(0, 1000),
+        error: String(event.message || "تعذر تشغيل عامل Python المعزول").slice(0, 1000),
       });
     }
-  } finally {
-    if (activeRequestId === requestId) activeRequestId = null;
-  }
+  });
+
+  worker.addEventListener("messageerror", () => {
+    const requestId = activeRequestId;
+    destroyWorker();
+    if (requestId) {
+      sendToParent({
+        type: "error",
+        requestId,
+        error: "تعذر استقبال نتيجة عامل Python المعزول",
+      });
+    }
+  });
+
+  return worker;
 }
 
 window.addEventListener("message", (event) => {
@@ -149,12 +189,25 @@ window.addEventListener("message", (event) => {
     typeof message.requestId !== "string" ||
     message.requestId.length > 100 ||
     typeof message.code !== "string" ||
-    message.code.length > MAX_CODE_LENGTH
+    message.code.length > MAX_CODE_LENGTH ||
+    activeRequestId !== null
   ) {
     return;
   }
 
-  void runPython(message.requestId, message.code);
+  activeRequestId = message.requestId;
+  try {
+    sendToParent({ type: "status", requestId: activeRequestId, status: "loading" });
+    getWorker().postMessage({ requestId: activeRequestId, code: message.code });
+  } catch (error) {
+    const requestId = activeRequestId;
+    destroyWorker();
+    sendToParent({
+      type: "error",
+      requestId,
+      error: String(error?.message || error || "تعذر بدء عامل Python المعزول").slice(0, 1000),
+    });
+  }
 });
 
 sendToParent({ type: "ready" });
