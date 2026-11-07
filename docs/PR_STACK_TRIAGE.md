@@ -116,3 +116,30 @@ P5.1–P5.4 دخلت `main`: WebSocket (#41)، Session (#43)، notification stat
 - لا تظهر PRs #47 و#71 ضمن قائمة الطلبات المفتوحة في آخر تحقق؛ لا تفترض أنها مدمجة إلا بالرجوع إلى حالة GitHub الفعلية.
 - الخطوات الحالية: إكمال RUM/Core Web Vitals واختبار هاتف/اتصال بطيء؛ تقييم فحص JS ساكن تدريجي؛ ثم تحديد قرار P7 والاستضافة المجانية بلا بطاقة.
 - لا يوجد نشر إنتاجي مثبت. لا تجاوز للحماية، ولا موارد مدفوعة أو دفع إلكتروني.
+
+
+## 8. ترتيب PRs الحالي — 2026-11-07 (Lumen)
+
+هذه القائمة تخص المستودع HVA09/lumen-learning-platform فقط. رأس main وقت التحقق: 38eb15b01719d544d7d04a0c93d4fa4d4e3d6a6d.
+
+| PR | Head branch | Head SHA | Ahead | Files | CI |
+|---|---|---|---:|---:|---|
+| [#145](https://github.com/HVA09/lumen-learning-platform/pull/145) | test/app-routes-lazy-panels-latest-main | 6ad9b54c72dbb1ee21600dc911b0922a7d4682bd | 1 | 1 | [#42295018064](https://github.com/HVA09/lumen-learning-platform/actions/runs/42295018064), 4/4 |
+| [#147](https://github.com/HVA09/lumen-learning-platform/pull/147) | fix/nginx-websocket-proxy | b543573616d122eb4c374f92e4d44384697a8c8a | 13 | 7 | [#42383718753](https://github.com/HVA09/lumen-learning-platform/actions/runs/42383718753), 4/4 |
+| [#146](https://github.com/HVA09/lumen-learning-platform/pull/146) | security/isolate-python-lab | d51953b6acf9bfa80d84448857e6569106f76bda | 20 | 7 | [#42399378562](https://github.com/HVA09/lumen-learning-platform/actions/runs/42399378562), 4/4 |
+
+### حالة GitHub في اللقطة
+
+- الطلبات الثلاثة open، غير مدمجة، وmergeable=true؛ كل منها يستهدف main المبني على نفس SHA الحالي.
+- main ظاهر protected=true. تفاصيل قواعد الحماية وRequired Checks لم تتوفر عبر صلاحية القراءة الحالية (403). لم تظهر Rulesets من endpoint المتاح؛ لا تستنتج من ذلك أن main غير محمي.
+- فشل تعليق Codex الآلي على كل PR بسبب بلوغ حد الاستخدام؛ لا تعتبره نجاح مراجعة، ولا تنسب إليه finding غير موثق. نتائج CI الأربع ناجحة بصورة مستقلة.
+
+### تسلسل الدمج
+
+#145 ثم #147، وبعدهما إعادة تأسيس #146 على main الجديد وإعادة تشغيل الوظائف الأربع قبل دمجه. لا تدمج #146 على base القديم مباشرة بعد تقدم main. بعد كل merge، افحص commit main ونتيجة main CI ولا تكتف بحالة PR السابقة.
+
+### حدود لا يجوز إسقاطها
+
+- #147 يضيف proxy ويدعم اختبارات WebSocket عبر Nginx؛ لا يفعّل TLS. يلزم دومين وشهادة واختبار WSS على مضيف حقيقي.
+- #146 يضيف عزلًا داخل المتصفح؛ لا يقدم OS sandbox أو hard memory quota. لا تستخدم لغة توحي بتشغيل كود عدائي داخل حاوية معزولة.
+- أي تغيير في branch أو commit بعد هذه اللقطة يبطل أرقام SHA ونتائج CI أعلاه؛ أعد التحقق قبل الدمج.
