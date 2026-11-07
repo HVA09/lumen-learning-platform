@@ -597,3 +597,90 @@ def test_browser_lti_exchange_requires_trusted_origin_and_csrf(client, db_sessio
     assert accepted.status_code == 200
     assert accepted.json()["authenticated"] is True
     assert "access_token" not in accepted.json()
+
+
+
+def test_ags_lineitem_url_must_match_registered_https_origin(monkeypatch):
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(lti_service_module.settings, "ENVIRONMENT", "production")
+    platform = SimpleNamespace(auth_token_url="https://moodle.example.com/token")
+
+    assert lti_service_module.validate_lti_ags_lineitem_url(
+        "https://moodle.example.com/lineitems/42", platform
+    ) == "https://moodle.example.com/lineitems/42"
+
+    for unsafe in (
+        "http://moodle.example.com/lineitems/42",
+        "https://attacker.example/lineitems/42",
+        "https://moodle.example.com.evil.invalid/lineitems/42",
+        "https://user@moodle.example.com/lineitems/42",
+        "https://moodle.example.com/lineitems/42#fragment",
+    ):
+        with pytest.raises(ValueError):
+            lti_service_module.validate_lti_ags_lineitem_url(unsafe, platform)
+
+
+def test_lti_profile_uses_only_verified_valid_email():
+    from app.routers.lti import _build_lti_profile
+
+    fallback, full_name, verified = _build_lti_profile(
+        {"email": "student@example.com", "email_verified": False, "name": " Student "},
+        7,
+        "external-subject-7",
+    )
+    assert fallback.endswith("@lti.local")
+    assert full_name == "Student"
+    assert verified is False
+
+    email, _, verified = _build_lti_profile(
+        {"email": " STUDENT@example.com ", "email_verified": True},
+        7,
+        "external-subject-7",
+    )
+    assert email == "student@example.com"
+    assert verified is True
+
+
+def test_record_ags_launch_context_discovers_only_safe_lineitems(db_session, monkeypatch):
+    from app.models.lti import LTIPlatform, LTIResourceLinkDiscovery
+
+    monkeypatch.setattr(lti_service_module.settings, "ENVIRONMENT", "production")
+    platform = LTIPlatform(
+        name="AGS test",
+        issuer="https://moodle.example.com",
+        client_id="ags-client",
+        deployment_id="ags-deployment",
+        auth_login_url="https://moodle.example.com/auth",
+        auth_token_url="https://moodle.example.com/token",
+        jwks_url="https://moodle.example.com/jwks",
+    )
+    db_session.add(platform)
+    db_session.flush()
+
+    resource_claim = "https://purl.imsglobal.org/spec/lti/claim/resource_link"
+    endpoint_claim = "https://purl.imsglobal.org/spec/lti-ags/claim/endpoint"
+    claims = {
+        resource_claim: {"id": "resource-safe-1"},
+        endpoint_claim: {
+            "scope": ["https://purl.imsglobal.org/spec/lti-ags/scope/score"],
+            "lineitem": "https://moodle.example.com/lineitems/42",
+        },
+    }
+    assert lti_service_module.record_lti_ags_launch_context(db_session, platform, claims)
+    db_session.flush()
+    discovered = db_session.query(LTIResourceLinkDiscovery).filter_by(
+        platform_id=platform.id, resource_link_id="resource-safe-1"
+    ).one()
+    assert discovered.lineitem_url == "https://moodle.example.com/lineitems/42"
+    assert discovered.score_scope_allowed is True
+
+    claims[resource_claim] = {"id": "resource-unsafe-2"}
+    claims[endpoint_claim]["lineitem"] = "https://attacker.example/lineitems/99"
+    assert lti_service_module.record_lti_ags_launch_context(db_session, platform, claims)
+    db_session.flush()
+    unsafe = db_session.query(LTIResourceLinkDiscovery).filter_by(
+        platform_id=platform.id, resource_link_id="resource-unsafe-2"
+    ).one()
+    assert unsafe.lineitem_url is None
+    assert unsafe.score_scope_allowed is False
