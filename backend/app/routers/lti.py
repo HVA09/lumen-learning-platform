@@ -1,11 +1,14 @@
 """مسارات تكامل LTI 1.3 مع استخدام state ورمز تبادل أحاديي الاستخدام."""
+import hashlib
 import secrets
+from types import SimpleNamespace
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode, urlsplit
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, Response, status
 from fastapi.responses import RedirectResponse
-from sqlalchemy import func
+from pydantic import EmailStr, TypeAdapter, ValidationError
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from app.auth.cookies import (
@@ -18,20 +21,58 @@ from app.auth.sessions import create_browser_session
 from app.config import settings
 from app.database import get_db
 from app.dependencies import require_admin
-from app.models.lti import LTIAuthCode, LTIAuthState, LTIPlatform, LTIUserLink
+from app.models.lti import (LTIAuthCode, LTIAuthState, LTIPlatform, LTIUserLink, LTIAssignmentLink, LTIResourceLinkDiscovery, LTIAGSGradeEvent)
 from app.models.user import User
-from app.schemas.lti import LTIExchangeCodeRequest, LTIPlatformCreate, LTIPlatformOut
+from app.schemas.lti import (LTIExchangeCodeRequest, LTIPlatformCreate, LTIPlatformOut, LTIAssignmentLinkCreate, LTIAssignmentLinkOut, LTIDiscoveredResourceLinkOut, LTIAGSGradeEventOut)
 from app.services.lti_service import (
     LTI_AUTH_CODE_TTL_SECONDS,
     LTI_STATE_TTL_SECONDS,
     build_tool_jwks,
     hash_opaque_token,
     new_nonce,
+    record_lti_ags_launch_context,
     verify_platform_id_token,
     validate_lti_platform_endpoint_url,
 )
 
 router = APIRouter(prefix="/lti", tags=["LTI"])
+_LTI_EMAIL_ADAPTER = TypeAdapter(EmailStr)
+LTI_DEPLOYMENT_CLAIM = "https://purl.imsglobal.org/spec/lti/claim/deployment_id"
+LTI_RESOURCE_LINK_CLAIM = "https://purl.imsglobal.org/spec/lti/claim/resource_link"
+
+
+def _build_lti_profile(claims: dict, platform_id: int, lti_subject: str):
+    """Trust an email only when it is valid and explicitly verified by the LMS."""
+    fallback = f"lti_{platform_id}_{hash_opaque_token(lti_subject)[:32]}@lti.local"
+    email = fallback
+    verified = False
+    claimed_email = claims.get("email")
+    if claims.get("email_verified") is True and isinstance(claimed_email, str):
+        try:
+            normalized = str(_LTI_EMAIL_ADAPTER.validate_python(claimed_email.strip())).lower()
+        except ValidationError:
+            normalized = ""
+        if normalized and len(normalized) <= 255:
+            email = normalized
+            verified = True
+    name = claims.get("name")
+    full_name = name.strip() if isinstance(name, str) and 0 < len(name.strip()) <= 255 else None
+    return email, full_name, verified
+
+
+def _lock_lti_identity_creation(db: Session, platform_id: int, lti_subject: str, verified_email: str | None = None):
+    """Serialize concurrent first-time identity creation on PostgreSQL."""
+    if db.get_bind().dialect.name != "postgresql":
+        return
+    names = [f"lti-subject:{platform_id}:{lti_subject}"]
+    if verified_email:
+        names.append(f"lti-email:{verified_email.lower()}")
+    keys = sorted(
+        int.from_bytes(hashlib.sha256(name.encode("utf-8")).digest()[:8], "big", signed=True)
+        for name in names
+    )
+    for key in keys:
+        db.execute(text("SELECT pg_advisory_xact_lock(:lock_key)"), {"lock_key": key})
 
 
 def _no_store_redirect(url: str) -> RedirectResponse:
@@ -211,38 +252,57 @@ async def lti_launch(
     db: Session = Depends(get_db),
 ):
     """يتحقق من حالة OIDC غير المستعملة، ثم يصدر رمز تبادل قصير العمر فقط."""
-    state_row = (
-        db.query(LTIAuthState)
-        .filter(LTIAuthState.state_hash == hash_opaque_token(state))
-        .with_for_update()
-        .first()
-    )
+    state_hash = hash_opaque_token(state)
+    state_row = db.query(LTIAuthState).filter(LTIAuthState.state_hash == state_hash).first()
     now = datetime.now(timezone.utc)
-    if (
-        state_row is None
-        or state_row.consumed_at is not None
-        or state_row.expires_at <= now
-    ):
+    if state_row is None or state_row.consumed_at is not None or state_row.expires_at <= now:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="state غير صالح أو منتهي")
 
     platform = db.get(LTIPlatform, state_row.platform_id)
-    if not platform:
+    if platform is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="المنصة غير موجودة")
 
+    state_id = state_row.id
+    expected_nonce = state_row.nonce
+    expected_target = state_row.target_link_uri
+    platform_id = platform.id
+    platform_context = SimpleNamespace(
+        id=platform.id,
+        issuer=platform.issuer,
+        client_id=platform.client_id,
+        deployment_id=platform.deployment_id,
+        jwks_url=platform.jwks_url,
+    )
+    # Do not hold a PostgreSQL row lock or connection while fetching remote JWKS.
+    db.commit()
     try:
-        claims = await verify_platform_id_token(
-            id_token, platform, state_row.nonce, state_row.target_link_uri
-        )
+        claims = await verify_platform_id_token(id_token, platform_context, expected_nonce, expected_target)
     except Exception:
-        # لا نعيد تفاصيل التحقق أو معلومات المفاتيح إلى العميل.
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="تعذّر التحقق من تسجيل الدخول عبر منصة التعليم",
         )
 
+    state_row = (
+        db.query(LTIAuthState)
+        .filter(LTIAuthState.id == state_id, LTIAuthState.state_hash == state_hash)
+        .with_for_update()
+        .populate_existing()
+        .first()
+    )
+    now = datetime.now(timezone.utc)
+    if state_row is None or state_row.consumed_at is not None or state_row.expires_at <= now:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="state غير صالح أو منتهي")
+    platform = db.get(LTIPlatform, platform_id)
+    if platform is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="المنصة غير موجودة")
+    record_lti_ags_launch_context(db, platform, claims)
+
     lti_subject = claims.get("sub")
     if not isinstance(lti_subject, str) or not lti_subject or len(lti_subject) > 255:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="معرّف مستخدم LTI غير صالح")
+    email, full_name, email_verified = _build_lti_profile(claims, platform.id, lti_subject)
+    _lock_lti_identity_creation(db, platform.id, lti_subject, email if email_verified else None)
     link = (
         db.query(LTIUserLink)
         .filter(LTIUserLink.platform_id == platform.id, LTIUserLink.lti_subject == lti_subject)
@@ -254,24 +314,15 @@ async def lti_launch(
         if user is None or not user.is_active:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="حساب LTI غير متاح")
     else:
-        claimed_email = claims.get("email")
-        email_verified = claims.get("email_verified") is True
-        if claimed_email and email_verified:
-            email = claimed_email.strip().lower()
-            existing = db.query(User).filter(func.lower(User.email) == email).first()
-            if existing:
-                # لا نربط حسابًا محليًا موجودًا تلقائيًا اعتمادًا على البريد.
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="يوجد حساب بهذا البريد. سجّل الدخول بالطريقة المعتادة قبل إعداد ربط الحسابات.",
-                )
-        else:
-            email = f"lti_{platform.id}_{hash_opaque_token(lti_subject)[:32]}@lti.local"
-
+        if email_verified and db.query(User.id).filter(func.lower(User.email) == email).first():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="يوجد حساب بهذا البريد. سجّل الدخول بالطريقة المعتادة قبل إعداد ربط الحسابات.",
+            )
         user = User(
             email=email,
             hashed_password=hash_password(secrets.token_urlsafe(32)),
-            full_name=claims.get("name"),
+            full_name=full_name,
             is_email_verified=email_verified,
         )
         db.add(user)
@@ -279,11 +330,17 @@ async def lti_launch(
         db.add(LTIUserLink(platform_id=platform.id, lti_subject=lti_subject, user_id=user.id))
 
     exchange_code = secrets.token_urlsafe(32)
+    resource_claim = claims.get(LTI_RESOURCE_LINK_CLAIM)
+    resource_link_id = resource_claim.get("id") if isinstance(resource_claim, dict) else None
+    deployment_id = claims.get(LTI_DEPLOYMENT_CLAIM)
     db.add(
         LTIAuthCode(
             code_hash=hash_opaque_token(exchange_code),
             user_id=user.id,
             token_version=user.token_version,
+            lti_platform_id=platform.id,
+            lti_deployment_id=deployment_id if isinstance(deployment_id, str) else None,
+            lti_resource_link_id=resource_link_id if isinstance(resource_link_id, str) else None,
             expires_at=now + timedelta(seconds=LTI_AUTH_CODE_TTL_SECONDS),
         )
     )
@@ -335,7 +392,10 @@ def exchange_lti_code(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="حساب الدخول غير متاح")
 
     auth_code.consumed_at = now
-    access_token, refresh_token, _ = create_browser_session(db, user)
+    access_token, refresh_token, auth_session = create_browser_session(db, user)
+    auth_session.lti_platform_id = auth_code.lti_platform_id
+    auth_session.lti_deployment_id = auth_code.lti_deployment_id
+    auth_session.lti_resource_link_id = auth_code.lti_resource_link_id
     db.commit()
     csrf_token = create_csrf_token()
     set_auth_cookies(response, access_token, refresh_token, csrf_token)
