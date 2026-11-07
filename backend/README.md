@@ -336,28 +336,29 @@ docker compose --profile offsite-backup run --rm \
   الصحة عند أي منصة استضافة أو load balancer
 - `/metrics` يعرض مقاييس Prometheus (عدد الطلبات، زمن الاستجابة...) لو ثبّت المكتبة
 
-## LTI 1.3 (ربط Moodle/Canvas)
+## LTI 1.3 + AGS 2.0 (Moodle/Canvas)
 
-⚠️ **تطبيق متوافق مع مواصفة LTI 1.3 الرسمية (IMS Global)، لكن ما اختُبر فعليًا مقابل
-منصة LMS حقيقية.** جرّبه بحساب Moodle تجريبي (sandbox) قبل الاعتماد عليه بالإنتاج —
-توقّع تحتاج تعديلات طفيفة حسب تفاصيل المنصة اللي تربطها.
+**حالة التنفيذ:** تدفق LTI 1.3 وطبقة AGS 2.0 الأولى ولوحة إدارة LMS موجودة في التطبيق. يظل تكامل Moodle/Canvas غير معتمد للإنتاج إلى أن ينجح اختبار Sandbox حقيقي لكل منصة على حدة.
 
-**خطوات الربط:**
-1. ولّد مفتاح التوقيع الخاص بأداتك: `python scripts/generate_lti_key.py`، وحط الناتج
-   بمتغيّر `LTI_TOOL_PRIVATE_KEY` بـ `.env`
-2. اضبط `LTI_TARGET_LINK_URI=https://your-domain.com/lti/launch` في بيئة الإنتاج، ثم بلوحة إدارة Moodle أنشئ "External Tool" بصيغة LTI 1.3، واستخدم:
-   - Login URL: `https://your-domain.com/lti/login`
-   - Redirect URL: `https://your-domain.com/lti/launch`
-   - JWKS URL (لأداتك): `https://your-domain.com/lti/jwks`
-3. Moodle بيعطيك: `client_id`, `deployment_id`, وروابط auth/token/jwks الخاصة فيه
-4. سجّل هذي المعلومات بأداتك عبر `POST /lti/platforms` (admin فقط)
-5. من داخل Moodle، أنشئ نشاط "External Tool" يستخدم الأداة المسجّلة — الطلاب يدخلون
-   Lumen مباشرة من الكورس بدون تسجيل دخول منفصل
+**تجهيز الأداة:**
+1. ولّد مفتاح RSA باستخدام `python scripts/generate_lti_key.py`، واحفظ `LTI_TOOL_PRIVATE_KEY` و`LTI_TOOL_KID` في متغيرات سرية خارج Git.
+2. اضبط `LTI_TARGET_LINK_URI=https://<lumen-host>/lti/launch` بعد توفير دومين HTTPS صالح.
+3. سجّل Lumen في Moodle أو Canvas باستخدام `/lti/login` و`/lti/launch` و`/lti/jwks`. سجّل بعد ذلك بيانات issuer/client/deployment وauthorization/token/JWKS endpoints من LMS نفسه عبر لوحة الإدارة.
+4. افتح مورد Lumen من LMS بحساب مدرّس تجريبي لاكتشاف Resource Link. من لوحة الإدارة اربط المورد بواجب Lumen وحدد `score_maximum` المطابق لعنصر Gradebook.
+5. افتح المورد نفسه بحساب طالب تجريبي، سلّم الواجب وقيّمه من Lumen. يتولى Celery worker/beat تسليم الدرجة إلى AGS.
 
-**الأمان:** يجب أن يطابق `target_link_uri` القيمة المضبوطة في `LTI_TARGET_LINK_URI` بالإنتاج، كما يجب أن يطابق claim الموقّع في ID token عنوان حالة OIDC نفسها. يُتحقق من التوقيع، `issuer`, `audience/azp`, `nonce`, `deployment_id`, نوع الرسالة وإصدار LTI ومعرّف resource link ووقت صلاحية الرمز. يُمرر `lti_message_hint` إلى منصة LMS دون تغيير. عند نجاح الإطلاق يُمرر رمز عشوائي قصير العمر وأحادي الاستخدام، ويُستبدل عبر `POST /lti/exchange-code`؛ لا تُمرر JWT tokens في URL. حالة OIDC نفسها تُخزّن كـ hash وتُستهلك مرة واحدة. عناوين `issuer` و`auth_login_url` و`auth_token_url` و`jwks_url` يجب أن تكون HTTPS؛ HTTP مسموح فقط لعناوين loopback في بيئة التطوير/الاختبار.
+**ربط آمن للدرجة:** تُحفظ هوية المورد الموثّق داخل جلسة المتصفح التي أنشأها LTI. عند تسليم الواجب، يُسند هدف AGS فقط إذا طابق (platform, deployment, resource_link) ربطًا إداريًا لذلك الواجب. عند التقييم أو إعادة التقييم ينشأ حدث outbox لهذا الهدف وحده. لا يُرسل Lumen الدرجات إلى كل الموارد المرتبطة بالواجب أو إلى كل موارد منصة المستخدم. الجلسات العادية خارج LTI لا تنشئ أهداف grade passback.
 
-**ملاحظة:** تصحيح الدرجات التلقائي (Grade Passback / AGS) ما بُني بهذي المرحلة —
-المستخدم يدخل ويشتغل بـ Lumen عاديًا، بس درجاته ما ترجع تلقائيًا لسجل درجات Moodle.
+**آلية التسليم:** يستخدم Lumen RS256 client assertions قصيرة العمر وOAuth client-credentials بصلاحية AGS score، مع DNS pinning لعناوين عامة، ورفض redirects، وحدود لحجم الاستجابة. تُحفظ أحداث الإرسال ذريًا مع التقييم، وتستخدم قفل lease ومحاولات متدرجة بحد أقصى ثماني محاولات. لا تعرض واجهة الإدارة subject أو درجات الطالب أو lineitem URL الخام أو بيانات OAuth.
+
+**بوابة ما قبل الإنتاج:**
+- دومين HTTPS حقيقي وشهادة صالحة، مع اختبار HTTPS/WSS على المضيف.
+- نجاح OIDC launch واكتشاف المورد وربط الواجب وإرسال الدرجة وإعادة التقييم في Moodle Sandbox وCanvas Sandbox كلٌ على حدة.
+- اختبارات سلبية لصلاحيات AGS، lineitem من أصل آخر، رابط مورد غير مطابق، جلسة Lumen عادية، والفشل وإعادة المحاولة.
+- تشغيل Celery worker وbeat والتحقق من وصول الدرجات في Gradebook لدى LMS.
+- لا تختبر على قاعدة الإنتاج أو ببيانات طلاب حقيقيين.
+
+راجع [دليل اختبار LTI AGS Sandbox](LTI_AGS_SANDBOX_RUNBOOK.md) لتفاصيل الإعداد والسيناريوهات. لا يوجد اتصال Sandbox حقيقي مؤكد ضمن اختبارات CI وحدها.
 
 ## Browser session security
 
