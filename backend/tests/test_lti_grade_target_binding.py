@@ -65,7 +65,7 @@ def _lti_session(db_session, user, platform, resource_link_id, lti_subject=None)
 
 def test_grade_passback_is_bound_to_exact_resource_link_not_every_mapping(client, db_session, monkeypatch):
     teacher_token = make_teacher(client, db_session, "lti-target-teacher@example.com")
-    student_token = make_student(client, "lti-target-student@example.com")
+    make_student(client, "lti-target-student@example.com")
     assignment_id = _create_assignment(client, teacher_token)
     student = db_session.query(User).filter_by(email="lti-target-student@example.com").one()
     platform = _platform(db_session)
@@ -171,7 +171,7 @@ def test_non_lti_submission_never_broadcasts_to_mapped_lms_resources(client, db_
 
 def test_lti_session_for_different_resource_or_assignment_has_no_passback_target(client, db_session):
     teacher_token = make_teacher(client, db_session, "lti-mismatch-teacher@example.com")
-    student = make_student(client, "lti-mismatch-student@example.com")
+    make_student(client, "lti-mismatch-student@example.com")
     assignment_id = _create_assignment(client, teacher_token)
     student_user = db_session.query(User).filter_by(email="lti-mismatch-student@example.com").one()
     platform = _platform(db_session, "three")
