@@ -57,6 +57,8 @@ class AssignmentSubmission(Base):
     lti_assignment_link_id: Mapped[int | None] = mapped_column(
         ForeignKey("lti_assignment_links.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    # Exact LTI subject from the verified launch session that created this submission.
+    lti_subject: Mapped[str | None] = mapped_column(String(255), nullable=True)
     feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
     graded_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
