@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import json
 import math
 import os
 import re
 import sys
 import uuid
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from playwright.sync_api import Error, expect, sync_playwright
 
@@ -305,22 +307,13 @@ def _exercise_python_sandbox_isolation(browser) -> None:
             "The parent page must not receive a same-origin Document for the sandbox frame"
         )
 
-        network_result = frame.locator("body").evaluate(
-            """async (_body, target) => {
-              try {
-                await fetch(target, { credentials: "include" });
-                return "allowed";
-              } catch (error) {
-                return String(error?.name || error);
-              }
-            }""",
-            f"{API_URL}/health",
-        )
-        assert network_result != "allowed", (
-            "The sandbox CSP must block direct credentialed requests to the application API"
-        )
-
-        python_code = """import js
+        api_probe_url = f"{API_URL}/health"
+        python_code = f"""import js
+# This fetch runs from the actual Pyodide Blob Worker, not the iframe document.
+# A CORS/network rejection alone is not accepted; the Worker must report an
+# enforced connect-src CSP violation for this exact API origin.
+js.fetch({json.dumps(api_probe_url)})
+print("worker-api-fetch-attempted")
 try:
     _ = js.document.documentElement
     print("worker-document:accessible")
@@ -358,7 +351,10 @@ except Exception:
                 if (event.data.type === "complete") {
                   window.removeEventListener("message", onMessage);
                   window.clearTimeout(timeout);
-                  resolve(event.data.output);
+                  resolve({
+                    output: event.data.output,
+                    cspViolations: event.data.cspViolations || [],
+                  });
                 } else if (event.data.type === "error") {
                   window.removeEventListener("message", onMessage);
                   window.clearTimeout(timeout);
@@ -373,13 +369,33 @@ except Exception:
             })""",
             {"frameId": "lumen-python-isolation-e2e", "code": python_code},
         )
+        output = result["output"]
+        csp_violations = result["cspViolations"]
+        expected_api_origin = urlsplit(api_probe_url)
+        worker_api_csp_violations = []
+        for violation in csp_violations:
+            blocked_uri = violation.get("blockedURI", "")
+            blocked_origin = urlsplit(blocked_uri)
+            if (
+                violation.get("directive") == "connect-src"
+                and violation.get("disposition") == "enforce"
+                and (blocked_origin.scheme, blocked_origin.netloc)
+                == (expected_api_origin.scheme, expected_api_origin.netloc)
+            ):
+                worker_api_csp_violations.append(violation)
 
+        assert "worker-api-fetch-attempted" in output, output
+        assert worker_api_csp_violations, (
+            "The Pyodide Worker must report an enforced connect-src CSP violation "
+            f"for {api_probe_url}; observed violations: {csp_violations!r}"
+        )
         assert "worker-document:blocked" in output, output
         assert "worker-storage:blocked" in output, output
         assert "parent-document:blocked" in output, output
         print(
-            "Python sandbox isolation passed: opaque origin confirmed, parent DOM/storage "
-            "blocked, parent cookie hidden, and application API fetch blocked by CSP."
+            "Python sandbox isolation passed: opaque origin confirmed, Worker DOM/storage "
+            "blocked, parent cookie hidden, and an actual Pyodide Worker API fetch was "
+            "blocked by an enforced connect-src CSP violation."
         )
     finally:
         context.close()
