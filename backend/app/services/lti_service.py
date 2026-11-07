@@ -428,11 +428,18 @@ def create_lti_ags_grade_event(db, assignment, submission) -> int | None:
         return None
     if not mapping.score_scope_allowed or not mapping.lineitem_url:
         return None
-    user_link = db.query(LTIUserLink).filter(
+    # The external subject is captured from the verified launch session
+    # at submission time. Never infer it from local user_id: one local account
+    # can legitimately have more than one LMS identity on the same platform.
+    lti_subject = submission.lti_subject
+    if not lti_subject:
+        return None
+    identity_link = db.query(LTIUserLink.id).filter(
         LTIUserLink.platform_id == mapping.platform_id,
+        LTIUserLink.lti_subject == lti_subject,
         LTIUserLink.user_id == submission.student_user_id,
     ).first()
-    if user_link is None:
+    if identity_link is None:
         return None
     score_maximum = float(mapping.score_maximum)
     score_given = (float(submission.grade_percentage or 0) / 100.0) * score_maximum
@@ -457,7 +464,7 @@ def create_lti_ags_grade_event(db, assignment, submission) -> int | None:
         assignment_link_id=mapping.id,
         submission_id=submission.id,
         grade_version=submission.grade_version,
-        lti_subject=user_link.lti_subject,
+        lti_subject=lti_subject,
         score_given=score_given,
         score_maximum=score_maximum,
         comment=submission.feedback,
