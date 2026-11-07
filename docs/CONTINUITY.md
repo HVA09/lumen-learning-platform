@@ -1,6 +1,13 @@
 # دليل استمرارية المشروع عبر الأجهزة والمحادثات
 
-آخر تحديث: 2026-11-06
+آخر تحديث: 2026-11-07
+
+## أحدث نقطة استئناف — 2026-11-07
+
+- `main`: `362aac61f3df486027eef014d3f6bc577cc2aa3d` بعد دمج PR #145 ثم #147 ثم #146. تفاصيل كل merge وCI في الملحق الأحدث نهاية الملف.
+- CI PR #146: [#42405345735](https://github.com/HVA09/lumen-learning-platform/actions/runs/42405345735) نجح 4/4؛ Backend 481 passed/21 warnings/90% coverage، Frontend 199 passed/29 files و72.46% statements.
+- CI بعد الدمج على main [#42405775181](https://github.com/HVA09/lumen-learning-platform/actions/runs/42405775181) كان قيد التنفيذ عند آخر تحقق؛ لا تعتمد نتيجته قبل مراجعته.
+- Issue #134 ما زالت مفتوحة لمراجعة مختبر Python على المتصفح المستهدف وحدود الذاكرة؛ لا تعتبر Worker بيئة OS-level sandbox.
 
 ## نقطة الاستئناف — 2026-11-05
 
