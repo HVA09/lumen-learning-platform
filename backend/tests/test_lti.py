@@ -142,6 +142,7 @@ def test_launch_rejects_state_without_initiating_browser_cookie(client, db_sessi
     state = parse_qs(urlparse(login_response.headers["location"]).query)["state"][0]
 
     cookie_name, _ = _state_cookie(state)
+    client.cookies.clear()
     client.cookies.set("unrelated", "value")
     response = client.post(
         "/lti/launch",
