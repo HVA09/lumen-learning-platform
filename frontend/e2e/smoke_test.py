@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import math
 import os
 import re
@@ -15,7 +14,7 @@ from playwright.sync_api import Error, expect, sync_playwright
 
 BASE_URL = os.environ.get("LUMEN_E2E_BASE_URL", "http://127.0.0.1:4173").rstrip("/")
 API_URL = os.environ.get("LUMEN_E2E_API_URL", "http://127.0.0.1:8000").rstrip("/")
-WS_PROXY_URL = os.environ.get("LUMEN_E2E_WS_PROXY_URL", "ws://127.0.0.1").rstrip("/")
+WS_PROXY_URL = os.environ.get("LUMEN_E2E_WS_PROXY_URL", "ws://127.0.0.1:8080").rstrip("/")
 if not WS_PROXY_URL.startswith(("ws://", "wss://")):
     raise ValueError("LUMEN_E2E_WS_PROXY_URL must use ws:// or wss://")
 SCREENSHOT = Path(os.environ.get("RUNNER_TEMP", "/tmp")) / "lumen-browser-e2e-failure.png"
@@ -132,23 +131,15 @@ def _exercise_notifications_websocket_network_recovery(browser) -> None:
           window.__lumenNotificationSockets = [];
           window.WebSocket = new Proxy(NativeWebSocket, {
             construct(target, args) {
-              const forwardedArgs = [...args];
-              if (String(forwardedArgs[0]).endsWith("/ws/notifications")) {
-                const targetUrl = new URL(String(forwardedArgs[0]));
-                const proxyUrl = new URL(__LUMEN_E2E_WS_PROXY_URL__);
-                targetUrl.protocol = proxyUrl.protocol;
-                targetUrl.host = proxyUrl.host;
-                forwardedArgs[0] = targetUrl.toString();
-              }
-              const socket = Reflect.construct(target, forwardedArgs);
-              if (String(forwardedArgs[0]).endsWith("/ws/notifications")) {
+              const socket = Reflect.construct(target, args);
+              if (String(args[0]).endsWith("/ws/notifications")) {
                 window.__lumenNotificationSockets.push(socket);
               }
               return socket;
             },
           });
         })();
-        """.replace("__LUMEN_E2E_WS_PROXY_URL__", json.dumps(WS_PROXY_URL))
+        """
     )
 
     def is_notification_socket(websocket) -> bool:
