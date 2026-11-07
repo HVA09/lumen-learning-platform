@@ -606,7 +606,44 @@ async def dispatch_lti_grade_event(db, event_id: int) -> bool:
     event.score_timestamp = score_timestamp
     event.locked_until = now + timedelta(minutes=3)
     event.attempts += 1
+    reserved_attempts = event.attempts
     db.commit()
+
+    # Reacquire the event and submission locks after the durable lease commit.
+    # The submission lock is held through the LMS request: grading either
+    # commits before this check (and makes this event superseded), or waits
+    # until this delivery finishes, preserving grade order.
+    event = db.query(LTIAGSGradeEvent).filter(
+        LTIAGSGradeEvent.id == event_id
+    ).with_for_update().first()
+    if (
+        event is None
+        or event.status != "pending"
+        or event.attempts != reserved_attempts
+    ):
+        return False
+
+    submission = db.query(AssignmentSubmission).filter(
+        AssignmentSubmission.id == event.submission_id
+    ).with_for_update().first()
+    if submission is None:
+        event.status = "dead"
+        event.locked_until = None
+        event.last_error = "ValueError: AGS submission is unavailable"
+        db.commit()
+        return False
+
+    newer_event = db.query(LTIAGSGradeEvent.id).filter(
+        LTIAGSGradeEvent.assignment_link_id == event.assignment_link_id,
+        LTIAGSGradeEvent.submission_id == event.submission_id,
+        LTIAGSGradeEvent.grade_version > event.grade_version,
+    ).first()
+    if newer_event is not None:
+        event.status = "superseded"
+        event.locked_until = None
+        event.last_error = None
+        db.commit()
+        return False
 
     try:
         mapping = db.get(LTIAssignmentLink, event.assignment_link_id)
