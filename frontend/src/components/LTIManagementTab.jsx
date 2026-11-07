@@ -24,6 +24,7 @@ const STATUS_LABELS = {
   pending: "بانتظار الإرسال",
   sent: "تم الإرسال",
   dead: "توقفت المحاولات",
+  superseded: "استُبدل بتقييم أحدث",
 };
 
 function errorMessage(error, fallback) {
@@ -427,13 +428,14 @@ export default function LTIManagementTab() {
                     حدث #{item.id} · التسليم #{item.submission_id} · النسخة {item.grade_version}
                   </p>
                   <StatusPill
-                    tone={item.status === "sent" ? "success" : item.status === "dead" ? "danger" : "warning"}
+                    tone={item.status === "sent" ? "success" : item.status === "dead" ? "danger" : item.status === "superseded" ? "neutral" : "warning"}
                   >
                     {STATUS_LABELS[item.status] || item.status}
                   </StatusPill>
                 </div>
                 <p className="mt-1 text-xs text-slate-500">
                   المحاولات: {item.attempts} · الإنشاء: {formatDate(item.created_at)}
+                  · وقت الدرجة: {formatDate(item.score_timestamp)}
                   {item.delivered_at ? ` · الإرسال: ${formatDate(item.delivered_at)}` : ""}
                 </p>
                 {item.last_error && <p className="mt-2 text-xs text-red-600">{item.last_error}</p>}
