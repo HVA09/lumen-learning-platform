@@ -331,7 +331,7 @@ except Exception:
     print("parent-document:blocked")
 """
         page.set_default_timeout(130_000)
-        output = page.evaluate(
+        result = page.evaluate(
             """({frameId, code}) => new Promise((resolve, reject) => {
               const frame = document.getElementById(frameId);
               const requestId = "python-isolation-e2e";
