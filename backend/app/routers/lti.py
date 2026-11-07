@@ -76,8 +76,18 @@ def _lock_lti_identity_creation(db: Session, platform_id: int, lti_subject: str,
         db.execute(text("SELECT pg_advisory_xact_lock(:lock_key)"), {"lock_key": key})
 
 
-def _no_store_redirect(url: str) -> RedirectResponse:
-    return RedirectResponse(
+def _lti_state_cookie_name(state_hash: str) -> str:
+    """Use one isolated browser cookie per OIDC state to support parallel launches."""
+    return f"lti_state_{state_hash}"
+
+
+def _no_store_redirect(
+    url: str,
+    *,
+    state_cookie_hash: str | None = None,
+    clear_state_cookie_hash: str | None = None,
+) -> RedirectResponse:
+    response = RedirectResponse(
         url,
         status_code=status.HTTP_302_FOUND,
         headers={
@@ -86,6 +96,21 @@ def _no_store_redirect(url: str) -> RedirectResponse:
             "Referrer-Policy": "no-referrer",
         },
     )
+    if state_cookie_hash is not None:
+        cookie_name = _lti_state_cookie_name(state_cookie_hash)
+        response.headers.append(
+            "set-cookie",
+            f"{cookie_name}={state_cookie_hash}; Max-Age={LTI_STATE_TTL_SECONDS}; "
+            "Path=/lti/launch; HttpOnly; Secure; SameSite=None; Partitioned",
+        )
+    if clear_state_cookie_hash is not None:
+        cookie_name = _lti_state_cookie_name(clear_state_cookie_hash)
+        response.headers.append(
+            "set-cookie",
+            f"{cookie_name}=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; "
+            "Path=/lti/launch; HttpOnly; Secure; SameSite=None; Partitioned",
+        )
+    return response
 
 
 @router.post("/platforms", response_model=LTIPlatformOut, status_code=status.HTTP_201_CREATED)
@@ -209,7 +234,10 @@ def _start_lti_login(
     }
     if lti_message_hint is not None:
         auth_params["lti_message_hint"] = lti_message_hint
-    return _no_store_redirect(f"{platform.auth_login_url}?{urlencode(auth_params)}")
+    return _no_store_redirect(
+        f"{platform.auth_login_url}?{urlencode(auth_params)}",
+        state_cookie_hash=hash_opaque_token(state),
+    )
 
 
 @router.get("/login")
@@ -248,12 +276,19 @@ def lti_login_post(
 
 @router.post("/launch")
 async def lti_launch(
+    request: Request,
     id_token: str = Form(..., max_length=20000),
     state: str = Form(..., min_length=20, max_length=256),
     db: Session = Depends(get_db),
 ):
-    """يتحقق من حالة OIDC غير المستعملة، ثم يصدر رمز تبادل قصير العمر فقط."""
+    """Verify the OIDC state belongs to the browser that initiated this launch."""
     state_hash = hash_opaque_token(state)
+    state_cookie = request.cookies.get(_lti_state_cookie_name(state_hash))
+    if not state_cookie or not secrets.compare_digest(state_cookie, state_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="state غير صالح أو لا يطابق المتصفح الذي بدأ تسجيل الدخول",
+        )
     state_row = db.query(LTIAuthState).filter(LTIAuthState.state_hash == state_hash).first()
     now = datetime.now(timezone.utc)
     if state_row is None or state_row.consumed_at is not None or state_row.expires_at <= now:
@@ -355,7 +390,7 @@ async def lti_launch(
         f"{settings.FRONTEND_URL.rstrip('/')}/lti-callback#"
         f"{urlencode({'code': exchange_code})}"
     )
-    return _no_store_redirect(redirect_url)
+    return _no_store_redirect(redirect_url, clear_state_cookie_hash=state_hash)
 
 
 @router.post("/exchange-code")
