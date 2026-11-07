@@ -1,11 +1,11 @@
 # خط أساس الجودة والتحقق — المرحلة P6
 
-آخر تحديث: **2026-11-06**.
+آخر تحديث: **2026-11-07**.
 
 ## 1. المرجع وحدود هذا التقييم
 
 - المستودع: `HVA09/lumen-learning-platform`.
-- آخر تغيير اختبار/جودة مدمج على `main`: PR #119 عند `f1d5884b8ee0a4c05a1be596502a969018bfcbe0`؛ دمج V8 coverage report-only مع 142 اختبار Frontend / 24 ملفًا. أحدث CI Backend baseline: 480 passed، 21 warnings، 90% coverage عبر PR #117/#119. لم تُفرض عتبة تغطية.
+- أحدث خط أساس موثق: CI PR #146 [#42405345735](https://github.com/HVA09/lumen-learning-platform/actions/runs/42405345735): Backend 481 passed و21 warnings و90% coverage؛ Frontend 199 passed عبر 29 ملفًا و72.46% statements / 65.82% branches / 64.56% functions / 73.15% lines. تفاصيل القياس في القسم 9؛ تبقى التغطية report-only ولا توجد عتبة مفروضة.
 - هذا الملف يوثق ما هو مفعّل فعليًا في المستودع وCI، ثم يقترح إدخال أدوات الجودة تدريجيًا.
 - هذا التقييم توثيقي فقط؛ لا يضيف اعتماديات أو يغيّر سلوك التطبيق أو شروط CI.
 
