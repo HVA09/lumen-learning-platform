@@ -60,7 +60,7 @@ def _lti_session(db_session, user, platform, resource_link_id):
     return access_token
 
 
-def test_grade_passback_is_bound_to_exact_resource_link_not_every_mapping(client, db_session):
+def test_grade_passback_is_bound_to_exact_resource_link_not_every_mapping(client, db_session, monkeypatch):
     teacher_token = make_teacher(client, db_session, "lti-target-teacher@example.com")
     student_token = make_student(client, "lti-target-student@example.com")
     assignment_id = _create_assignment(client, teacher_token)
@@ -102,6 +102,21 @@ def test_grade_passback_is_bound_to_exact_resource_link_not_every_mapping(client
     assert events[0].score_given == 87.0
 
     # A re-grade must advance the version but retain the same exact target.
+    # Simulate a backwards-moving application clock on re-grade. The score
+    # timestamp must still increase because the submission row is serialized.
+    from app.routers import assignments as assignments_router
+
+    previous_timestamp = events[0].created_at
+    if previous_timestamp.tzinfo is None:
+        previous_timestamp = previous_timestamp.replace(tzinfo=timezone.utc)
+
+    class RewoundClock:
+        @staticmethod
+        def now(tz=None):
+            return previous_timestamp - timedelta(seconds=1)
+
+    monkeypatch.setattr(assignments_router, "datetime", RewoundClock)
+
     regraded = client.post(
         f"/assignments/{assignment_id}/submissions/{submission.id}/grade",
         json={"grade_percentage": 93, "feedback": "Regraded"},
