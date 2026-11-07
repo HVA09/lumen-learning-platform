@@ -23,6 +23,10 @@ class AuthSession(Base):
     )
     # Store only a SHA-256 digest of the current refresh JWT identifier.
     refresh_jti_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    # Verified LTI launch context is scoped to this browser/device session.
+    lti_platform_id: Mapped[int | None] = mapped_column(ForeignKey("lti_platforms.id", ondelete="SET NULL"), nullable=True)
+    lti_deployment_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    lti_resource_link_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
