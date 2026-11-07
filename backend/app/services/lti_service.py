@@ -447,8 +447,7 @@ def create_lti_ags_grade_event(db, assignment, submission) -> int | None:
         status="pending",
         attempts=0,
         next_attempt_at=datetime.now(timezone.utc),
-        # Reuse the strictly increasing grade timestamp required by LTI AGS.
-        created_at=submission.graded_at or datetime.now(timezone.utc),
+        score_timestamp=submission.graded_at or datetime.now(timezone.utc),
     )
     db.add(event)
     db.flush()
@@ -542,16 +541,59 @@ def _as_utc(value: datetime | None) -> datetime | None:
 
 
 async def dispatch_lti_grade_event(db, event_id: int) -> bool:
-    """Deliver one pending event with a DB lease and bounded, redacted retries."""
+    """Deliver one pending event with monotonic score timestamps and bounded retries."""
+    from app.models.assignment import AssignmentSubmission
     from app.models.lti import LTIAGSGradeEvent, LTIAssignmentLink, LTIPlatform
-    event = db.query(LTIAGSGradeEvent).filter(LTIAGSGradeEvent.id == event_id).with_for_update().first()
+
+    event = db.query(LTIAGSGradeEvent).filter(
+        LTIAGSGradeEvent.id == event_id
+    ).with_for_update().first()
     if event is None or event.status != "pending":
         return False
+
     now = datetime.now(timezone.utc)
     if _as_utc(event.next_attempt_at) > now:
         return False
     if _as_utc(event.locked_until) and _as_utc(event.locked_until) > now:
         return False
+
+    # Serialize delivery attempts and grading against the same submission row.
+    submission = db.query(AssignmentSubmission).filter(
+        AssignmentSubmission.id == event.submission_id
+    ).with_for_update().first()
+    if submission is None:
+        event.status = "dead"
+        event.last_error = "ValueError: AGS submission is unavailable"
+        event.locked_until = None
+        db.commit()
+        return False
+
+    # Never retry an older grade after a newer grade version has been recorded.
+    newer_event = db.query(LTIAGSGradeEvent.id).filter(
+        LTIAGSGradeEvent.assignment_link_id == event.assignment_link_id,
+        LTIAGSGradeEvent.submission_id == event.submission_id,
+        LTIAGSGradeEvent.grade_version > event.grade_version,
+    ).first()
+    if newer_event is not None:
+        event.status = "superseded"
+        event.locked_until = None
+        event.last_error = None
+        db.commit()
+        return False
+
+    # The first attempt uses the original grade timestamp. Every retry reserves
+    # a fresh timestamp greater than the previous attempt and latest grade.
+    score_timestamp = _as_utc(event.score_timestamp or event.created_at)
+    if event.attempts > 0:
+        submission_timestamp = _as_utc(submission.graded_at)
+        baseline = max(
+            value for value in (score_timestamp, submission_timestamp)
+            if value is not None
+        )
+        score_timestamp = max(now, baseline + timedelta(microseconds=1))
+        submission.graded_at = score_timestamp
+
+    event.score_timestamp = score_timestamp
     event.locked_until = now + timedelta(minutes=3)
     event.attempts += 1
     db.commit()
@@ -561,7 +603,7 @@ async def dispatch_lti_grade_event(db, event_id: int) -> bool:
         platform = db.get(LTIPlatform, mapping.platform_id) if mapping else None
         if mapping is None or platform is None or not mapping.lineitem_url or not mapping.score_scope_allowed:
             raise ValueError("AGS mapping is not ready")
-        timestamp = _as_utc(event.created_at).isoformat(timespec="microseconds").replace("+00:00", "Z")
+        timestamp = _as_utc(event.score_timestamp).isoformat(timespec="microseconds").replace("+00:00", "Z")
         score = {
             "userId": event.lti_subject,
             "scoreGiven": event.score_given,
