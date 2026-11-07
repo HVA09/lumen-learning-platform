@@ -74,6 +74,7 @@ class LTIAuthCode(Base):
     lti_platform_id: Mapped[int | None] = mapped_column(ForeignKey("lti_platforms.id", ondelete="SET NULL"), nullable=True)
     lti_deployment_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     lti_resource_link_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    lti_subject: Mapped[str | None] = mapped_column(String(255), nullable=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
