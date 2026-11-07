@@ -227,6 +227,7 @@ jobs:
       - name: Validate Nginx reverse-proxy configuration
         run: |
           docker run --rm \
+            --add-host app:127.0.0.1 \
             -v "$GITHUB_WORKSPACE/backend/nginx/nginx.conf:/etc/nginx/nginx.conf:ro" \
             -v "$GITHUB_WORKSPACE/backend/nginx/snippets:/etc/nginx/snippets:ro" \
             nginx:alpine nginx -t
