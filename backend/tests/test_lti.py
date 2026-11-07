@@ -194,6 +194,9 @@ def test_full_launch_flow_creates_user_and_issues_tokens(client, db_session, mon
         cookies=_state_cookie(state), follow_redirects=False
     )
     assert launch_response.status_code == 302
+    cleared_state_cookie = launch_response.headers.get("set-cookie", "").lower()
+    assert "max-age=0" in cleared_state_cookie
+    assert "partitioned" in cleared_state_cookie
     location = launch_response.headers["location"]
     assert "/lti-callback" in location
     assert "code=" in location
