@@ -278,3 +278,83 @@ def test_get_my_submission_returns_null_before_submitting(client, db_session):
 def test_submit_to_unknown_assignment_404(client):
     student = make_student(client, "lost@example.com")
     assert _submit(client, student, 999999).status_code == 404
+
+
+
+def test_ags_grade_event_targets_only_the_submission_resource_link(client, db_session):
+    from app.auth.security import decode_token
+    from app.models.lti import LTIAGSGradeEvent, LTIAssignmentLink, LTIPlatform, LTIUserLink
+    from app.models.user import User
+
+    teacher = make_teacher(client, db_session, "ags-teacher@example.com")
+    student_token = make_student(client, "ags-student@example.com")
+    student = db_session.query(User).filter(User.email == "ags-student@example.com").one()
+    assignment = _create_assignment(client, teacher)
+
+    platform = LTIPlatform(
+        name="AGS mapping test",
+        issuer="https://moodle.example.com",
+        client_id="ags-mapping-client",
+        deployment_id="ags-deployment",
+        auth_login_url="https://moodle.example.com/auth",
+        auth_token_url="https://moodle.example.com/token",
+        jwks_url="https://moodle.example.com/jwks",
+    )
+    db_session.add(platform)
+    db_session.flush()
+    mapping_a = LTIAssignmentLink(
+        platform_id=platform.id,
+        assignment_id=assignment["id"],
+        deployment_id=platform.deployment_id,
+        resource_link_id="resource-A",
+        lineitem_url="https://moodle.example.com/lineitems/A",
+        score_scope_allowed=True,
+        score_maximum=100,
+    )
+    mapping_b = LTIAssignmentLink(
+        platform_id=platform.id,
+        assignment_id=assignment["id"],
+        deployment_id=platform.deployment_id,
+        resource_link_id="resource-B",
+        lineitem_url="https://moodle.example.com/lineitems/B",
+        score_scope_allowed=True,
+        score_maximum=100,
+    )
+    db_session.add_all([mapping_a, mapping_b])
+    db_session.add(LTIUserLink(
+        platform_id=platform.id,
+        lti_subject="ags-external-student",
+        user_id=student.id,
+    ))
+    db_session.flush()
+
+    session_id = decode_token(student_token)["sid"]
+    from app.models.auth_session import AuthSession
+    browser_session = db_session.get(AuthSession, session_id)
+    assert browser_session is not None
+    browser_session.lti_platform_id = platform.id
+    browser_session.lti_deployment_id = platform.deployment_id
+    browser_session.lti_resource_link_id = "resource-A"
+    browser_session.lti_subject = "ags-external-student"
+    db_session.commit()
+
+    submitted = _submit(client, student_token, assignment["id"])
+    assert submitted.status_code == 200, submitted.text
+    submission_id = submitted.json()["id"]
+    submission = db_session.get(__import__("app.models.assignment", fromlist=["AssignmentSubmission"]).AssignmentSubmission, submission_id)
+    assert submission.lti_assignment_link_id == mapping_a.id
+    assert submission.lti_subject == "ags-external-student"
+
+    graded = _grade(client, teacher, assignment["id"], submission_id, 84)
+    assert graded.status_code == 200, graded.text
+    events = db_session.query(LTIAGSGradeEvent).filter_by(submission_id=submission_id).all()
+    assert len(events) == 1
+    assert events[0].assignment_link_id == mapping_a.id
+    assert events[0].grade_version == 1
+
+    unrelated = _create_assignment(client, teacher, title="واجب غير مرتبط برابط LTI")
+    unrelated_submission = _submit(client, student_token, unrelated["id"])
+    assert unrelated_submission.status_code == 200
+    unrelated_id = unrelated_submission.json()["id"]
+    _grade(client, teacher, unrelated["id"], unrelated_id, 91)
+    assert db_session.query(LTIAGSGradeEvent).filter_by(submission_id=unrelated_id).count() == 0

@@ -5,7 +5,7 @@
 import enum
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Enum, Float, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, DateTime, Enum, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -52,6 +52,13 @@ class AssignmentSubmission(Base):
     is_late: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     grade_percentage: Mapped[float | None] = mapped_column(Float, nullable=True)
+    grade_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+    # Set only when this submission is made in a verified matching LTI launch session.
+    lti_assignment_link_id: Mapped[int | None] = mapped_column(
+        ForeignKey("lti_assignment_links.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    # Exact LTI subject from the verified launch session that created this submission.
+    lti_subject: Mapped[str | None] = mapped_column(String(255), nullable=True)
     feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
     graded_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
@@ -60,5 +67,6 @@ class AssignmentSubmission(Base):
     graded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     assignment = relationship("Assignment")
+    lti_assignment_link = relationship("LTIAssignmentLink")
     student = relationship("User", foreign_keys=[student_user_id])
     grader = relationship("User", foreign_keys=[graded_by_user_id])

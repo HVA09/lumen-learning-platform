@@ -2,9 +2,9 @@
 مسارات الواجبات: المعلّم (أو admin) ينشئ الواجب، الطالب يسلّم إجابة مكتوبة، والمعلّم يقيّمها
 يدويًا بنسبة مئوية وملاحظات. الطالب يشوف نتيجته وملاحظات معلّمه، ولا يقدر يعدّل تسليمًا تم تقييمه.
 """
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
@@ -12,6 +12,7 @@ from app.audit import log_event
 from app.database import get_db
 from app.dependencies import get_current_user, require_teacher
 from app.models.assignment import Assignment, AssignmentSubmission, SubmissionStatus
+from app.models.lti import LTIAssignmentLink, LTIUserLink
 from app.models.class_section import ClassEnrollment, ClassSection
 from app.models.user import User, UserRole
 from app.notifications import notify
@@ -26,6 +27,7 @@ from app.schemas.assignment import (
 )
 from app.services.achievements import check_and_award_achievements
 from app.services.study_activity import record_study_activity
+from app.services.lti_service import create_lti_ags_grade_event
 
 router = APIRouter(prefix="/assignments", tags=["Assignments"])
 
@@ -227,6 +229,7 @@ def get_my_submission(
 def submit_assignment(
     assignment_id: int,
     payload: SubmissionCreate,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -263,6 +266,35 @@ def submit_assignment(
     due_at = assignment.due_at
     if due_at is not None and due_at.tzinfo is None:
         due_at = due_at.replace(tzinfo=timezone.utc)
+
+    # Bind only to a mapping matching the verified LTI context on this exact browser session.
+    # Normal Lumen sessions, unrelated assignments, and unmapped resources never fan out.
+    auth_session = getattr(request.state, "auth_session", None)
+    mapping = None
+    verified_subject = None
+    if (
+        auth_session is not None
+        and auth_session.lti_platform_id is not None
+        and auth_session.lti_deployment_id
+        and auth_session.lti_resource_link_id
+        and auth_session.lti_subject
+    ):
+        identity_link = db.query(LTIUserLink.id).filter(
+            LTIUserLink.platform_id == auth_session.lti_platform_id,
+            LTIUserLink.lti_subject == auth_session.lti_subject,
+            LTIUserLink.user_id == current_user.id,
+        ).first()
+        if identity_link is not None:
+            mapping = db.query(LTIAssignmentLink).filter(
+                LTIAssignmentLink.platform_id == auth_session.lti_platform_id,
+                LTIAssignmentLink.deployment_id == auth_session.lti_deployment_id,
+                LTIAssignmentLink.resource_link_id == auth_session.lti_resource_link_id,
+                LTIAssignmentLink.assignment_id == assignment.id,
+            ).first()
+            if mapping is not None:
+                verified_subject = auth_session.lti_subject
+    submission.lti_assignment_link_id = mapping.id if mapping is not None else None
+    submission.lti_subject = verified_subject
 
     submission.written_answer = payload.written_answer
     submission.status = SubmissionStatus.submitted
@@ -317,6 +349,7 @@ def grade_submission(
             AssignmentSubmission.id == submission_id,
             AssignmentSubmission.assignment_id == assignment_id,
         )
+        .with_for_update()
         .first()
     )
     if not submission:
@@ -329,8 +362,23 @@ def grade_submission(
     submission.grade_percentage = payload.grade_percentage
     submission.feedback = (payload.feedback or "").strip() or None
     submission.graded_by_user_id = teacher.id
-    submission.graded_at = datetime.now(timezone.utc)
+
+    # AGS requires strictly increasing score timestamps for each line-item/user pair.
+    # The submission row is locked above, so this timestamp advances monotonically
+    # even when the application clock has insufficient resolution or moves backwards.
+    graded_at = datetime.now(timezone.utc)
+    previous_graded_at = submission.graded_at
+    if previous_graded_at is not None:
+        if previous_graded_at.tzinfo is None:
+            previous_graded_at = previous_graded_at.replace(tzinfo=timezone.utc)
+        else:
+            previous_graded_at = previous_graded_at.astimezone(timezone.utc)
+        if graded_at <= previous_graded_at:
+            graded_at = previous_graded_at + timedelta(microseconds=1)
+    submission.graded_at = graded_at
     submission.status = SubmissionStatus.graded
+    submission.grade_version = (submission.grade_version or 0) + 1
+    create_lti_ags_grade_event(db, assignment, submission)
     db.commit()
     db.refresh(submission)
 

@@ -1,11 +1,14 @@
 """مسارات تكامل LTI 1.3 مع استخدام state ورمز تبادل أحاديي الاستخدام."""
+import hashlib
 import secrets
+from types import SimpleNamespace
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode, urlsplit
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, Response, status
 from fastapi.responses import RedirectResponse
-from sqlalchemy import func
+from pydantic import EmailStr, TypeAdapter, ValidationError
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from app.auth.cookies import (
@@ -18,24 +21,73 @@ from app.auth.sessions import create_browser_session
 from app.config import settings
 from app.database import get_db
 from app.dependencies import require_admin
-from app.models.lti import LTIAuthCode, LTIAuthState, LTIPlatform, LTIUserLink
+from app.models.assignment import Assignment
+from app.models.lti import (LTIAuthCode, LTIAuthState, LTIPlatform, LTIUserLink, LTIAssignmentLink, LTIResourceLinkDiscovery, LTIAGSGradeEvent)
 from app.models.user import User
-from app.schemas.lti import LTIExchangeCodeRequest, LTIPlatformCreate, LTIPlatformOut
+from app.schemas.lti import (LTIExchangeCodeRequest, LTIPlatformCreate, LTIPlatformOut, LTIAssignmentLinkCreate, LTIAssignmentLinkOut, LTIDiscoveredResourceLinkOut, LTIAGSGradeEventOut)
 from app.services.lti_service import (
     LTI_AUTH_CODE_TTL_SECONDS,
     LTI_STATE_TTL_SECONDS,
     build_tool_jwks,
     hash_opaque_token,
     new_nonce,
+    record_lti_ags_launch_context,
     verify_platform_id_token,
     validate_lti_platform_endpoint_url,
 )
 
 router = APIRouter(prefix="/lti", tags=["LTI"])
+_LTI_EMAIL_ADAPTER = TypeAdapter(EmailStr)
+LTI_DEPLOYMENT_CLAIM = "https://purl.imsglobal.org/spec/lti/claim/deployment_id"
+LTI_RESOURCE_LINK_CLAIM = "https://purl.imsglobal.org/spec/lti/claim/resource_link"
 
 
-def _no_store_redirect(url: str) -> RedirectResponse:
-    return RedirectResponse(
+def _build_lti_profile(claims: dict, platform_id: int, lti_subject: str):
+    """Trust an email only when it is valid and explicitly verified by the LMS."""
+    fallback = f"lti_{platform_id}_{hash_opaque_token(lti_subject)[:32]}@lti.local"
+    email = fallback
+    verified = False
+    claimed_email = claims.get("email")
+    if claims.get("email_verified") is True and isinstance(claimed_email, str):
+        try:
+            normalized = str(_LTI_EMAIL_ADAPTER.validate_python(claimed_email.strip())).lower()
+        except ValidationError:
+            normalized = ""
+        if normalized and len(normalized) <= 255:
+            email = normalized
+            verified = True
+    name = claims.get("name")
+    full_name = name.strip() if isinstance(name, str) and 0 < len(name.strip()) <= 255 else None
+    return email, full_name, verified
+
+
+def _lock_lti_identity_creation(db: Session, platform_id: int, lti_subject: str, verified_email: str | None = None):
+    """Serialize concurrent first-time identity creation on PostgreSQL."""
+    if db.get_bind().dialect.name != "postgresql":
+        return
+    names = [f"lti-subject:{platform_id}:{lti_subject}"]
+    if verified_email:
+        names.append(f"lti-email:{verified_email.lower()}")
+    keys = sorted(
+        int.from_bytes(hashlib.sha256(name.encode("utf-8")).digest()[:8], "big", signed=True)
+        for name in names
+    )
+    for key in keys:
+        db.execute(text("SELECT pg_advisory_xact_lock(:lock_key)"), {"lock_key": key})
+
+
+def _lti_state_cookie_name(state_hash: str) -> str:
+    """Use one isolated browser cookie per OIDC state to support parallel launches."""
+    return f"lti_state_{state_hash}"
+
+
+def _no_store_redirect(
+    url: str,
+    *,
+    state_cookie_hash: str | None = None,
+    clear_state_cookie_hash: str | None = None,
+) -> RedirectResponse:
+    response = RedirectResponse(
         url,
         status_code=status.HTTP_302_FOUND,
         headers={
@@ -44,6 +96,21 @@ def _no_store_redirect(url: str) -> RedirectResponse:
             "Referrer-Policy": "no-referrer",
         },
     )
+    if state_cookie_hash is not None:
+        cookie_name = _lti_state_cookie_name(state_cookie_hash)
+        response.headers.append(
+            "set-cookie",
+            f"{cookie_name}={state_cookie_hash}; Max-Age={LTI_STATE_TTL_SECONDS}; "
+            "Path=/lti/launch; HttpOnly; Secure; SameSite=None; Partitioned",
+        )
+    if clear_state_cookie_hash is not None:
+        cookie_name = _lti_state_cookie_name(clear_state_cookie_hash)
+        response.headers.append(
+            "set-cookie",
+            f"{cookie_name}=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; "
+            "Path=/lti/launch; HttpOnly; Secure; SameSite=None; Partitioned",
+        )
+    return response
 
 
 @router.post("/platforms", response_model=LTIPlatformOut, status_code=status.HTTP_201_CREATED)
@@ -167,7 +234,10 @@ def _start_lti_login(
     }
     if lti_message_hint is not None:
         auth_params["lti_message_hint"] = lti_message_hint
-    return _no_store_redirect(f"{platform.auth_login_url}?{urlencode(auth_params)}")
+    return _no_store_redirect(
+        f"{platform.auth_login_url}?{urlencode(auth_params)}",
+        state_cookie_hash=hash_opaque_token(state),
+    )
 
 
 @router.get("/login")
@@ -206,43 +276,69 @@ def lti_login_post(
 
 @router.post("/launch")
 async def lti_launch(
+    request: Request,
     id_token: str = Form(..., max_length=20000),
     state: str = Form(..., min_length=20, max_length=256),
     db: Session = Depends(get_db),
 ):
-    """يتحقق من حالة OIDC غير المستعملة، ثم يصدر رمز تبادل قصير العمر فقط."""
-    state_row = (
-        db.query(LTIAuthState)
-        .filter(LTIAuthState.state_hash == hash_opaque_token(state))
-        .with_for_update()
-        .first()
-    )
+    """Verify the OIDC state belongs to the browser that initiated this launch."""
+    state_hash = hash_opaque_token(state)
+    state_cookie = request.cookies.get(_lti_state_cookie_name(state_hash))
+    if not state_cookie or not secrets.compare_digest(state_cookie, state_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="state غير صالح أو لا يطابق المتصفح الذي بدأ تسجيل الدخول",
+        )
+    state_row = db.query(LTIAuthState).filter(LTIAuthState.state_hash == state_hash).first()
     now = datetime.now(timezone.utc)
-    if (
-        state_row is None
-        or state_row.consumed_at is not None
-        or state_row.expires_at <= now
-    ):
+    if state_row is None or state_row.consumed_at is not None or state_row.expires_at <= now:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="state غير صالح أو منتهي")
 
     platform = db.get(LTIPlatform, state_row.platform_id)
-    if not platform:
+    if platform is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="المنصة غير موجودة")
 
+    state_id = state_row.id
+    expected_nonce = state_row.nonce
+    expected_target = state_row.target_link_uri
+    platform_id = platform.id
+    platform_context = SimpleNamespace(
+        id=platform.id,
+        issuer=platform.issuer,
+        client_id=platform.client_id,
+        deployment_id=platform.deployment_id,
+        jwks_url=platform.jwks_url,
+    )
+    # Do not hold a PostgreSQL row lock or connection while fetching remote JWKS.
+    db.commit()
     try:
-        claims = await verify_platform_id_token(
-            id_token, platform, state_row.nonce, state_row.target_link_uri
-        )
+        claims = await verify_platform_id_token(id_token, platform_context, expected_nonce, expected_target)
     except Exception:
-        # لا نعيد تفاصيل التحقق أو معلومات المفاتيح إلى العميل.
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="تعذّر التحقق من تسجيل الدخول عبر منصة التعليم",
         )
 
+    state_row = (
+        db.query(LTIAuthState)
+        .filter(LTIAuthState.id == state_id, LTIAuthState.state_hash == state_hash)
+        .with_for_update()
+        .populate_existing()
+        .first()
+    )
+    now = datetime.now(timezone.utc)
+    if state_row is None or state_row.consumed_at is not None or state_row.expires_at <= now:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="state غير صالح أو منتهي")
+    platform = db.get(LTIPlatform, platform_id)
+    if platform is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="المنصة غير موجودة")
+    record_lti_ags_launch_context(db, platform, claims)
+
     lti_subject = claims.get("sub")
     if not isinstance(lti_subject, str) or not lti_subject or len(lti_subject) > 255:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="معرّف مستخدم LTI غير صالح")
+    email, full_name, email_verified = _build_lti_profile(claims, platform.id, lti_subject)
+    _lock_lti_identity_creation(db, platform.id, lti_subject, email if email_verified else None)
     link = (
         db.query(LTIUserLink)
         .filter(LTIUserLink.platform_id == platform.id, LTIUserLink.lti_subject == lti_subject)
@@ -254,24 +350,15 @@ async def lti_launch(
         if user is None or not user.is_active:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="حساب LTI غير متاح")
     else:
-        claimed_email = claims.get("email")
-        email_verified = claims.get("email_verified") is True
-        if claimed_email and email_verified:
-            email = claimed_email.strip().lower()
-            existing = db.query(User).filter(func.lower(User.email) == email).first()
-            if existing:
-                # لا نربط حسابًا محليًا موجودًا تلقائيًا اعتمادًا على البريد.
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="يوجد حساب بهذا البريد. سجّل الدخول بالطريقة المعتادة قبل إعداد ربط الحسابات.",
-                )
-        else:
-            email = f"lti_{platform.id}_{hash_opaque_token(lti_subject)[:32]}@lti.local"
-
+        if email_verified and db.query(User.id).filter(func.lower(User.email) == email).first():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="يوجد حساب بهذا البريد. سجّل الدخول بالطريقة المعتادة قبل إعداد ربط الحسابات.",
+            )
         user = User(
             email=email,
             hashed_password=hash_password(secrets.token_urlsafe(32)),
-            full_name=claims.get("name"),
+            full_name=full_name,
             is_email_verified=email_verified,
         )
         db.add(user)
@@ -279,11 +366,18 @@ async def lti_launch(
         db.add(LTIUserLink(platform_id=platform.id, lti_subject=lti_subject, user_id=user.id))
 
     exchange_code = secrets.token_urlsafe(32)
+    resource_claim = claims.get(LTI_RESOURCE_LINK_CLAIM)
+    resource_link_id = resource_claim.get("id") if isinstance(resource_claim, dict) else None
+    deployment_id = claims.get(LTI_DEPLOYMENT_CLAIM)
     db.add(
         LTIAuthCode(
             code_hash=hash_opaque_token(exchange_code),
             user_id=user.id,
             token_version=user.token_version,
+            lti_platform_id=platform.id,
+            lti_deployment_id=deployment_id if isinstance(deployment_id, str) else None,
+            lti_resource_link_id=resource_link_id if isinstance(resource_link_id, str) else None,
+            lti_subject=lti_subject,
             expires_at=now + timedelta(seconds=LTI_AUTH_CODE_TTL_SECONDS),
         )
     )
@@ -296,7 +390,7 @@ async def lti_launch(
         f"{settings.FRONTEND_URL.rstrip('/')}/lti-callback#"
         f"{urlencode({'code': exchange_code})}"
     )
-    return _no_store_redirect(redirect_url)
+    return _no_store_redirect(redirect_url, clear_state_cookie_hash=state_hash)
 
 
 @router.post("/exchange-code")
@@ -335,8 +429,117 @@ def exchange_lti_code(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="حساب الدخول غير متاح")
 
     auth_code.consumed_at = now
-    access_token, refresh_token, _ = create_browser_session(db, user)
+    access_token, refresh_token, auth_session = create_browser_session(db, user)
+    auth_session.lti_platform_id = auth_code.lti_platform_id
+    auth_session.lti_deployment_id = auth_code.lti_deployment_id
+    auth_session.lti_resource_link_id = auth_code.lti_resource_link_id
+    auth_session.lti_subject = auth_code.lti_subject
     db.commit()
     csrf_token = create_csrf_token()
     set_auth_cookies(response, access_token, refresh_token, csrf_token)
     return {"authenticated": True, "csrf_token": csrf_token}
+
+
+@router.get("/resource-links", response_model=list[LTIDiscoveredResourceLinkOut])
+def list_discovered_resource_links(_=Depends(require_admin), db: Session = Depends(get_db)):
+    rows = (
+        db.query(LTIResourceLinkDiscovery, LTIAssignmentLink.assignment_id)
+        .outerjoin(
+            LTIAssignmentLink,
+            (LTIAssignmentLink.platform_id == LTIResourceLinkDiscovery.platform_id)
+            & (LTIAssignmentLink.deployment_id == LTIResourceLinkDiscovery.deployment_id)
+            & (LTIAssignmentLink.resource_link_id == LTIResourceLinkDiscovery.resource_link_id),
+        )
+        .order_by(LTIResourceLinkDiscovery.last_seen_at.desc())
+        .limit(200)
+        .all()
+    )
+    return [
+        LTIDiscoveredResourceLinkOut(
+            id=row.id,
+            platform_id=row.platform_id,
+            deployment_id=row.deployment_id,
+            resource_link_id=row.resource_link_id,
+            lineitem_ready=row.lineitem_ready,
+            score_scope_allowed=row.score_scope_allowed,
+            first_seen_at=row.first_seen_at,
+            last_seen_at=row.last_seen_at,
+            mapped_assignment_id=assignment_id,
+        )
+        for row, assignment_id in rows
+    ]
+
+
+@router.post("/assignment-links", response_model=LTIAssignmentLinkOut, status_code=status.HTTP_201_CREATED)
+def register_assignment_link(payload: LTIAssignmentLinkCreate, _=Depends(require_admin), db: Session = Depends(get_db)):
+    platform = db.get(LTIPlatform, payload.platform_id)
+    assignment = db.get(Assignment, payload.assignment_id)
+    if platform is None or assignment is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="المنصة أو الواجب غير موجود")
+    discovery = db.query(LTIResourceLinkDiscovery).filter(
+        LTIResourceLinkDiscovery.platform_id == platform.id,
+        LTIResourceLinkDiscovery.deployment_id == platform.deployment_id,
+        LTIResourceLinkDiscovery.resource_link_id == payload.resource_link_id,
+    ).first()
+    if discovery is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="يجب اكتشاف رابط المورد عبر إطلاق LTI موثّق أولاً")
+    duplicate = db.query(LTIAssignmentLink.id).filter(
+        LTIAssignmentLink.platform_id == platform.id,
+        LTIAssignmentLink.deployment_id == platform.deployment_id,
+        LTIAssignmentLink.resource_link_id == payload.resource_link_id,
+    ).first()
+    if duplicate:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="رابط المورد مربوط مسبقًا")
+    mapping = LTIAssignmentLink(
+        platform_id=platform.id,
+        assignment_id=assignment.id,
+        deployment_id=platform.deployment_id,
+        resource_link_id=payload.resource_link_id,
+        lineitem_url=discovery.lineitem_url,
+        score_scope_allowed=discovery.score_scope_allowed,
+        score_maximum=payload.score_maximum,
+    )
+    db.add(mapping)
+    db.commit()
+    db.refresh(mapping)
+    return mapping
+
+
+@router.get("/assignment-links", response_model=list[LTIAssignmentLinkOut])
+def list_assignment_links(_=Depends(require_admin), db: Session = Depends(get_db)):
+    return db.query(LTIAssignmentLink).order_by(LTIAssignmentLink.id.desc()).all()
+
+
+@router.get("/grade-events", response_model=list[LTIAGSGradeEventOut])
+def list_grade_events(_=Depends(require_admin), db: Session = Depends(get_db)):
+    # Never expose the learner subject, scores, raw lineitem URL or OAuth material here.
+    return db.query(LTIAGSGradeEvent).order_by(LTIAGSGradeEvent.id.desc()).limit(200).all()
+
+
+@router.post("/grade-events/{event_id}/retry", response_model=LTIAGSGradeEventOut)
+def retry_grade_event(event_id: int, _=Depends(require_admin), db: Session = Depends(get_db)):
+    event = db.query(LTIAGSGradeEvent).filter(LTIAGSGradeEvent.id == event_id).with_for_update().first()
+    if event is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="حدث التقييم غير موجود")
+    if event.status != "dead":
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="إعادة المحاولة اليدوية متاحة للأحداث المتوقفة فقط")
+    newer_event = db.query(LTIAGSGradeEvent.id).filter(
+        LTIAGSGradeEvent.assignment_link_id == event.assignment_link_id,
+        LTIAGSGradeEvent.submission_id == event.submission_id,
+        LTIAGSGradeEvent.grade_version > event.grade_version,
+    ).first()
+    if newer_event is not None:
+        event.status = "superseded"
+        event.last_error = None
+        event.locked_until = None
+        db.commit()
+        db.refresh(event)
+        return event
+    event.status = "pending"
+    # Keep the lifetime attempt count so each manual retry advances the AGS timestamp.
+    event.last_error = None
+    event.locked_until = None
+    event.next_attempt_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(event)
+    return event
