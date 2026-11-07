@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -148,10 +148,14 @@ describe("isolated Python lab", () => {
 
   it("terminates a long-running execution after the hard timeout", async () => {
     vi.useFakeTimers();
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     const { frame, postMessage } = renderReadySandbox();
 
-    await user.click(screen.getByRole("button", { name: /شغّل الكود/ }));
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: /شغّل الكود/ }));
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
     const request = lastRunMessage(postMessage);
     sendSandboxMessage(frame, {
       type: "status",
@@ -163,9 +167,7 @@ describe("isolated Python lab", () => {
       vi.advanceTimersByTime(8_001);
     });
 
-    expect(
-      screen.getByText(/انتهت مهلة التنفيذ/)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/انتهت مهلة التنفيذ/)).toBeInTheDocument();
     expect(frame.getAttribute("src")).toContain("reset=");
     expect(screen.getByRole("button", { name: /شغّل الكود/ })).toBeEnabled();
   });
