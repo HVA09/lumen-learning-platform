@@ -69,12 +69,22 @@ function buildWorkerSource() {
     "importScripts(PYODIDE_ROOT + 'pyodide.js');",
     "const pyodideReadyPromise = loadPyodide({ indexURL: PYODIDE_ROOT });",
     "let workerBusy = false;",
+    "const workerCspViolations = [];",
+    "self.addEventListener('securitypolicyviolation', (event) => {",
+    "  if (event.effectiveDirective !== 'connect-src') return;",
+    "  workerCspViolations.push({",
+    "    directive: event.effectiveDirective,",
+    "    blockedURI: String(event.blockedURI || '').slice(0, 500),",
+    "    disposition: String(event.disposition || '').slice(0, 20),",
+    "  });",
+    "});",
     "self.onmessage = async (event) => {",
     "  const message = event.data || {};",
     "  const requestId = message.requestId;",
     "  const code = message.code;",
     "  if (workerBusy || typeof requestId !== 'string' || typeof code !== 'string' || code.length > 20000) return;",
     "  workerBusy = true;",
+    "  workerCspViolations.length = 0;",
     "  self.postMessage({ type: 'status', requestId, status: 'loading' });",
     "  try {",
     "    const pyodide = await pyodideReadyPromise;",
@@ -85,7 +95,10 @@ function buildWorkerSource() {
     "    finally { pyodide.globals.delete('__lumen_student_code'); }",
     "    const rawOutput = typeof captured === 'string' ? captured : (typeof captured?.toJs === 'function' ? captured.toJs() : String(captured ?? ''));",
     "    if (typeof captured?.destroy === 'function') captured.destroy();",
-    "    self.postMessage({ type: 'complete', requestId, output: String(rawOutput).slice(0, MAX_OUTPUT_LENGTH) });",
+    "    // Let queued WorkerGlobalScope CSP events run before reporting the result.",
+    "    await new Promise((resolve) => setTimeout(resolve, 50));",
+    "    const cspViolations = workerCspViolations.splice(0, 10);",
+    "    self.postMessage({ type: 'complete', requestId, output: String(rawOutput).slice(0, MAX_OUTPUT_LENGTH), cspViolations });",
     "  } catch (error) {",
     "    self.postMessage({ type: 'error', requestId, error: String(error?.message || error || 'تعذر تشغيل كود Python').slice(0, 1000) });",
     "  } finally {",
@@ -147,6 +160,17 @@ function getWorker() {
         output: typeof message.output === "string"
           ? message.output.slice(0, MAX_OUTPUT_LENGTH)
           : "",
+        cspViolations: Array.isArray(message.cspViolations)
+          ? message.cspViolations
+              .filter(
+                (item) =>
+                  item &&
+                  item.directive === "connect-src" &&
+                  typeof item.blockedURI === "string" &&
+                  typeof item.disposition === "string"
+              )
+              .slice(0, 10)
+          : [],
       });
       return;
     }
