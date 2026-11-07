@@ -335,6 +335,7 @@ def test_ags_grade_event_targets_only_the_submission_resource_link(client, db_se
     browser_session.lti_platform_id = platform.id
     browser_session.lti_deployment_id = platform.deployment_id
     browser_session.lti_resource_link_id = "resource-A"
+    browser_session.lti_subject = "ags-external-student"
     db_session.commit()
 
     submitted = _submit(client, student_token, assignment["id"])
@@ -342,6 +343,7 @@ def test_ags_grade_event_targets_only_the_submission_resource_link(client, db_se
     submission_id = submitted.json()["id"]
     submission = db_session.get(__import__("app.models.assignment", fromlist=["AssignmentSubmission"]).AssignmentSubmission, submission_id)
     assert submission.lti_assignment_link_id == mapping_a.id
+    assert submission.lti_subject == "ags-external-student"
 
     graded = _grade(client, teacher, assignment["id"], submission_id, 84)
     assert graded.status_code == 200, graded.text
