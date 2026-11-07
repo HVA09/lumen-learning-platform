@@ -600,6 +600,31 @@ def test_browser_lti_exchange_requires_trusted_origin_and_csrf(client, db_sessio
 
 
 
+def test_lti_key_generator_outputs_dotenv_compatible_multiline_pem(tmp_path):
+    import subprocess
+    import sys
+
+    from dotenv import dotenv_values
+
+    output = subprocess.run(
+        [sys.executable, "scripts/generate_lti_key.py"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    env_file = tmp_path / ".env"
+    env_file.write_text(output, encoding="utf-8")
+    values = dotenv_values(env_file)
+
+    private_key_pem = values["LTI_TOOL_PRIVATE_KEY"]
+    assert private_key_pem.startswith("-----BEGIN PRIVATE KEY-----\\n") is False
+    assert private_key_pem.startswith("-----BEGIN PRIVATE KEY-----\\n") or private_key_pem.startswith("-----BEGIN PRIVATE KEY-----\n")
+    assert private_key_pem.endswith("-----END PRIVATE KEY-----\\n") is False
+    assert values["LTI_TOOL_KID"].startswith("lumen-")
+    private_key = serialization.load_pem_private_key(private_key_pem.encode("utf-8"), password=None)
+    assert private_key.key_size >= 2048
+
+
 def test_ags_lineitem_url_must_match_registered_https_origin(monkeypatch):
     from types import SimpleNamespace
 
