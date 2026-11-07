@@ -245,3 +245,61 @@
 5. P7 غير جاهزة: لا يوجد نشر إنتاجي مثبت. ما زالت بوابات الاستضافة المجانية بلا بطاقة، HTTPS، SMTP حي، كفاية موارد ClamAV، الأسرار خارج Git، ووجهة نسخ احتياطي خارجية مع اختبار استعادة فعلية.
 
 - لا تغيير API/DB/migrations أو اعتماديات runtime في PRs #129/#133/#136/#137/#140/#141. الميزانية صفر؛ لا موارد مدفوعة أو دفع إلكتروني، ولا تجاوز لحماية GitHub.
+
+
+## نقطة تحقق مؤكدة — 2026-11-07 — PRs #145 و#147 و#146
+
+> هذه اللقطة تخص **Lumen Learning Platform فقط**، المستودع HVA09/lumen-learning-platform. لا تُستخدم أي حالة أو SHA أو فحص من مستودع ai-chat-app.
+
+### مرجع المستودع والفرع
+
+- المستودع: https://github.com/HVA09/lumen-learning-platform
+- الفرع الأساسي: main عند 38eb15b01719d544d7d04a0c93d4fa4d4e3d6a6d، وهو commit دمج PR #143 الخاص باختبار تعافي WebSocket بعد عودة الشبكة.
+- قراءة GitHub تعرض main.protected=true. أعاد استعلام Rulesets قائمة فارغة، لكن واجهة GitHub رفضت قراءة تفاصيل Branch Protection (403)؛ لذلك لا نسجل أسماء Required Status Checks أو سياسة الموافقات من دون دليل.
+- وقت التحقق: 2026-11-07. جميع PRs الثلاثة مفتوحة، غير مدمجة، وغير Draft، وGitHub يعرضها mergeable=true في وقت اللقطة.
+
+### حالة الطلبات
+
+| PR | النطاق | الرأس الحالي | الفحوص |
+|---|---|---|---|
+| [#145](https://github.com/HVA09/lumen-learning-platform/pull/145) | اختبارات lazy routes وfeature callbacks في frontend/src/App.test.jsx فقط | 6ad9b54c72dbb1ee21600dc911b0922a7d4682bd | [Lumen CI #42295018064](https://github.com/HVA09/lumen-learning-platform/actions/runs/42295018064) — 4/4 ناجحة |
+| [#147](https://github.com/HVA09/lumen-learning-platform/pull/147) | Nginx WebSocket proxy، include مشترك لمسارات HTTP/HTTPS، وBrowser E2E يمر عبر Nginx | b543573616d122eb4c374f92e4d44384697a8c8a | [Lumen CI #42383718753](https://github.com/HVA09/lumen-learning-platform/actions/runs/42383718753) — 4/4 ناجحة |
+| [#146](https://github.com/HVA09/lumen-learning-platform/pull/146) | عزل مختبر Python باستخدام iframe opaque-origin وPyodide Blob Worker واختبارات عزل | d51953b6acf9bfa80d84448857e6569106f76bda | [Lumen CI #42399378562](https://github.com/HVA09/lumen-learning-platform/actions/runs/42399378562) — 4/4 ناجحة |
+
+#### تفاصيل التبعيات وحجم التغيير
+
+- قاعدة الطلبات الثلاثة جميعها هي SHA نفسه: 38eb15b01719d544d7d04a0c93d4fa4d4e3d6a6d. المقارنة مع main وقت التحقق: #145 متقدم 1 commit، #147 متقدم 13 commits، #146 متقدم 20 commits، ولا يوجد أي منها خلف main في هذه اللقطة.
+- #145 يغيّر ملف اختبار واحدًا فقط (+132/-10). لا يغيّر Runtime أو API أو DB أو Dependencies أو Secrets أو إعدادات النشر.
+- #147 يغيّر 7 ملفات (+176/-58). يشمل إعدادات Nginx وDocker Compose وCI وBrowser E2E والوثائق. اختبار CI يتحقق من nginx -t ومن مرور REST/WebSocket عبر حاوية Nginx. **لا يفعّل هذا PR TLS في الإنتاج**؛ كتل HTTPS والتحويل تبقى معطلة إلى حين وجود دومين حقيقي وشهادة صالحة، ويظل اختبار WSS على مضيف حقيقي مطلوبًا بعد التهيئة.
+- #146 يغيّر 7 ملفات (+876/-106). توثيق docs/PYTHON_LAB_SECURITY.md يوضح أن العزل هو Browser-origin isolation، وليس OS-level sandbox. لا توجد حصة ذاكرة صلبة لـ Web Worker؛ لا يُسمح بوصفه كحاوية آمنة لتشغيل كود عدائي غير محدود. يجب إبقاء هذا القيد ظاهرًا في أي إعلان إطلاق.
+- عالج الرأس الحالي لـ #146 ملاحظة التغطية السابقة: اختبار Playwright يشغّل fetch من Pyodide Blob Worker الحقيقي ويتطلب حدث securitypolicyviolation بــ effectiveDirective=connect-src وdisposition=enforce وأصل URI المحظور المطابق للـ API. لا يكفي رفض Promise أو CORS/شبكة وحده. ملاحظة PR تسجل Backend **480 passed, 21 warnings** في CI الأخير.
+
+### نتائج CI الدقيقة
+
+تتكون بوابة Lumen CI في كل تشغيل من أربع وظائف، وقد اكتملت جميعها بنجاح على SHA المذكور لكل PR:
+1. Frontend tests and production build.
+2. Backend tests.
+3. Browser E2E (registration and browser session).
+4. Full Git history secret scan.
+
+نجاح CI لا يعني أن PR مدمج، ولا يثبت نشرًا حيًا، ولا يستبدل مراجعة تغييرات المصدر. التعليقات الآلية على #145 و#147 و#146 تسجل أن Codex review لم يكتمل بسبب بلوغ حد استخدام مراجعات Codex؛ لا نصنف ذلك على أنه مراجعة ناجحة أو finding تقني مؤكد. يجب إبقاء حالة المراجعة منفصلة عن حالة CI.
+
+### التسلسل الآمن المقترح
+
+1. دمج #145 أولاً بعد موافقة المالك والتحقق الفوري من SHA وحالة CI.
+2. بعده إعادة قراءة main ودمج #147 إذا ظل diff قابلًا للدمج وفحوص الرأس ما زالت خضراء؛ ثم التحقق من CI على main بعد الدمج.
+3. تحديث/إعادة تأسيس فرع #146 على أحدث main بعد الدمجين، وحل أي تعارضات بمراجعة محددة وعدم استبدال الملفات كاملة.
+4. تشغيل وظائف Lumen CI الأربع مجددًا على رأس #146 الجديد، والتأكد خصوصًا من Browser E2E الذي يختبر Pyodide Worker وCSP الفعلية.
+5. دمج #146 فقط بعد نجاح الوظائف الأربع ومراجعة حدود الأمان، ثم التحقق من تشغيل CI على main بعد الدمج.
+6. لا تعتبر #147 تفعيلًا لـ HTTPS، ولا تعتبر #146 عزلًا على مستوى نظام التشغيل أو حدًا لذاكرة العامل.
+
+### ما لم يحدث في هذه اللقطة
+
+- لم يُدمج أي من #145 أو #147 أو #146.
+- لم تتغير ملفات التطبيق أو قاعدة البيانات أو أسرار الإنتاج أو إعدادات الاستضافة.
+- لم يُنفّذ Deploy أو تغيير TLS أو إعادة فهرسة أو أي إجراء مدفوع.
+- التوثيق وحده لا يمثل موافقة على دمج أي PR.
+
+### المتبقي خارج هذه المجموعة
+
+بوابات P7 التشغيلية لا تزال منفصلة عن هذه PRs: استضافة مجانية مناسبة بلا بطاقة، HTTPS فعلي، SMTP حي، التحقق من موارد ClamAV على مضيف الاستضافة، أسرار الإنتاج خارج Git، ونسخة احتياطية خارجية مشفرة مع اختبار استعادة فعلي. لا نسجل اكتمال P7 أو وجود نشر إنتاجي من نجاح CI وحده.
