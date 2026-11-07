@@ -189,3 +189,35 @@ def test_production_rejects_unknown_payment_provider():
 def test_production_accepts_live_stripe_restricted_key():
     settings = _production_settings(PAYMENT_PROVIDER="stripe", STRIPE_SECRET_KEY="rk_live_restricted_configuration")
     assert settings.STRIPE_SECRET_KEY.startswith("rk_live_")
+
+
+
+def test_nginx_websocket_proxy_is_shared_with_http_and_https():
+    from pathlib import Path
+
+    nginx_dir = Path(__file__).resolve().parents[1] / "nginx"
+    main_config = (nginx_dir / "nginx.conf").read_text(encoding="utf-8")
+    locations = (nginx_dir / "snippets" / "lumen-locations.conf").read_text(
+        encoding="utf-8"
+    )
+
+    assert "map $http_upgrade $connection_upgrade" in main_config
+    assert main_config.count(
+        "include /etc/nginx/snippets/lumen-locations.conf;"
+    ) == 2
+
+    required_websocket_settings = (
+        "location ^~ /ws/",
+        "proxy_http_version 1.1;",
+        "proxy_set_header Upgrade $http_upgrade;",
+        "proxy_set_header Connection $connection_upgrade;",
+        "proxy_read_timeout 3600s;",
+        "proxy_send_timeout 3600s;",
+        "proxy_buffering off;",
+        "proxy_pass http://fastapi_app;",
+    )
+    for setting in required_websocket_settings:
+        assert setting in locations, f"Missing Nginx WebSocket setting: {setting}"
+
+    assert "limit_req zone=api_limit burst=20 nodelay;" in locations
+    assert "limit_req zone=auth_limit burst=3 nodelay;" in locations
