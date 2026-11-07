@@ -5,7 +5,7 @@
 ## حدود العزل
 
 - صفحة التطبيق تضمّن `/python-sandbox.html` داخل iframe بقيمة `sandbox="allow-scripts"` فقط. لا تضف `allow-same-origin` أو `allow-forms` أو صلاحيات أعلى.
-- نتيجة ذلك أن المستند المضمّن يعمل بأصل opaque (`event.origin === "null"))، ولا يستطيع قراءة DOM الصفحة الأم أو تخزينها.
+- نتيجة ذلك أن المستند المضمّن يعمل بأصل opaque (`event.origin === "null")، ولا يستطيع قراءة DOM الصفحة الأم أو تخزينها.
 - صفحة المختبر تفرض CSP افتراضية `default-src 'none'`. يُسمح بتحميل Pyodide وملفاته من `cdn.jsdelivr.net` فقط، ويُسمح بإنشاء عامل Blob مخصص عبر `worker-src blob:`. لا يُسمح باتصالات إلى API أو بقية الأصول.
 - يعمل Pyodide داخل Web Worker أنشئه إطار opaque؛ لا يملك العامل DOM أو `localStorage` أو Cookie API للصفحة. الوحدة `js` تشير إلى بيئة العامل، لا إلى صفحة Lumen.
 - رسائل التنفيذ تتحقق من مصدرها وأصلها وقناتها ومعرّف الطلب. لا تُرسل أسرار أو رموز جلسات أو كائنات تطبيق إلى الإطار أو العامل، ولا يُقبل من العامل إلا حالات محددة ونص إخراج محدود.
@@ -28,6 +28,6 @@
 
 ## مراجع التنفيذ
 
-- [Pyodide 0.26.4 — Web Workers](https://pyodide.org/en/0.24.4/usage/webworker.html)
+- [Pyodide 0.26.4 — Web Workers](https://pyodide.org/en/0.26.4/usage/webworker.html)
 - [Pyodide 0.26.4 — Changelog](https://pyodide.org/en/0.26.4/project/changelog.html)
 - [GitHub Issue #134](https://github.com/HVA09/lumen-learning-platform/issues/134)
