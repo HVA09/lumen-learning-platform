@@ -237,14 +237,16 @@ def test_ags_retry_reserves_a_new_timestamp_for_each_delivery_attempt(client, db
         headers=auth(access_token),
     )
     assert submitted.status_code == 200, submitted.text
-    submission = db_session.get(AssignmentSubmission, submitted.json()["id"])
+    submission_id = submitted.json()["id"]
+    submission = db_session.get(AssignmentSubmission, submission_id)
     graded = client.post(
-        f"/assignments/{assignment_id}/submissions/{submission.id}/grade",
+        f"/assignments/{assignment_id}/submissions/{submission_id}/grade",
         json={"grade_percentage": 76, "feedback": "Retry me"},
         headers=auth(teacher_token),
     )
     assert graded.status_code == 200, graded.text
-    event = db_session.query(LTIAGSGradeEvent).filter_by(submission_id=submission.id).one()
+    event = db_session.query(LTIAGSGradeEvent).filter_by(submission_id=submission_id).one()
+    event_id = event.id
 
     timestamps = []
     async def fail_once(_platform, _lineitem, payload):
@@ -253,12 +255,11 @@ def test_ags_retry_reserves_a_new_timestamp_for_each_delivery_attempt(client, db
             raise TimeoutError("simulated uncertain response")
 
     monkeypatch.setattr(lti_service_module, "post_lti_ags_score", fail_once)
-    assert asyncio.run(lti_service_module.dispatch_lti_grade_event(db_session, event.id)) is False
+    assert asyncio.run(lti_service_module.dispatch_lti_grade_event(db_session, event_id)) is False
 
-    event = db_session.get(LTIAGSGradeEvent, event.id)
+    event = db_session.get(LTIAGSGradeEvent, event_id)
     assert event.status == "pending"
-    # Manual retries preserve the lifetime counter so a fresh timestamp is reserved.
-    graded_at = db_session.get(AssignmentSubmission, submission.id).graded_at
+    # A retry must reserve a timestamp later than the uncertain first attempt.
     event.next_attempt_at = datetime.now(timezone.utc) - timedelta(seconds=1)
     db_session.commit()
 
