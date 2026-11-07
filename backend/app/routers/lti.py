@@ -486,6 +486,18 @@ def retry_grade_event(event_id: int, _=Depends(require_admin), db: Session = Dep
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="حدث التقييم غير موجود")
     if event.status != "dead":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="إعادة المحاولة اليدوية متاحة للأحداث المتوقفة فقط")
+    newer_event = db.query(LTIAGSGradeEvent.id).filter(
+        LTIAGSGradeEvent.assignment_link_id == event.assignment_link_id,
+        LTIAGSGradeEvent.submission_id == event.submission_id,
+        LTIAGSGradeEvent.grade_version > event.grade_version,
+    ).first()
+    if newer_event is not None:
+        event.status = "superseded"
+        event.last_error = None
+        event.locked_until = None
+        db.commit()
+        db.refresh(event)
+        return event
     event.status = "pending"
     event.attempts = 0
     event.last_error = None
