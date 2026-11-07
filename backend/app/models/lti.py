@@ -3,7 +3,7 @@
 """
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -86,6 +86,7 @@ class LTIAssignmentLink(Base):
     __tablename__ = "lti_assignment_links"
     __table_args__ = (
         UniqueConstraint("platform_id", "deployment_id", "resource_link_id", name="uq_lti_assignment_link_resource"),
+        CheckConstraint("score_maximum > 0", name="ck_lti_assignment_link_score_maximum"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -111,6 +112,7 @@ class LTIResourceLinkDiscovery(Base):
     __tablename__ = "lti_resource_link_discoveries"
     __table_args__ = (
         UniqueConstraint("platform_id", "deployment_id", "resource_link_id", name="uq_lti_resource_link_discovery"),
+        Index("ix_lti_resource_link_discoveries_seen", "last_seen_at"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -134,6 +136,10 @@ class LTIAGSGradeEvent(Base):
     __tablename__ = "lti_ags_grade_events"
     __table_args__ = (
         UniqueConstraint("assignment_link_id", "submission_id", "grade_version", name="uq_lti_ags_grade_event_version"),
+        CheckConstraint("score_given >= 0 AND score_given <= score_maximum", name="ck_lti_ags_grade_event_score_range"),
+        CheckConstraint("score_maximum > 0", name="ck_lti_ags_grade_event_score_maximum"),
+        CheckConstraint("status IN ('pending', 'sent', 'dead')", name="ck_lti_ags_grade_event_status"),
+        Index("ix_lti_ags_grade_events_due", "status", "next_attempt_at"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -143,7 +149,7 @@ class LTIAGSGradeEvent(Base):
     lti_subject: Mapped[str] = mapped_column(String(255), nullable=False)
     score_given: Mapped[float] = mapped_column(nullable=False)
     score_maximum: Mapped[float] = mapped_column(nullable=False)
-    comment: Mapped[str | None] = mapped_column(nullable=True)
+    comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="pending", server_default="pending", nullable=False)
     attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
     next_attempt_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
