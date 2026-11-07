@@ -53,11 +53,12 @@ def _mapping(db_session, platform, assignment_id, resource_link_id):
     return mapping
 
 
-def _lti_session(db_session, user, platform, resource_link_id):
+def _lti_session(db_session, user, platform, resource_link_id, lti_subject=None):
     access_token, _refresh_token, session = create_browser_session(db_session, user)
     session.lti_platform_id = platform.id
     session.lti_deployment_id = platform.deployment_id
     session.lti_resource_link_id = resource_link_id
+    session.lti_subject = lti_subject
     db_session.commit()
     return access_token
 
@@ -76,7 +77,7 @@ def test_grade_passback_is_bound_to_exact_resource_link_not_every_mapping(client
     db_session.flush()
 
     # A distinct LTI browser session proves the learner launched resource A.
-    access_token = _lti_session(db_session, student, platform, "course-a-resource")
+    access_token = _lti_session(db_session, student, platform, "course-a-resource", lti_subject="learner-a")
     submitted = client.post(
         f"/assignments/{assignment_id}/submit",
         json={"written_answer": "answer from resource A"},
@@ -180,7 +181,7 @@ def test_lti_session_for_different_resource_or_assignment_has_no_passback_target
     )
     db_session.flush()
 
-    access_token = _lti_session(db_session, student_user, platform, "resource-not-mapped")
+    access_token = _lti_session(db_session, student_user, platform, "resource-not-mapped", lti_subject="learner-mismatch")
     submitted = client.post(
         f"/assignments/{assignment_id}/submit",
         json={"written_answer": "from an unrelated resource"},
@@ -206,6 +207,7 @@ def test_lti_exchange_copies_verified_resource_context_into_new_browser_session(
             lti_platform_id=platform.id,
             lti_deployment_id=platform.deployment_id,
             lti_resource_link_id="verified-resource-77",
+            lti_subject="verified-subject-77",
             expires_at=now + timedelta(seconds=60),
         )
     )
@@ -218,6 +220,7 @@ def test_lti_exchange_copies_verified_resource_context_into_new_browser_session(
     assert len(lti_sessions) == 1
     assert lti_sessions[0].lti_deployment_id == platform.deployment_id
     assert lti_sessions[0].lti_resource_link_id == "verified-resource-77"
+    assert lti_sessions[0].lti_subject == "verified-subject-77"
 
 
 def test_ags_retry_reserves_a_new_timestamp_for_each_delivery_attempt(client, db_session, monkeypatch):
@@ -336,3 +339,42 @@ def test_older_pending_grade_event_is_superseded_before_delivery(client, db_sess
     assert asyncio.run(lti_service_module.dispatch_lti_grade_event(db_session, latest.id)) is True
     assert len(calls) == 1
     assert calls[0]["scoreGiven"] == 95.0
+
+
+def test_ags_uses_exact_launch_subject_when_local_user_has_multiple_lms_identities(
+    client, db_session
+):
+    teacher_token = make_teacher(client, db_session, "lti-alias-teacher@example.com")
+    make_student(client, "lti-alias-student@example.com")
+    student = db_session.query(User).filter_by(email="lti-alias-student@example.com").one()
+    assignment_id = _create_assignment(client, teacher_token)
+    platform = _platform(db_session, "alias")
+    mapping = _mapping(db_session, platform, assignment_id, "alias-resource")
+    db_session.add_all([
+        LTIUserLink(platform_id=platform.id, lti_subject="learner-primary", user_id=student.id),
+        LTIUserLink(platform_id=platform.id, lti_subject="learner-alias", user_id=student.id),
+    ])
+    db_session.flush()
+
+    token = _lti_session(
+        db_session, student, platform, "alias-resource", lti_subject="learner-alias"
+    )
+    submitted = client.post(
+        f"/assignments/{assignment_id}/submit",
+        json={"written_answer": "subject identity binding"},
+        headers=auth(token),
+    )
+    assert submitted.status_code == 200, submitted.text
+    submission_id = submitted.json()["id"]
+    submission = db_session.get(AssignmentSubmission, submission_id)
+    assert submission.lti_assignment_link_id == mapping.id
+    assert submission.lti_subject == "learner-alias"
+
+    graded = client.post(
+        f"/assignments/{assignment_id}/submissions/{submission_id}/grade",
+        json={"grade_percentage": 88, "feedback": "Correct identity"},
+        headers=auth(teacher_token),
+    )
+    assert graded.status_code == 200, graded.text
+    event = db_session.query(LTIAGSGradeEvent).filter_by(submission_id=submission_id).one()
+    assert event.lti_subject == "learner-alias"
