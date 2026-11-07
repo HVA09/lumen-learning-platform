@@ -342,6 +342,7 @@ async def lti_launch(
             lti_platform_id=platform.id,
             lti_deployment_id=deployment_id if isinstance(deployment_id, str) else None,
             lti_resource_link_id=resource_link_id if isinstance(resource_link_id, str) else None,
+            lti_subject=lti_subject,
             expires_at=now + timedelta(seconds=LTI_AUTH_CODE_TTL_SECONDS),
         )
     )
@@ -397,6 +398,7 @@ def exchange_lti_code(
     auth_session.lti_platform_id = auth_code.lti_platform_id
     auth_session.lti_deployment_id = auth_code.lti_deployment_id
     auth_session.lti_resource_link_id = auth_code.lti_resource_link_id
+    auth_session.lti_subject = auth_code.lti_subject
     db.commit()
     csrf_token = create_csrf_token()
     set_auth_cookies(response, access_token, refresh_token, csrf_token)
