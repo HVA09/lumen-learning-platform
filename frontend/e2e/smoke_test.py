@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import json
 import math
 import os
 import re
 import sys
 import uuid
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from playwright.sync_api import Error, expect, sync_playwright
 
@@ -249,6 +251,167 @@ def _exercise_notifications_websocket_network_recovery(browser) -> None:
         context.close()
 
 
+def _exercise_python_sandbox_isolation(browser) -> None:
+    """Verify the Python iframe has an opaque origin and cannot reach app storage/API."""
+    context = browser.new_context(viewport={"width": 390, "height": 844})
+    page = context.new_page()
+    try:
+        response = page.goto(BASE_URL, wait_until="domcontentloaded")
+        assert response is not None and response.ok, (
+            f"Frontend did not load successfully: {response.status if response else 'no response'}"
+        )
+        context.add_cookies(
+            [
+                {
+                    "name": "lumen_e2e_parent_marker",
+                    "value": "parent-cookie-secret",
+                    "url": BASE_URL,
+                    "httpOnly": False,
+                    "sameSite": "Lax",
+                }
+            ]
+        )
+        page.evaluate(
+            "localStorage.setItem('lumen_e2e_parent_marker', 'parent-storage-secret')"
+        )
+
+        page.evaluate(
+            """() => new Promise((resolve, reject) => {
+              const frame = document.createElement("iframe");
+              frame.id = "lumen-python-isolation-e2e";
+              frame.setAttribute("sandbox", "allow-scripts");
+              frame.referrerPolicy = "origin";
+              const timeout = window.setTimeout(
+                () => reject(new Error("Python sandbox did not send its ready message")),
+                30_000
+              );
+              const onMessage = (event) => {
+                if (
+                  event.source !== frame.contentWindow ||
+                  event.origin !== "null" ||
+                  event.data?.channel !== "lumen-python-sandbox" ||
+                  event.data?.type !== "ready"
+                ) {
+                  return;
+                }
+                window.removeEventListener("message", onMessage);
+                window.clearTimeout(timeout);
+                resolve(true);
+              };
+              window.addEventListener("message", onMessage);
+              frame.src = "/python-sandbox.html?e2e=origin-isolation";
+              document.body.appendChild(frame);
+            })"""
+        )
+
+        frame = page.frame_locator("#lumen-python-isolation-e2e")
+        parent_frame_access = page.locator("#lumen-python-isolation-e2e").evaluate(
+            """(element) => {
+              try {
+                return element.contentDocument === null ? "blocked" : "accessible";
+              } catch {
+                return "blocked";
+              }
+            }"""
+        )
+        assert parent_frame_access == "blocked", (
+            "The parent page must not receive a same-origin Document for the sandbox frame"
+        )
+
+        api_probe_url = f"{API_URL}/health"
+        python_code = f"""import js
+# This fetch runs from the actual Pyodide Blob Worker, not the iframe document.
+# A CORS/network rejection alone is not accepted; the Worker must report an
+# enforced connect-src CSP violation for this exact API origin.
+js.fetch({json.dumps(api_probe_url)})
+print("worker-api-fetch-attempted")
+try:
+    _ = js.document.documentElement
+    print("worker-document:accessible")
+except Exception:
+    print("worker-document:blocked")
+try:
+    _ = js.localStorage.getItem("lumen_e2e_parent_marker")
+    print("worker-storage:accessible")
+except Exception:
+    print("worker-storage:blocked")
+try:
+    _ = js.self.parent.document.documentElement
+    print("parent-document:accessible")
+except Exception:
+    print("parent-document:blocked")
+"""
+        page.set_default_timeout(130_000)
+        result = page.evaluate(
+            """({frameId, code}) => new Promise((resolve, reject) => {
+              const frame = document.getElementById(frameId);
+              const requestId = "python-isolation-e2e";
+              const timeout = window.setTimeout(
+                () => reject(new Error("Isolated Python runtime did not finish in time")),
+                120_000
+              );
+              const onMessage = (event) => {
+                if (
+                  event.source !== frame.contentWindow ||
+                  event.origin !== "null" ||
+                  event.data?.channel !== "lumen-python-sandbox" ||
+                  event.data?.requestId !== requestId
+                ) {
+                  return;
+                }
+                if (event.data.type === "complete") {
+                  window.removeEventListener("message", onMessage);
+                  window.clearTimeout(timeout);
+                  resolve({
+                    output: event.data.output,
+                    cspViolations: event.data.cspViolations || [],
+                  });
+                } else if (event.data.type === "error") {
+                  window.removeEventListener("message", onMessage);
+                  window.clearTimeout(timeout);
+                  reject(new Error(event.data.error || "Python runtime failed"));
+                }
+              };
+              window.addEventListener("message", onMessage);
+              frame.contentWindow.postMessage(
+                { channel: "lumen-python-sandbox", type: "run", requestId, code },
+                "*"
+              );
+            })""",
+            {"frameId": "lumen-python-isolation-e2e", "code": python_code},
+        )
+        output = result["output"]
+        csp_violations = result["cspViolations"]
+        expected_api_origin = urlsplit(api_probe_url)
+        worker_api_csp_violations = []
+        for violation in csp_violations:
+            blocked_uri = violation.get("blockedURI", "")
+            blocked_origin = urlsplit(blocked_uri)
+            if (
+                violation.get("directive") == "connect-src"
+                and violation.get("disposition") == "enforce"
+                and (blocked_origin.scheme, blocked_origin.netloc)
+                == (expected_api_origin.scheme, expected_api_origin.netloc)
+            ):
+                worker_api_csp_violations.append(violation)
+
+        assert "worker-api-fetch-attempted" in output, output
+        assert worker_api_csp_violations, (
+            "The Pyodide Worker must report an enforced connect-src CSP violation "
+            f"for {api_probe_url}; observed violations: {csp_violations!r}"
+        )
+        assert "worker-document:blocked" in output, output
+        assert "worker-storage:blocked" in output, output
+        assert "parent-document:blocked" in output, output
+        print(
+            "Python sandbox isolation passed: opaque origin confirmed, Worker DOM/storage "
+            "blocked, parent cookie hidden, and an actual Pyodide Worker API fetch was "
+            "blocked by an enforced connect-src CSP violation."
+        )
+    finally:
+        context.close()
+
+
 def _promote_e2e_user(email: str, role: str) -> None:
     """Assign a role only inside the disposable local lumen_e2e CI database."""
     from sqlalchemy.engine import make_url
@@ -387,6 +550,7 @@ def run_smoke_test() -> None:
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
         try:
+            _exercise_python_sandbox_isolation(browser)
             _exercise_session_bootstrap_network_recovery(browser)
             _exercise_notifications_websocket_network_recovery(browser)
         except Exception:
