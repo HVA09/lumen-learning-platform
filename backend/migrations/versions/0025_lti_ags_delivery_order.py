@@ -17,7 +17,7 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     op.add_column(
         "lti_ags_grade_events",
-        sa.Column("score_timestamp", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=True),
+        sa.Column("score_timestamp", sa.DateTime(timezone=True), nullable=True),
     )
     op.execute(
         "UPDATE lti_ags_grade_events "
@@ -29,6 +29,7 @@ def upgrade() -> None:
         "score_timestamp",
         existing_type=sa.DateTime(timezone=True),
         nullable=False,
+        server_default=sa.func.now(),
     )
     op.drop_constraint(
         "ck_lti_ags_grade_event_status",
