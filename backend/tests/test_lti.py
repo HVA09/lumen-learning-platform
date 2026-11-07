@@ -13,7 +13,7 @@ from jose import jwt
 from app.models.user import UserRole
 from tests.quiz_helpers import set_role
 from app.services import lti_service as lti_service_module
-from app.services.lti_service import long_to_base64url
+from app.services.lti_service import hash_opaque_token, long_to_base64url
 
 
 def _generate_fake_platform_keypair():
@@ -35,6 +35,11 @@ def _register_admin(
     if make_admin:
         set_role(db_session, email, UserRole.admin)
     return login_response.cookies.get("lumen_access")
+
+
+def _state_cookie(state: str) -> dict[str, str]:
+    state_hash = hash_opaque_token(state)
+    return {f"lti_state_{state_hash}": state_hash}
 
 
 def _register_platform(client, admin_token):
@@ -103,6 +108,36 @@ def test_login_redirects_to_platform_auth_endpoint(client, db_session):
     assert "nonce=" in response.headers["location"]
     assert response.headers["cache-control"] == "no-store"
     assert response.headers["referrer-policy"] == "no-referrer"
+    state_cookie = response.headers.get("set-cookie", "").lower()
+    assert "httponly" in state_cookie
+    assert "secure" in state_cookie
+    assert "samesite=none" in state_cookie
+    assert "partitioned" in state_cookie
+
+
+def test_launch_rejects_state_without_initiating_browser_cookie(client, db_session):
+    admin_token = _register_admin(client, db_session, "state-cookie@example.com")
+    platform_data = _register_platform(client, admin_token)
+    login_response = client.get(
+        "/lti/login",
+        params={
+            "iss": platform_data["issuer"],
+            "login_hint": "student-cookie",
+            "target_link_uri": "https://mylumen.example.com/lti/launch",
+            "client_id": platform_data["client_id"],
+        },
+        follow_redirects=False,
+    )
+    from urllib.parse import parse_qs, urlparse
+    state = parse_qs(urlparse(login_response.headers["location"]).query)["state"][0]
+
+    response = client.post(
+        "/lti/launch",
+        data={"id_token": "not-used-without-the-state-cookie", "state": state},
+        cookies={"unrelated": "value"},
+    )
+    assert response.status_code == 400
+    assert "state" in response.json()["detail"].lower()
 
 
 def test_full_launch_flow_creates_user_and_issues_tokens(client, db_session, monkeypatch):
@@ -155,7 +190,8 @@ def test_full_launch_flow_creates_user_and_issues_tokens(client, db_session, mon
 
     # 3) نستدعي /lti/launch فعليًا — هذا يتحقق من التوقيع الحقيقي
     launch_response = client.post(
-        "/lti/launch", data={"id_token": id_token, "state": state}, follow_redirects=False
+        "/lti/launch", data={"id_token": id_token, "state": state},
+        cookies=_state_cookie(state), follow_redirects=False
     )
     assert launch_response.status_code == 302
     location = launch_response.headers["location"]
@@ -181,7 +217,8 @@ def test_full_launch_flow_creates_user_and_issues_tokens(client, db_session, mon
 
     # وحالة OIDC نفسها لا يمكن استعمالها مجددًا.
     replay_state = client.post(
-        "/lti/launch", data={"id_token": id_token, "state": state}, follow_redirects=False
+        "/lti/launch", data={"id_token": id_token, "state": state},
+        cookies=_state_cookie(state), follow_redirects=False
     )
     assert replay_state.status_code == 400
 
@@ -221,7 +258,10 @@ def test_launch_rejects_invalid_signature(client, db_session, monkeypatch):
 
     monkeypatch.setattr(lti_service_module, "fetch_platform_public_key", fake_fetch_key)
 
-    response = client.post("/lti/launch", data={"id_token": bad_token, "state": state})
+    response = client.post(
+        "/lti/launch", data={"id_token": bad_token, "state": state},
+        cookies=_state_cookie(state),
+    )
     assert response.status_code == 401
 
 
@@ -311,7 +351,10 @@ def test_launch_rejects_signed_target_link_uri_mismatch(client, db_session, monk
         return platform_jwk
 
     monkeypatch.setattr(lti_service_module, "fetch_platform_public_key", fake_fetch_key)
-    response = client.post("/lti/launch", data={"id_token": id_token, "state": state})
+    response = client.post(
+        "/lti/launch", data={"id_token": id_token, "state": state},
+        cookies=_state_cookie(state),
+    )
     assert response.status_code == 401
 
 
@@ -369,7 +412,8 @@ def test_launch_rejects_unsupported_lti_message_and_missing_azp(client, db_sessi
         wrong_type, pem, algorithm="RS256", headers={"kid": "platform-key-1"}
     )
     assert client.post(
-        "/lti/launch", data={"id_token": wrong_type_token, "state": state}
+        "/lti/launch", data={"id_token": wrong_type_token, "state": state},
+        cookies=_state_cookie(state),
     ).status_code == 401
 
     multiple_audiences = {
@@ -380,7 +424,8 @@ def test_launch_rejects_unsupported_lti_message_and_missing_azp(client, db_sessi
         multiple_audiences, pem, algorithm="RS256", headers={"kid": "platform-key-1"}
     )
     assert client.post(
-        "/lti/launch", data={"id_token": multiple_audience_token, "state": state}
+        "/lti/launch", data={"id_token": multiple_audience_token, "state": state},
+        cookies=_state_cookie(state),
     ).status_code == 401
 
     missing_resource_id = {
@@ -391,7 +436,8 @@ def test_launch_rejects_unsupported_lti_message_and_missing_azp(client, db_sessi
         missing_resource_id, pem, algorithm="RS256", headers={"kid": "platform-key-1"}
     )
     assert client.post(
-        "/lti/launch", data={"id_token": missing_resource_token, "state": state}
+        "/lti/launch", data={"id_token": missing_resource_token, "state": state},
+        cookies=_state_cookie(state),
     ).status_code == 401
 
     # The same OIDC state remains available after rejected tokens and accepts
@@ -400,7 +446,8 @@ def test_launch_rejects_unsupported_lti_message_and_missing_azp(client, db_sessi
         valid_claims, pem, algorithm="RS256", headers={"kid": "platform-key-1"}
     )
     accepted = client.post(
-        "/lti/launch", data={"id_token": valid_token, "state": state}, follow_redirects=False
+        "/lti/launch", data={"id_token": valid_token, "state": state},
+        cookies=_state_cookie(state), follow_redirects=False
     )
     assert accepted.status_code == 302
 
