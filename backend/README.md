@@ -250,7 +250,7 @@ alembic upgrade head
 
 ## النشر: HTTPS، النسخ الاحتياطي، والمراقبة
 
-**حالة Nginx وWebSocket:** يمرّر Nginx مسار `/ws/notifications` الآن عبر إعداد WebSocket مخصص في `nginx/snippets/lumen-locations.conf`: HTTP/1.1، ترويسات Upgrade/Connection، وتعطيل buffering، ومهلة خمول تصل إلى ساعة. الإعداد المشترك نفسه يُضمَّن في خادمي HTTP وHTTPS، حتى لا تختلف سلوكيات REST وWebSocket عند تفعيل TLS. الواجهة تعيد الاتصال تلقائيًا بعد إغلاق socket. يختبر CI صياغة Nginx عبر `nginx -t`، كما يشغّل Browser E2E حاوية Nginx فعلية ويتحقق من فتح WebSocket موثّق وإعادة اتصاله عبر الوكيل العكسي؛ بقية طلبات REST في اختبار المتصفح تظل متصلة مباشرة بخادم FastAPI.
+**حالة Nginx وWebSocket:** يمرّر Nginx مسار `/ws/notifications` الآن عبر إعداد WebSocket مخصص في `nginx/snippets/lumen-locations.conf`: HTTP/1.1، ترويسات Upgrade/Connection، وتعطيل buffering، ومهلة خمول تصل إلى ساعة. الإعداد المشترك نفسه يُضمَّن في خادمي HTTP وHTTPS، حتى لا تختلف سلوكيات REST وWebSocket عند تفعيل TLS. الواجهة تعيد الاتصال تلقائيًا بعد إغلاق socket. يختبر CI صياغة Nginx عبر `nginx -t`، كما يوجّه Browser E2E حركة المتصفح (REST وWebSocket الموثّق وإعادة اتصاله) عبر حاوية Nginx فعلية. يستخدم إعداد CI المؤقت حدود معدل أوسع لتجنب حجب سيناريوهات الاختبار متعددة المستخدمين؛ ملف إعداد الإنتاج الأصلي وحدود المعدل فيه لا تتغير. يثبت هذا اختبار الوكيل عبر HTTP المحلي في CI، ولا يغني عن التحقق من TLS/WSS على خادم حقيقي.
 
 **تنبيه قبل الإنتاج:** إعداد Nginx الافتراضي يشغّل HTTP على المنفذ 80 فقط. كتلة HTTPS على المنفذ 443 والتحويل من HTTP إلى HTTPS تظل معطّلة عمدًا إلى أن يتوفر دومين حقيقي وتصدر شهادة صالحة. نشر المنفذ 443 في Docker لا يفعّل TLS. لا تستقبل مستخدمين حقيقيين عبر HTTP؛ فعّل خادم TLS بعد إصدار الشهادة، أو استخدم proxy/load balancer موثوقًا ينهي TLS أمام التطبيق.
 
