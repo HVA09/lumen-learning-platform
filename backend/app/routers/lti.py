@@ -499,7 +499,7 @@ def retry_grade_event(event_id: int, _=Depends(require_admin), db: Session = Dep
         db.refresh(event)
         return event
     event.status = "pending"
-    event.attempts = 0
+    # Keep the lifetime attempt count so each manual retry advances the AGS timestamp.
     event.last_error = None
     event.locked_until = None
     event.next_attempt_at = datetime.now(timezone.utc)
