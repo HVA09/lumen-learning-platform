@@ -7,14 +7,14 @@
 - صفحة التطبيق تضمّن `/python-sandbox.html` داخل iframe بقيمة `sandbox="allow-scripts"` فقط. لا تضف `allow-same-origin` أو `allow-forms` أو صلاحيات أعلى.
 - نتيجة ذلك أن المستند المضمّن يعمل بأصل opaque (`event.origin === "null")، ولا يستطيع قراءة DOM الصفحة الأم أو تخزينها.
 - صفحة المختبر تفرض CSP افتراضية `default-src 'none'`. يُسمح بتحميل Pyodide وملفاته من `cdn.jsdelivr.net` فقط، ويُسمح بإنشاء عامل Blob مخصص عبر `worker-src blob:`. لا يُسمح باتصالات إلى API أو بقية الأصول.
-- يعمل Pyodide داخل Web Worker أنشئه إطار opaque؛ لا يملك العامل DOM أو `localStorage` أو Cookie API للصفحة. الوحدة `js` تشير إلى بيئة العامل، لا إلى صفحة Lumen.
+- يعمل Pyodide داخل Web Worker أنشئه إطار opaque؛ لا يملك العامل DOM أو `localStorage` أو Cookie API للصفحة. الوحدة `js` تشير إلى بيئة العامل، لا إلى صفحة Lumen. لأن العامل يُنشأ من Blob URL، فإنه يرث سياسة CSP الخاصة بالمستند المنشئ؛ وتُقيّد `connect-src` طلبات `fetch` الصادرة من العامل إلى CDN المسموح فقط.
 - رسائل التنفيذ تتحقق من مصدرها وأصلها وقناتها ومعرّف الطلب. لا تُرسل أسرار أو رموز جلسات أو كائنات تطبيق إلى الإطار أو العامل، ولا يُقبل من العامل إلا حالات محددة ونص إخراج محدود.
 - يقتصر الكود على 20,000 حرف، والإخراج على 20,000 حرف. مهلة تجهيز البيئة 45 ثانية ومهلة تنفيذ الكود 8 ثوانٍ. الإلغاء أو انتهاء المهلة يعيد تحميل iframe، فينتهي العامل وتُزال حالة المفسّر.
 
 ## الاختبارات
 
 - اختبارات Vitest تتحقق من قيمة sandbox، وسياسة referrer، ومصدر رسائل iframe وأصلها، وتدفق النتيجة والخطأ والإلغاء والمهلة.
-- اختبار Playwright حقيقي يتحقق من الأصل opaque، ومنع الوصول إلى DOM والتخزين من العامل، ومنع fetch إلى API بواسطة CSP، وينفّذ تمرين Python فعليًا بواسطة Pyodide.
+- اختبار Playwright حقيقي ينفّذ Pyodide داخل عامل Blob الفعلي، ويتحقق من الأصل opaque ومنع الوصول إلى DOM والتخزين، ويُجري `fetch` إلى API من داخل العامل. لا يُحتسب رفض Promise وحده نجاحًا؛ يجب أن يصل حدث `securitypolicyviolation` من `WorkerGlobalScope` مع `effectiveDirective=connect-src` و`disposition=enforce` وأصل URI المحظور المطابق لعنوان API. بهذا لا يكفي فشل CORS أو انقطاع الشبكة لاجتياز الاختبار.
 
 ## القيود المتبقية
 
@@ -31,3 +31,6 @@
 - [Pyodide 0.26.4 — Web Workers](https://pyodide.org/en/0.26.4/usage/webworker.html)
 - [Pyodide 0.26.4 — Changelog](https://pyodide.org/en/0.26.4/project/changelog.html)
 - [GitHub Issue #134](https://github.com/HVA09/lumen-learning-platform/issues/134)
+
+- [MDN — CSP in workers and Blob URL inheritance](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy#csp_in_workers)
+- [MDN — WorkerGlobalScope securitypolicyviolation event](https://developer.mozilla.org/en-US/docs/Web/API/WorkerGlobalScope/securitypolicyviolation_event)
