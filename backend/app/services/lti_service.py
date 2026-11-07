@@ -19,6 +19,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from cryptography.hazmat.primitives import serialization
 from jose import jwk, jwt
 
@@ -385,7 +386,9 @@ def record_lti_ags_launch_context(db, platform, claims: dict) -> bool:
 
     now = datetime.now(timezone.utc)
     table = LTIResourceLinkDiscovery.__table__
-    stmt = pg_insert(table).values(
+    dialect = db.get_bind().dialect.name
+    insert_fn = sqlite_insert if dialect == "sqlite" else pg_insert
+    stmt = insert_fn(table).values(
         platform_id=platform.id,
         deployment_id=platform.deployment_id,
         resource_link_id=resource_id,
