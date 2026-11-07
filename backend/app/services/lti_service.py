@@ -436,6 +436,23 @@ def create_lti_ags_grade_event(db, assignment, submission) -> int | None:
         return None
     score_maximum = float(mapping.score_maximum)
     score_given = (float(submission.grade_percentage or 0) / 100.0) * score_maximum
+    previous_score_timestamp = (
+        db.query(LTIAGSGradeEvent.score_timestamp)
+        .filter(
+            LTIAGSGradeEvent.assignment_link_id == mapping.id,
+            LTIAGSGradeEvent.submission_id == submission.id,
+        )
+        .order_by(LTIAGSGradeEvent.grade_version.desc())
+        .limit(1)
+        .scalar()
+    )
+    score_timestamp = _as_utc(submission.graded_at) or datetime.now(timezone.utc)
+    if previous_score_timestamp is not None:
+        previous_score_timestamp = _as_utc(previous_score_timestamp)
+        score_timestamp = max(
+            score_timestamp,
+            previous_score_timestamp + timedelta(microseconds=1),
+        )
     event = LTIAGSGradeEvent(
         assignment_link_id=mapping.id,
         submission_id=submission.id,
@@ -447,7 +464,7 @@ def create_lti_ags_grade_event(db, assignment, submission) -> int | None:
         status="pending",
         attempts=0,
         next_attempt_at=datetime.now(timezone.utc),
-        score_timestamp=submission.graded_at or datetime.now(timezone.utc),
+        score_timestamp=score_timestamp,
     )
     db.add(event)
     db.flush()
@@ -581,16 +598,11 @@ async def dispatch_lti_grade_event(db, event_id: int) -> bool:
         db.commit()
         return False
 
-    # Every delivery attempt, including a manual retry, must reserve a fresh
-    # timestamp. Keep it ahead of both the previous attempt and latest grade.
-    prior_score_timestamp = _as_utc(event.score_timestamp or event.created_at)
-    submission_timestamp = _as_utc(submission.graded_at)
-    baseline = max(
-        value for value in (prior_score_timestamp, submission_timestamp)
-        if value is not None
-    )
-    score_timestamp = max(now, baseline + timedelta(microseconds=1))
-    submission.graded_at = score_timestamp
+    # Preserve the grade timestamp on first delivery. Every subsequent
+    # attempt (including a manual retry) reserves a new, strictly later AGS time.
+    score_timestamp = _as_utc(event.score_timestamp or event.created_at)
+    if event.attempts > 0:
+        score_timestamp = max(now, score_timestamp + timedelta(microseconds=1))
     event.score_timestamp = score_timestamp
     event.locked_until = now + timedelta(minutes=3)
     event.attempts += 1
