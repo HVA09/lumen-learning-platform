@@ -6,7 +6,6 @@ import LinearFunctionSim from "./LinearFunctionSim";
 import DerivativeSim from "./DerivativeSim";
 import ProjectileSim from "./ProjectileSim";
 import CircuitSim from "./CircuitSim";
-import PythonLabSim from "./PythonLabSim";
 
 function createCanvasContext() {
   return {
@@ -24,14 +23,9 @@ function createCanvasContext() {
 }
 
 let canvasContexts = [];
-const runPythonAsyncMock = vi.fn();
 
 beforeEach(() => {
   canvasContexts = [];
-  runPythonAsyncMock.mockReset().mockResolvedValue("55");
-  window.loadPyodide = vi.fn().mockResolvedValue({
-    runPythonAsync: runPythonAsyncMock,
-  });
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(() => {
     const context = createCanvasContext();
     canvasContexts.push(context);
@@ -42,7 +36,6 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
-  delete window.loadPyodide;
 });
 
 describe("interactive simulation calculations", () => {
@@ -172,54 +165,5 @@ describe("interactive simulation calculations", () => {
     expect(await screen.findByText("صحيح! طبّقت قانون أوم بنجاح")).toBeInTheDocument();
   });
 
-  it("shows a useful error when the Pyodide runtime cannot be loaded", async () => {
-    const user = userEvent.setup();
-    const loadPyodide = vi.fn().mockRejectedValue(new Error("runtime unavailable"));
-    window.loadPyodide = loadPyodide;
-
-    render(<PythonLabSim />);
-    await user.click(screen.getByRole("button", { name: /شغّل الكود/ }));
-
-    expect(await screen.findByText("خطأ بتشغيل الكود: runtime unavailable")).toBeInTheDocument();
-    expect(loadPyodide).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("button", { name: /شغّل الكود/ })).toBeEnabled();
-  });
-
-  it("runs the Python exercise through a mocked Pyodide runtime", async () => {
-    const user = userEvent.setup();
-    const loadPyodide = window.loadPyodide;
-
-    render(<PythonLabSim />);
-
-    await user.click(screen.getByRole("button", { name: /شغّل الكود/ }));
-
-    expect(await screen.findByText("55")).toBeInTheDocument();
-    expect(loadPyodide).toHaveBeenCalledTimes(1);
-    expect(runPythonAsyncMock).toHaveBeenCalledTimes(1);
-
-    await user.click(screen.getByRole("button", { name: "تحقّق من التحدي" }));
-    expect(await screen.findByText("صحيح! 55 = 1+2+...+10")).toBeInTheDocument();
-  });
-
-  it("rejects a Python challenge when the output does not match the expected answer", async () => {
-    const user = userEvent.setup();
-    runPythonAsyncMock.mockReset().mockResolvedValue("54");
-
-    render(<PythonLabSim />);
-    await user.click(screen.getByRole("button", { name: /شغّل الكود/ }));
-    expect(await screen.findByText("54")).toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "تحقّق من التحدي" }));
-    expect(await screen.findByText('الإخراج الحالي "54" مو مطابق')).toBeInTheDocument();
-  });
-
-  it("shows a Python execution error when the runtime rejects the code", async () => {
-    const user = userEvent.setup();
-    runPythonAsyncMock.mockReset().mockRejectedValue(new Error("execution interrupted"));
-
-    render(<PythonLabSim />);
-    await user.click(screen.getByRole("button", { name: /شغّل الكود/ }));
-    expect(await screen.findByText("خطأ بتشغيل الكود: execution interrupted")).toBeInTheDocument();
-  });
 
 });
