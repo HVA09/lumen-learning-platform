@@ -21,6 +21,7 @@ from app.auth.sessions import create_browser_session
 from app.config import settings
 from app.database import get_db
 from app.dependencies import require_admin
+from app.models.assignment import Assignment
 from app.models.lti import (LTIAuthCode, LTIAuthState, LTIPlatform, LTIUserLink, LTIAssignmentLink, LTIResourceLinkDiscovery, LTIAGSGradeEvent)
 from app.models.user import User
 from app.schemas.lti import (LTIExchangeCodeRequest, LTIPlatformCreate, LTIPlatformOut, LTIAssignmentLinkCreate, LTIAssignmentLinkOut, LTIDiscoveredResourceLinkOut, LTIAGSGradeEventOut)
@@ -400,3 +401,96 @@ def exchange_lti_code(
     csrf_token = create_csrf_token()
     set_auth_cookies(response, access_token, refresh_token, csrf_token)
     return {"authenticated": True, "csrf_token": csrf_token}
+
+
+@router.get("/resource-links", response_model=list[LTIDiscoveredResourceLinkOut])
+def list_discovered_resource_links(_=Depends(require_admin), db: Session = Depends(get_db)):
+    rows = (
+        db.query(LTIResourceLinkDiscovery, LTIAssignmentLink.assignment_id)
+        .outerjoin(
+            LTIAssignmentLink,
+            (LTIAssignmentLink.platform_id == LTIResourceLinkDiscovery.platform_id)
+            & (LTIAssignmentLink.deployment_id == LTIResourceLinkDiscovery.deployment_id)
+            & (LTIAssignmentLink.resource_link_id == LTIResourceLinkDiscovery.resource_link_id),
+        )
+        .order_by(LTIResourceLinkDiscovery.last_seen_at.desc())
+        .limit(200)
+        .all()
+    )
+    return [
+        LTIDiscoveredResourceLinkOut(
+            id=row.id,
+            platform_id=row.platform_id,
+            deployment_id=row.deployment_id,
+            resource_link_id=row.resource_link_id,
+            lineitem_ready=row.lineitem_ready,
+            score_scope_allowed=row.score_scope_allowed,
+            first_seen_at=row.first_seen_at,
+            last_seen_at=row.last_seen_at,
+            mapped_assignment_id=assignment_id,
+        )
+        for row, assignment_id in rows
+    ]
+
+
+@router.post("/assignment-links", response_model=LTIAssignmentLinkOut, status_code=status.HTTP_201_CREATED)
+def register_assignment_link(payload: LTIAssignmentLinkCreate, _=Depends(require_admin), db: Session = Depends(get_db)):
+    platform = db.get(LTIPlatform, payload.platform_id)
+    assignment = db.get(Assignment, payload.assignment_id)
+    if platform is None or assignment is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="المنصة أو الواجب غير موجود")
+    discovery = db.query(LTIResourceLinkDiscovery).filter(
+        LTIResourceLinkDiscovery.platform_id == platform.id,
+        LTIResourceLinkDiscovery.deployment_id == platform.deployment_id,
+        LTIResourceLinkDiscovery.resource_link_id == payload.resource_link_id,
+    ).first()
+    if discovery is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="يجب اكتشاف رابط المورد عبر إطلاق LTI موثّق أولاً")
+    duplicate = db.query(LTIAssignmentLink.id).filter(
+        LTIAssignmentLink.platform_id == platform.id,
+        LTIAssignmentLink.deployment_id == platform.deployment_id,
+        LTIAssignmentLink.resource_link_id == payload.resource_link_id,
+    ).first()
+    if duplicate:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="رابط المورد مربوط مسبقًا")
+    mapping = LTIAssignmentLink(
+        platform_id=platform.id,
+        assignment_id=assignment.id,
+        deployment_id=platform.deployment_id,
+        resource_link_id=payload.resource_link_id,
+        lineitem_url=discovery.lineitem_url,
+        score_scope_allowed=discovery.score_scope_allowed,
+        score_maximum=payload.score_maximum,
+    )
+    db.add(mapping)
+    db.commit()
+    db.refresh(mapping)
+    return mapping
+
+
+@router.get("/assignment-links", response_model=list[LTIAssignmentLinkOut])
+def list_assignment_links(_=Depends(require_admin), db: Session = Depends(get_db)):
+    return db.query(LTIAssignmentLink).order_by(LTIAssignmentLink.id.desc()).all()
+
+
+@router.get("/grade-events", response_model=list[LTIAGSGradeEventOut])
+def list_grade_events(_=Depends(require_admin), db: Session = Depends(get_db)):
+    # Never expose the learner subject, scores, raw lineitem URL or OAuth material here.
+    return db.query(LTIAGSGradeEvent).order_by(LTIAGSGradeEvent.id.desc()).limit(200).all()
+
+
+@router.post("/grade-events/{event_id}/retry", response_model=LTIAGSGradeEventOut)
+def retry_grade_event(event_id: int, _=Depends(require_admin), db: Session = Depends(get_db)):
+    event = db.query(LTIAGSGradeEvent).filter(LTIAGSGradeEvent.id == event_id).with_for_update().first()
+    if event is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="حدث التقييم غير موجود")
+    if event.status != "dead":
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="إعادة المحاولة اليدوية متاحة للأحداث المتوقفة فقط")
+    event.status = "pending"
+    event.attempts = 0
+    event.last_error = None
+    event.locked_until = None
+    event.next_attempt_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(event)
+    return event
