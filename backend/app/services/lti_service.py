@@ -447,6 +447,8 @@ def create_lti_ags_grade_event(db, assignment, submission) -> int | None:
         status="pending",
         attempts=0,
         next_attempt_at=datetime.now(timezone.utc),
+        # Reuse the strictly increasing grade timestamp required by LTI AGS.
+        created_at=submission.graded_at or datetime.now(timezone.utc),
     )
     db.add(event)
     db.flush()
@@ -559,7 +561,7 @@ async def dispatch_lti_grade_event(db, event_id: int) -> bool:
         platform = db.get(LTIPlatform, mapping.platform_id) if mapping else None
         if mapping is None or platform is None or not mapping.lineitem_url or not mapping.score_scope_allowed:
             raise ValueError("AGS mapping is not ready")
-        timestamp = _as_utc(event.created_at).isoformat().replace("+00:00", "Z")
+        timestamp = _as_utc(event.created_at).isoformat(timespec="microseconds").replace("+00:00", "Z")
         score = {
             "userId": event.lti_subject,
             "scoreGiven": event.score_given,

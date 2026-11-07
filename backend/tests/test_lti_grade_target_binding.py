@@ -117,6 +117,7 @@ def test_grade_passback_is_bound_to_exact_resource_link_not_every_mapping(client
     assert [event.grade_version for event in events] == [1, 2]
     assert [event.assignment_link_id for event in events] == [resource_a.id, resource_a.id]
     assert [event.score_given for event in events] == [87.0, 93.0]
+    assert events[1].created_at > events[0].created_at
 
 
 def test_non_lti_submission_never_broadcasts_to_mapped_lms_resources(client, db_session):

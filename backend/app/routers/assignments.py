@@ -2,7 +2,7 @@
 مسارات الواجبات: المعلّم (أو admin) ينشئ الواجب، الطالب يسلّم إجابة مكتوبة، والمعلّم يقيّمها
 يدويًا بنسبة مئوية وملاحظات. الطالب يشوف نتيجته وملاحظات معلّمه، ولا يقدر يعدّل تسليمًا تم تقييمه.
 """
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import func, or_
@@ -351,7 +351,20 @@ def grade_submission(
     submission.grade_percentage = payload.grade_percentage
     submission.feedback = (payload.feedback or "").strip() or None
     submission.graded_by_user_id = teacher.id
-    submission.graded_at = datetime.now(timezone.utc)
+
+    # AGS requires strictly increasing score timestamps for each line-item/user pair.
+    # The submission row is locked above, so this timestamp advances monotonically
+    # even when the application clock has insufficient resolution or moves backwards.
+    graded_at = datetime.now(timezone.utc)
+    previous_graded_at = submission.graded_at
+    if previous_graded_at is not None:
+        if previous_graded_at.tzinfo is None:
+            previous_graded_at = previous_graded_at.replace(tzinfo=timezone.utc)
+        else:
+            previous_graded_at = previous_graded_at.astimezone(timezone.utc)
+        if graded_at <= previous_graded_at:
+            graded_at = previous_graded_at + timedelta(microseconds=1)
+    submission.graded_at = graded_at
     submission.status = SubmissionStatus.graded
     submission.grade_version = (submission.grade_version or 0) + 1
     create_lti_ags_grade_event(db, assignment, submission)
