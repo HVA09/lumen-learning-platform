@@ -1,11 +1,11 @@
 # خريطة طلبات الدمج ومسارات التكامل — Lumen
 
-آخر تحقق: **2026-11-06**.
+آخر تحقق: **2026-11-07**.
 المرجع: المستودع `HVA09/lumen-learning-platform`، والفرع الأساسي `main`.
 
 ## 1. الحالة الحالية
 
-- HEAD الحالي لـ `main`: `1f76de769a224fb01c5ac66e9bccede331650dac` بعد PR #141؛ PR CI [#42265153710](https://github.com/HVA09/lumen-learning-platform/actions/runs/42265153710) وmain CI بعد الدمج [#42265976307](https://github.com/HVA09/lumen-learning-platform/actions/runs/42265976307) نجحا 4/4.
+- HEAD الحالي لـ `main`: `362aac61f3df486027eef014d3f6bc577cc2aa3d` بعد دمج PR #145 ثم #147 ثم #146؛ سجل الدمج التفصيلي وCI في القسم 8. تشغيل main CI بعد #146 [#42405775181](https://github.com/HVA09/lumen-learning-platform/actions/runs/42405775181) كان قيد التنفيذ عند آخر تحقق.
 - لا نعدّ أي PR مدمجًا إلا بعد التحقق من حالة GitHub والـ merge commit.
 - [CI #41745646366](https://github.com/HVA09/lumen-learning-platform/actions/runs/41745646366) نجح بالكامل على `main` بعد PR #46.
 - [CI #41754238271](https://github.com/HVA09/lumen-learning-platform/actions/runs/41754238271) نجح بالكامل على `main` بعد PR #49.
