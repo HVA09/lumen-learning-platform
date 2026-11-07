@@ -135,12 +135,28 @@ function getWorker() {
 
     if (typeof message.requestId !== "string" || message.requestId !== activeRequestId) return;
     if (message.type === "status") {
-      sendToParent(message);
+      if (!["loading", "running"].includes(message.status)) return;
+      sendToParent({ type: "status", requestId: activeRequestId, status: message.status });
       return;
     }
-    if (message.type === "complete" || message.type === "error") {
+    if (message.type === "complete") {
       activeRequestId = null;
-      sendToParent(message);
+      sendToParent({
+        type: "complete",
+        requestId: message.requestId,
+        output: typeof message.output === "string"
+          ? message.output.slice(0, MAX_OUTPUT_LENGTH)
+          : "",
+      });
+      return;
+    }
+    if (message.type === "error") {
+      activeRequestId = null;
+      sendToParent({
+        type: "error",
+        requestId: message.requestId,
+        error: String(message.error || "تعذر تشغيل Python").slice(0, 1000),
+      });
     }
   });
 
