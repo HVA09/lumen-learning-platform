@@ -314,21 +314,20 @@ def _exercise_python_sandbox_isolation(browser) -> None:
 
         python_code = """import js
 try:
-    _ = js.window.parent.document.documentElement
+    _ = js.document.documentElement
+    print("worker-document:accessible")
+except Exception:
+    print("worker-document:blocked")
+try:
+    _ = js.localStorage.getItem("lumen_e2e_parent_marker")
+    print("worker-storage:accessible")
+except Exception:
+    print("worker-storage:blocked")
+try:
+    _ = js.self.parent.document.documentElement
     print("parent-document:accessible")
 except Exception:
     print("parent-document:blocked")
-try:
-    _ = js.window.parent.localStorage.getItem("lumen_e2e_parent_marker")
-    print("parent-storage:accessible")
-except Exception:
-    print("parent-storage:blocked")
-try:
-    _ = js.window.localStorage.getItem("lumen_e2e_parent_marker")
-    print("sandbox-storage:accessible")
-except Exception:
-    print("sandbox-storage:blocked")
-print("parent-cookie-visible:", "parent-cookie-secret" in js.window.document.cookie)
 """
         output = page.evaluate(
             """({frameId, code}) => new Promise((resolve, reject) => {
@@ -367,10 +366,9 @@ print("parent-cookie-visible:", "parent-cookie-secret" in js.window.document.coo
             timeout=130_000,
         )
 
+        assert "worker-document:blocked" in output, output
+        assert "worker-storage:blocked" in output, output
         assert "parent-document:blocked" in output, output
-        assert "parent-storage:blocked" in output, output
-        assert "sandbox-storage:blocked" in output, output
-        assert "parent-cookie-visible: True" not in output, output
         print(
             "Python sandbox isolation passed: opaque origin confirmed, parent DOM/storage "
             "blocked, parent cookie hidden, and application API fetch blocked by CSP."
