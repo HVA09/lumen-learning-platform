@@ -55,7 +55,7 @@ class AssignmentSubmission(Base):
     grade_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
     # Set only when this submission is made in a verified matching LTI launch session.
     lti_assignment_link_id: Mapped[int | None] = mapped_column(
-        ForeignKey("lti_assignment_links.id", ondelete="SET NULL"), nullable=True
+        ForeignKey("lti_assignment_links.id", ondelete="SET NULL"), nullable=True, index=True
     )
     feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
     graded_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
