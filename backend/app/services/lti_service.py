@@ -581,18 +581,16 @@ async def dispatch_lti_grade_event(db, event_id: int) -> bool:
         db.commit()
         return False
 
-    # The first attempt uses the original grade timestamp. Every retry reserves
-    # a fresh timestamp greater than the previous attempt and latest grade.
-    score_timestamp = _as_utc(event.score_timestamp or event.created_at)
-    if event.attempts > 0:
-        submission_timestamp = _as_utc(submission.graded_at)
-        baseline = max(
-            value for value in (score_timestamp, submission_timestamp)
-            if value is not None
-        )
-        score_timestamp = max(now, baseline + timedelta(microseconds=1))
-        submission.graded_at = score_timestamp
-
+    # Every delivery attempt, including a manual retry, must reserve a fresh
+    # timestamp. Keep it ahead of both the previous attempt and latest grade.
+    prior_score_timestamp = _as_utc(event.score_timestamp or event.created_at)
+    submission_timestamp = _as_utc(submission.graded_at)
+    baseline = max(
+        value for value in (prior_score_timestamp, submission_timestamp)
+        if value is not None
+    )
+    score_timestamp = max(now, baseline + timedelta(microseconds=1))
+    submission.graded_at = score_timestamp
     event.score_timestamp = score_timestamp
     event.locked_until = now + timedelta(minutes=3)
     event.attempts += 1
