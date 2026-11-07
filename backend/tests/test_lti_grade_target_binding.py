@@ -257,8 +257,8 @@ def test_ags_retry_reserves_a_new_timestamp_for_each_delivery_attempt(client, db
 
     event = db_session.get(LTIAGSGradeEvent, event.id)
     assert event.status == "pending"
-    # Simulate the admin retry endpoint resetting the retry counter.
-    event.attempts = 0
+    # Manual retries preserve the lifetime counter so a fresh timestamp is reserved.
+    graded_at = db_session.get(AssignmentSubmission, submission.id).graded_at
     event.next_attempt_at = datetime.now(timezone.utc) - timedelta(seconds=1)
     db_session.commit()
 
@@ -272,6 +272,8 @@ def test_ags_retry_reserves_a_new_timestamp_for_each_delivery_attempt(client, db
     event = db_session.get(LTIAGSGradeEvent, event.id)
     assert event.status == "sent"
     assert event.attempts == 2
+    db_session.refresh(submission)
+    assert submission.graded_at == graded_at
 
 
 def test_older_pending_grade_event_is_superseded_before_delivery(client, db_session, monkeypatch):
