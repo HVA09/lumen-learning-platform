@@ -245,3 +245,25 @@
 5. P7 غير جاهزة: لا يوجد نشر إنتاجي مثبت. ما زالت بوابات الاستضافة المجانية بلا بطاقة، HTTPS، SMTP حي، كفاية موارد ClamAV، الأسرار خارج Git، ووجهة نسخ احتياطي خارجية مع اختبار استعادة فعلية.
 
 - لا تغيير API/DB/migrations أو اعتماديات runtime في PRs #129/#133/#136/#137/#140/#141. الميزانية صفر؛ لا موارد مدفوعة أو دفع إلكتروني، ولا تجاوز لحماية GitHub.
+
+
+## تحقق استمرارية 2026-11-07 — دمج PRs #145 و#147 و#146
+
+هذا الملحق أحدث من نقاط الاستئناف المؤرخة 2026-11-06 أدناه. يعتمد على حالة GitHub وActions التي تم التحقق منها بعد الدمج، ولا يساوي نجاح CI إثبات نشر إنتاجي.
+
+- رأس `main` الحالي: `362aac61f3df486027eef014d3f6bc577cc2aa3d`، وهو merge commit لطلب #146. الفرع الافتراضي `main` محمي.
+- PR [#145](https://github.com/HVA09/lumen-learning-platform/pull/145) مدمج عند `11969f183d18d33028bc37ec53e7ecbf4ee4e11f`؛ أضاف تغطية اختبارية للمسارات المؤجلة ولوحات الميزات والتوست والإنجازات في `App.test.jsx` دون تغيير runtime أو API أو قاعدة البيانات. PR CI [#42295018064](https://github.com/HVA09/lumen-learning-platform/actions/runs/42295018064) نجح 4/4، وmain CI بعد الدمج [#42404350575](https://github.com/HVA09/lumen-learning-platform/actions/runs/42404350575) نجح 4/4.
+- PR [#147](https://github.com/HVA09/lumen-learning-platform/pull/147) مدمج عند `d5245af119bc5737fd0e1822b886648013394e14`؛ رأس الفرع النهائي `6918ebf0ffa347057713a7da5620e5e59a429d29`. أضاف Nginx location مشتركة لـ HTTP وخادم HTTPS المستقبلي، ومسار WebSocket صريحًا `/ws/` مع HTTP/1.1 وترويسات Upgrade/Connection وbuffering معطلاً ومهل خمول تصل إلى ساعة. كما وجّه Browser E2E طلبات REST وWebSocket عبر حاوية Nginx فعلية. PR CI النهائي [#42404937903](https://github.com/HVA09/lumen-learning-platform/actions/runs/42404937903) نجح 4/4، وmain CI بعد الدمج [#42405264997](https://github.com/HVA09/lumen-learning-platform/actions/runs/42405264997) نجح 4/4.
+- PR [#146](https://github.com/HVA09/lumen-learning-platform/pull/146) مدمج عند `362aac61f3df486027eef014d3f6bc577cc2aa3d`؛ رأس فرعه `4ea272d941d0a4042fdefb8f8a8c7267db2304b2` مبني على main بعد #145 و#147. نقل تنفيذ Python الذي يكتبه المتعلم إلى iframe ذي opaque origin وعامل Blob Worker، مع CSP تمنع الوصول إلى API. CI على الرأس المحدث [#42405345735](https://github.com/HVA09/lumen-learning-platform/actions/runs/42405345735) نجح 4/4.
+- نتائج CI لطلب #146: Backend **481 passed, 21 warnings، 90% coverage** (4,375 statements، 347 missed، 942 branches، 134 partially covered؛ زمن pytest 182.71 ثانية). Frontend **199 passed عبر 29 ملفًا**، وcoverage report-only: statements **72.46%**، branches **65.82%**، functions **64.56%**، lines **73.15%**. ارتفعت تغطية `App.jsx` إلى 100% statements و97.5% branches و100% functions/lines.
+- Browser E2E في #146 تحقق من opaque origin، ومنع وصول Worker إلى DOM والتخزين، ومنع fetch من Worker إلى API عبر حدث CSP enforced من `connect-src`، وتعافي WebSocket عبر Nginx، والتعافي من انقطاع الشبكة، وتدفقات التسجيل والدروس والاختبارات والملفات وفحص ClamAV.
+- تشغيل main بعد دمج #146 [#42405775181](https://github.com/HVA09/lumen-learning-platform/actions/runs/42405775181) بدأ عند 19:21 UTC وما زال **قيد التنفيذ عند كتابة هذا التحديث**؛ لا تسجل نجاحه قبل اكتماله.
+
+### القيود الأمنية والتشغيلية التي لم تُغلق
+
+1. إعداد HTTPS والتحويل HTTP→HTTPS ما زالا معطلين عمدًا. اختبار CI يثبت Nginx وWebSocket عبر HTTP محليًا فقط؛ يلزم دومين وشهادة ثم اختبار حي لـ HTTPS وWSS على المضيف المستهدف.
+2. مختبر Python يعزل أصل التطبيق وDOM والتخزين واتصال الشبكة العام، لكنه ليس حاوية نظام تشغيل ولا يفرض حدًا صلبًا لذاكرة Web Worker. لا يُستخدم لتشغيل كود عدائي أو ملفات تتطلب وصولًا عامًا للشبكة؛ راجع `docs/PYTHON_LAB_SECURITY.md`.
+3. لا يوجد نشر إنتاجي مثبت. نجاح CI لا يثبت استضافة مجانية عاملة أو كفاية موارد ClamAV على المضيف أو إرسال SMTP فعليًا أو اتصال Moodle/Canvas Sandbox أو وجود مستودع Restic خارجي واستعادة حقيقية منه.
+4. قياس RUM/Core Web Vitals وتجربة هاتف حقيقي على اتصال بطيء ما زالا غير مكتملين. فحص ESLint/TypeScript لم يصبح بوابة CI معتمدة؛ لا تضف threshold للتغطية دون قرار مبني على قياس ومخاطر.
+
+- لا تغيير API أو DB schema أو migrations في PRs #145/#146/#147. لا موارد مدفوعة أو دفع إلكتروني؛ حافظ على ميزانية صفر، وفحوص CI والأمن وحماية الفرع.
