@@ -233,7 +233,9 @@ def test_ags_retry_reserves_a_new_timestamp_for_each_delivery_attempt(client, db
     db_session.add(LTIUserLink(platform_id=platform.id, lti_subject="retry-learner", user_id=student.id))
     db_session.flush()
 
-    access_token = _lti_session(db_session, student, platform, "retry-resource")
+    access_token = _lti_session(
+        db_session, student, platform, "retry-resource", lti_subject="retry-learner"
+    )
     submitted = client.post(
         f"/assignments/{assignment_id}/submit",
         json={"written_answer": "retry test"},
@@ -297,7 +299,9 @@ def test_older_pending_grade_event_is_superseded_before_delivery(client, db_sess
     db_session.add(LTIUserLink(platform_id=platform.id, lti_subject="stale-learner", user_id=student.id))
     db_session.flush()
 
-    access_token = _lti_session(db_session, student, platform, "stale-resource")
+    access_token = _lti_session(
+        db_session, student, platform, "stale-resource", lti_subject="stale-learner"
+    )
     submitted = client.post(
         f"/assignments/{assignment_id}/submit",
         json={"written_answer": "supersede test"},
