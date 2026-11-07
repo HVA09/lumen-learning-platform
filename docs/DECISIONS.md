@@ -605,3 +605,25 @@
 - النطاق: `frontend/src/components/LearningPath.jsx` واختباراته فقط. لا API أو DB أو migrations أو dependencies أو إعدادات إنتاج.
 - الأثر: يصبح المحتوى التعليمي الأساسي متاحًا حتى عند تعطل خدمة gamification الاختيارية. لا يضيف القرار retry أو cache أو Offline API؛ تبقى إعادة المحاولة/التحديث ضمن سلوك الطلبات الحالي.
 - التراجع: إعادة منطق الطلبين إلى النسخة السابقة وحذف الاختبارات المرتبطة؛ لا حاجة إلى migration أو تغيير بيانات.
+
+
+## ADR-045 — تمرير WebSocket الإشعارات عبر Nginx بإعداد مشترك
+
+- التاريخ: 2026-11-07
+- الحالة: **مقترح على PR #147؛ PR مفتوح وغير مدمج وقت التحديث.**
+- السياق: يجب أن يمر REST وWebSocket عبر Nginx مع الحفاظ على Upgrade/Connection headers، وتعطيل buffering، ومهلة مناسبة لاتصال الإشعارات طويل العمر.
+- القرار المقترح: وضع إعدادات المسارات في backend/nginx/snippets/lumen-locations.conf وإدراجه من خادم HTTP وخادم HTTPS المستقبلي؛ تخصيص location ^~ /ws/ مع HTTP/1.1 وترويسات Upgrade/Connection وforwarded headers ومهلة ساعة وتعطيل buffering؛ والتحقق في CI من nginx -t ومن Browser E2E عبر حاوية Nginx.
+- حدود التنفيذ: HTTPS غير مفعّل في هذا PR؛ كتل TLS والتحويل تظل معلّقة حتى وجود دومين وشهادة حقيقية. نجاح Nginx CI يثبت HTTP proxy داخل بيئة CI فقط، ولا يثبت WSS على مضيف الإنتاج.
+- الدليل الحالي: CI #42383718753 نجح 4/4 على b543573616d122eb4c374f92e4d44384697a8c8a.
+- التراجع: إعادة إعداد Nginx إلى المسارات السابقة وإزالة include والمقتطف المشترك واختبارات CI الجديدة. لا يتطلب التراجع migration أو تغيير بيانات.
+
+## ADR-046 — عزل مختبر Python داخل iframe opaque-origin وWeb Worker
+
+- التاريخ: 2026-11-07
+- الحالة: **مطبق على PR #146؛ PR مفتوح وغير مدمج وقت التحديث.**
+- السياق: لا يجب أن يعمل كود الطالب داخل مستند Lumen الموثق أو أن يصل إلى DOM الصفحة أو Cookies أو localStorage أو API.
+- القرار: تضمين /python-sandbox.html داخل iframe بقيمة sandbox="allow-scripts" فقط ودون allow-same-origin؛ تطبيق CSP افتراضية default-src 'none'؛ تشغيل Pyodide 0.26.4 داخل Blob Worker؛ والتحقق من source/origin/channel/request ID لشيفرة الرسائل مع حد 20,000 حرف للكود والإخراج ومهلة تجهيز 45 ثانية وتنفيذ 8 ثوانٍ وإلغاء عبر إعادة تحميل iframe.
+- تحقق الأمان: اختبار Playwright ينفذ fetch إلى API من داخل Worker الحقيقي ويتطلب حدثًا enforced securitypolicyviolation على connect-src مع blocked URI مطابق لأصل API. رفض Promise وحده أو فشل CORS/الشبكة لا يكفي.
+- القيود غير القابلة للتجاوز في الوصف: هذا Browser-origin isolation وليس OS-level sandbox؛ لا توجد hard memory quota لـ Web Worker. لا يُستخدم لتشغيل برامج عدائية أو واسعة النطاق، ولا تُرسل إليه أسرار أو بيانات طلاب حساسة. عند الحاجة إلى تشغيل كود عدائي يجب استخدام خدمة حاويات معزولة بحدود CPU/RAM ونظام ملفات وشبكة.
+- الدليل الحالي: CI #42399378562 نجح 4/4 على d51953b6acf9bfa80d84448857e6569106f76bda؛ Backend 480 passed و21 warnings.
+- التراجع: إزالة مكوّن المختبر المعزول وملفات HTML/JS الخاصة به واختباراته وتوثيق الأمان، أو إيقاف تشغيل المختبر في الواجهة. لا يتطلب ذلك migration قاعدة بيانات.
