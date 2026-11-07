@@ -257,6 +257,8 @@ def test_ags_retry_reserves_a_new_timestamp_for_each_delivery_attempt(client, db
 
     event = db_session.get(LTIAGSGradeEvent, event.id)
     assert event.status == "pending"
+    # Simulate the admin retry endpoint resetting the retry counter.
+    event.attempts = 0
     event.next_attempt_at = datetime.now(timezone.utc) - timedelta(seconds=1)
     db_session.commit()
 
