@@ -12,7 +12,7 @@ from app.audit import log_event
 from app.database import get_db
 from app.dependencies import get_current_user, require_teacher
 from app.models.assignment import Assignment, AssignmentSubmission, SubmissionStatus
-from app.models.lti import LTIAssignmentLink
+from app.models.lti import LTIAssignmentLink, LTIUserLink
 from app.models.class_section import ClassEnrollment, ClassSection
 from app.models.user import User, UserRole
 from app.notifications import notify
@@ -271,19 +271,30 @@ def submit_assignment(
     # Normal Lumen sessions, unrelated assignments, and unmapped resources never fan out.
     auth_session = getattr(request.state, "auth_session", None)
     mapping = None
+    verified_subject = None
     if (
         auth_session is not None
         and auth_session.lti_platform_id is not None
         and auth_session.lti_deployment_id
         and auth_session.lti_resource_link_id
+        and auth_session.lti_subject
     ):
-        mapping = db.query(LTIAssignmentLink).filter(
-            LTIAssignmentLink.platform_id == auth_session.lti_platform_id,
-            LTIAssignmentLink.deployment_id == auth_session.lti_deployment_id,
-            LTIAssignmentLink.resource_link_id == auth_session.lti_resource_link_id,
-            LTIAssignmentLink.assignment_id == assignment.id,
+        identity_link = db.query(LTIUserLink.id).filter(
+            LTIUserLink.platform_id == auth_session.lti_platform_id,
+            LTIUserLink.lti_subject == auth_session.lti_subject,
+            LTIUserLink.user_id == current_user.id,
         ).first()
+        if identity_link is not None:
+            mapping = db.query(LTIAssignmentLink).filter(
+                LTIAssignmentLink.platform_id == auth_session.lti_platform_id,
+                LTIAssignmentLink.deployment_id == auth_session.lti_deployment_id,
+                LTIAssignmentLink.resource_link_id == auth_session.lti_resource_link_id,
+                LTIAssignmentLink.assignment_id == assignment.id,
+            ).first()
+            if mapping is not None:
+                verified_subject = auth_session.lti_subject
     submission.lti_assignment_link_id = mapping.id if mapping is not None else None
+    submission.lti_subject = verified_subject
 
     submission.written_answer = payload.written_answer
     submission.status = SubmissionStatus.submitted
