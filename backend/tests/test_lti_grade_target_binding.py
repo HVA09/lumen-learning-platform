@@ -14,7 +14,7 @@ from app.models.user import User, UserRole
 from app.services import lti_service as lti_service_module
 from app.services.lti_service import hash_opaque_token
 from tests.conftest import TestingSessionLocal, engine
-from tests.quiz_helpers import auth, make_student, make_teacher, set_role
+from tests.quiz_helpers import auth, make_student, make_teacher
 
 
 def _create_assignment(client, teacher_token):
@@ -927,20 +927,32 @@ def test_ags_exhausted_crash_recovery_requires_one_admin_authorized_retry(
     client, db_session, monkeypatch
 ):
     suffix = secrets.token_hex(6)
-    admin_email = f"lti-ags-retry-admin-{suffix}@example.test"
-    admin_token = make_teacher(client, db_session, admin_email)
-    set_role(db_session, admin_email, UserRole.admin)
-    make_student(client, f"lti-ags-retry-student-{suffix}@example.test")
+    admin = User(
+        email=f"lti-ags-retry-admin-{suffix}@example.test",
+        hashed_password="test-only-password-hash",
+        role=UserRole.admin,
+    )
+    student = User(
+        email=f"lti-ags-retry-student-{suffix}@example.test",
+        hashed_password="test-only-password-hash",
+        role=UserRole.user,
+    )
+    db_session.add_all([admin, student])
+    db_session.flush()
+    admin_token, _refresh_token, _auth_session = create_browser_session(db_session, admin)
 
-    student = db_session.query(User).filter(
-        User.email == f"lti-ags-retry-student-{suffix}@example.test"
-    ).one()
-    assignment_id = _create_assignment(client, admin_token)
+    assignment = Assignment(
+        created_by_user_id=admin.id,
+        title=f"AGS retry-cap {suffix}",
+        description="Regression for admin-authorized delivery retry",
+    )
+    db_session.add(assignment)
+    db_session.flush()
     platform = _platform(db_session, f"retry-{suffix}")
-    mapping = _mapping(db_session, platform, assignment_id, f"retry-resource-{suffix}")
+    mapping = _mapping(db_session, platform, assignment.id, f"retry-resource-{suffix}")
     now = datetime.now(timezone.utc)
     submission = AssignmentSubmission(
-        assignment_id=assignment_id,
+        assignment_id=assignment.id,
         student_user_id=student.id,
         written_answer="AGS retry-cap regression",
         is_late=False,
@@ -1054,6 +1066,7 @@ def test_ags_retry_waits_for_uncommitted_regrade_before_reserving_timestamp(monk
                 user_id=ids["student_id"],
             )
         )
+        grader.flush()
         submission.grade_version = 2
         submission.grade_percentage = 95
         submission.feedback = "Concurrent re-grade"
