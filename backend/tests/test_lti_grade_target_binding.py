@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from app.auth.sessions import create_browser_session
 from app.models.auth_session import AuthSession
 from app.models.assignment import AssignmentSubmission
-from app.models.lti import LTIAGSGradeEvent, LTIAuthCode, LTIAssignmentLink, LTIPlatform, LTIUserLink
+from app.models.lti import LTIAGSDeliveryLease, LTIAGSGradeEvent, LTIAuthCode, LTIAssignmentLink, LTIPlatform, LTIUserLink
 from app.models.user import User
 from app.services import lti_service as lti_service_module
 from app.services.lti_service import hash_opaque_token
@@ -382,3 +382,90 @@ def test_ags_uses_exact_launch_subject_when_local_user_has_multiple_lms_identiti
     assert graded.status_code == 200, graded.text
     event = db_session.query(LTIAGSGradeEvent).filter_by(submission_id=submission_id).one()
     assert event.lti_subject == "learner-alias"
+
+def test_ags_delivery_uses_per_learner_lease_and_releases_session_transaction(
+    client, db_session, monkeypatch
+):
+    teacher_token = make_teacher(client, db_session, "lti-lease-teacher@example.com")
+    make_student(client, "lti-lease-student@example.com")
+    assignment_id = _create_assignment(client, teacher_token)
+    student = db_session.query(User).filter_by(email="lti-lease-student@example.com").one()
+    platform = _platform(db_session, "lease")
+    mapping = _mapping(db_session, platform, assignment_id, "lease-resource")
+    db_session.add(
+        LTIUserLink(platform_id=platform.id, lti_subject="lease-learner", user_id=student.id)
+    )
+    db_session.flush()
+
+    token = _lti_session(
+        db_session, student, platform, "lease-resource", lti_subject="lease-learner"
+    )
+    submitted = client.post(
+        f"/assignments/{assignment_id}/submit",
+        json={"written_answer": "delivery lease test"},
+        headers=auth(token),
+    )
+    assert submitted.status_code == 200, submitted.text
+    submission_id = submitted.json()["id"]
+
+    graded = client.post(
+        f"/assignments/{assignment_id}/submissions/{submission_id}/grade",
+        json={"grade_percentage": 60, "feedback": "First grade"},
+        headers=auth(teacher_token),
+    )
+    assert graded.status_code == 200, graded.text
+    first = db_session.query(LTIAGSGradeEvent).filter_by(submission_id=submission_id).one()
+
+    latest_event_id = None
+    delivered_scores = []
+
+    async def simulate_in_flight_delivery(_platform, _lineitem_url, payload):
+        nonlocal latest_event_id
+        # The dispatcher must not have an active ORM transaction while waiting
+        # for the simulated OAuth/HTTP call.
+        assert not db_session.in_transaction()
+        delivered_scores.append(payload["scoreGiven"])
+
+        if latest_event_id is None:
+            latest = LTIAGSGradeEvent(
+                assignment_link_id=mapping.id,
+                submission_id=submission_id,
+                grade_version=2,
+                lti_subject="lease-learner",
+                score_given=95,
+                score_maximum=100,
+                comment="Latest grade",
+            )
+            db_session.add(latest)
+            db_session.commit()
+            latest_event_id = latest.id
+
+            # A concurrent worker for the same resource/learner must not start
+            # another LMS request until the first request releases its lease.
+            assert await lti_service_module.dispatch_lti_grade_event(
+                db_session, latest_event_id
+            ) is False
+
+    monkeypatch.setattr(lti_service_module, "post_lti_ags_score", simulate_in_flight_delivery)
+    assert asyncio.run(lti_service_module.dispatch_lti_grade_event(db_session, first.id)) is True
+    assert latest_event_id is not None
+
+    first_after = db_session.get(LTIAGSGradeEvent, first.id)
+    latest_after = db_session.get(LTIAGSGradeEvent, latest_event_id)
+    assert first_after.status == "sent"
+    assert latest_after.status == "pending"
+
+    # Once the first call is complete and the lease is released, the newer
+    # grade can be delivered. The external order must be old then latest.
+    assert asyncio.run(
+        lti_service_module.dispatch_lti_grade_event(db_session, latest_event_id)
+    ) is True
+    assert delivered_scores == [60.0, 95.0]
+
+    lease = db_session.query(LTIAGSDeliveryLease).filter_by(
+        assignment_link_id=mapping.id
+    ).one()
+    assert lease.owner_token is None
+    assert lease.event_id is None
+    assert lease.locked_until is None
+
