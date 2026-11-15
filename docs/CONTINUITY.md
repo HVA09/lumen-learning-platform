@@ -353,3 +353,26 @@ https://github.com/HVA09/lumen-learning-platform
 - آخر commit على هذا الرأس غيّر `docs/CONTINUITY.md` فقط؛ لا تغييرات جديدة في منطق LTI/AGS. تم تحديث وصف PR ليطابق HEAD وCI ومخاطر المراجعة المفتوحة.
 - تظل بوابتا Moodle Sandbox وCanvas Sandbox مانعتين، كما تظل ملاحظتا crash-retry cap وre-grade/retry timestamp race وJWKS wall-clock timeout بحاجة إلى حسم واختبارات مستقلة قبل الدمج. دلالة التسليم تبقى at-least-once.
 - لا تغيير في `main` أو الإنتاج أو قواعد البيانات أو hosting أو secrets أو مفاتيح LMS أو بيانات الطلاب. لا merge ولا Ready for review.
+
+---
+
+## نقطة تحقق إصلاحات lease/AGS — PR #154 — 2026-11-16
+
+- الرأس البرمجي الحالي وقت هذا التحقق: `4de451e4b3365f9175b858229053b00e504536f3` على `feat/lti-ags-rebased-20261115`. المقارنة مع `main` عند `5a065c00ff739c21cad06d551c7e3aa51a3d604b`: **41 commits ahead / 0 behind**؛ 31 ملفًا متغيرًا.
+- [CI #43772757658](https://github.com/HVA09/lumen-learning-platform/actions/runs/43772757658) اكتمل **4/4 Success** على SHA نفسه: Backend، Frontend tests/production build، Browser E2E، Full-history secret scan.
+- Backend: **520 passed، 12 warnings، 89% coverage** على Python 3.12 / PostgreSQL 16. نجحت فحوص migration/downgrade وbackup/restore على قواعد مؤقتة. الاختبارات الجديدة التي نجحت: JWKS slow-stream wall-clock deadline، crash recovery عند بلوغ حد AGS مع تصريح admin لمحاولة واحدة، وسباق retry مقابل re-grade غير ملتزم باستخدام جلستين PostgreSQL مستقلتين.
+- Migration إضافية: `0028_lti_ags_manual_retry_authorization` (Revision ID قصير `0028_lti_ags_manual_retry` ضمن حد Alembic `version_num` البالغ 32 حرفًا). تضيف حقل `manual_retry_requested_at` nullable؛ downgrade يحذف العمود. لا backfill ولا تغيير لبيانات الإنتاج.
+- تم تعزيز `fetch_platform_public_key()` بمهلة كلية 25 ثانية تشمل DNS + HTTP streaming + parsing؛ مهلة HTTPX لكل chunk تبقى قيدًا إضافيًا.
+- `dispatch_lti_grade_event()` يقفل صف `AssignmentSubmission` قبل فحص وجود re-grade أحدث وقبل حجز retry timestamp، بما ينسق مع قفل re-grade نفسه. لا تبقى المعاملة مفتوحة أثناء OAuth/HTTP؛ commit الحجز يسبق الشبكة.
+- عند استعادة حدث pending انتهت lease الخاصة به وقد بلغ عدد المحاولات التلقائية 8، يتحول إلى `dead` بدل إعادة التقاطه تلقائيًا. endpoint admin retry يضع تفويضًا لمرة واحدة؛ العامل يستهلك التفويض عند claim. Regression أثبت عدم تجاوز الحد عبر crash recovery، ثم نجاح محاولة واحدة مصرح بها يدويًا. lifetime attempt count لا يُصفّر.
+- فشل CI السابق #43772067609 كان له سبب جذري محدد: Alembic revision ID تجاوز طول عمود `alembic_version.version_num` (32 حرفًا). اختُصر revision ID، ثم أظهر CI #43772216376 عيبين في test fixtures فقط (إنشاء admin عبر helper غير مناسب، وغياب flush لـLTIUserLink بسبب `autoflush=False`)، وتم تصحيحهما. لم تُخفف gates أو تُعطل الاختبارات.
+- Ruff ما زال report-only مع 6 diagnostics قديمة في `backend/tests/test_lti_ags_protocol.py` (5 × F401 و1 × F841)؛ لا تمثل فشلًا في CI.
+
+### المخاطر والبوابات التي ما زالت مفتوحة
+
+- دلالة التسليم **at-least-once**؛ قبول LMS للدرجة ثم ضياع الرد قد يؤدي إلى إعادة الإرسال، ولا يوجد ادعاء exactly-once.
+- lease expiry وretry scheduling ما زالا يعتمدان على ساعة التطبيق؛ مزامنة NTP/انحراف ساعات العمال لم تُختبر في بيئة تشغيل متعددة العمال.
+- `lti_subject` الخام محفوظ في grade event/session/submission لاحتياج الإرسال؛ سياسة الاحتفاظ والحذف/التشفير الميداني لم تُحسم.
+- شرط same-origin بين lineitem URL وOAuth token endpoint ما زال يحتاج إثباتًا على Moodle وCanvas.
+- لا تتوفر Moodle Sandbox أو Canvas Sandbox أو staging عام HTTPS مع API وCelery Worker/Beat. لم تنفذ اختبارات LMS الخارجية ولم تُخمن credentials/tenants. يلزم لكل منصة اختبار registration وOIDC launch وresource mapping وOAuth وGradebook passback وre-grade وretry/timeouts وduplicate/uncertain delivery والحالات السلبية.
+- PR #154 بقي **Open + Draft + Unmerged**؛ لا دمج ولا Ready for review قبل إغلاق المخاطر المطلوبة ونجاح اختبارات Moodle وCanvas المنفصلة. لم يتغير `main` أو الإنتاج أو قواعد البيانات المنشورة أو hosting أو secrets أو مفاتيح LMS أو بيانات الطلاب.
