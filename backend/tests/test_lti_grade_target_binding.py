@@ -556,28 +556,39 @@ def test_ags_delivery_lease_blocks_second_independent_database_worker(monkeypatc
         delivered_scores.append(payload["scoreGiven"])
 
         if not second_event_ids:
-            later = LTIAGSGradeEvent(
-                assignment_link_id=ids["mapping_id"],
-                submission_id=ids["submission_id"],
-                grade_version=2,
-                lti_subject=f"learner-{suffix}",
-                score_given=95,
-                score_maximum=100,
-                status="pending",
-                attempts=0,
-                next_attempt_at=datetime.now(timezone.utc),
-                score_timestamp=datetime.now(timezone.utc),
-            )
-            worker_one.add(later)
-            worker_one.commit()
-            second_event_ids.append(later.id)
+            # Simulate a teacher re-grade from a third, independent DB session.
+            # The active delivery worker must remain outside a transaction while
+            # the external LMS request is waiting.
+            grader_session = TestingSessionLocal()
+            try:
+                later = LTIAGSGradeEvent(
+                    assignment_link_id=ids["mapping_id"],
+                    submission_id=ids["submission_id"],
+                    grade_version=2,
+                    lti_subject=f"learner-{suffix}",
+                    score_given=95,
+                    score_maximum=100,
+                    status="pending",
+                    attempts=0,
+                    next_attempt_at=datetime.now(timezone.utc),
+                    score_timestamp=datetime.now(timezone.utc),
+                )
+                grader_session.add(later)
+                grader_session.flush()
+                later_event_id = later.id
+                grader_session.commit()
+            finally:
+                grader_session.close()
+            second_event_ids.append(later_event_id)
 
             # This is a different SQLAlchemy Session/connection. It must fail
             # the atomic lease claim while worker one's simulated HTTP call is in flight.
+            assert not worker_one.in_transaction()
             assert not worker_two.in_transaction()
             assert await lti_service_module.dispatch_lti_grade_event(
-                worker_two, later.id
+                worker_two, later_event_id
             ) is False
+            assert not worker_one.in_transaction()
             assert not worker_two.in_transaction()
 
     try:
