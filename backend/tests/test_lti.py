@@ -774,9 +774,9 @@ def test_lti_platform_dns_lookup_is_bounded(monkeypatch):
 
     monkeypatch.setattr(lti_service_module, "LTI_DNS_TIMEOUT_SECONDS", 0.01)
     monkeypatch.setattr(
-        lti_service_module.asyncio,
-        "get_running_loop",
-        lambda: SlowResolver(),
+        lti_service_module,
+        "asyncio",
+        SimpleNamespace(get_running_loop=lambda: SlowResolver()),
     )
 
     with pytest.raises(ValueError, match="resolve LTI platform hostname safely"):
