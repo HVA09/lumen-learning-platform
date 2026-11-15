@@ -163,3 +163,33 @@ class LTIAGSGradeEvent(Base):
 
     assignment_link = relationship("LTIAssignmentLink")
     submission = relationship("AssignmentSubmission")
+
+
+class LTIAGSDeliveryLease(Base):
+    """Short-lived per-resource/learner lease; never held as a DB transaction during LMS I/O."""
+    __tablename__ = "lti_ags_delivery_leases"
+    __table_args__ = (
+        UniqueConstraint(
+            "assignment_link_id", "subject_hash",
+            name="uq_lti_ags_delivery_lease_subject",
+        ),
+        Index("ix_lti_ags_delivery_leases_locked_until", "locked_until"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    assignment_link_id: Mapped[int] = mapped_column(
+        ForeignKey("lti_assignment_links.id", ondelete="CASCADE"), nullable=False
+    )
+    # SHA-256 of the external LMS subject; do not duplicate the raw identifier here.
+    subject_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    owner_token: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    event_id: Mapped[int | None] = mapped_column(
+        ForeignKey("lti_ags_grade_events.id", ondelete="SET NULL"), nullable=True
+    )
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    assignment_link = relationship("LTIAssignmentLink")
+    event = relationship("LTIAGSGradeEvent")
