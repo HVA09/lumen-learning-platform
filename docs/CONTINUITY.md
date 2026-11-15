@@ -313,3 +313,17 @@ https://github.com/HVA09/lumen-learning-platform
 - Issue [#155](https://github.com/HVA09/lumen-learning-platform/issues/155) **Closed**؛ اختبارات PostgreSQL التي أغلقت معاييره موثقة أعلاه: expiry/reclaim وstale-owner fencing، lost-response mock مع timestamp أحدث، وستة أهداف متزامنة مع صفر اتصالات DB محجوزة أثناء انتظار I/O. يبقى اختبار lost-response محاكاة وليس اختبار LMS حقيقيًا؛ دلالة التسليم لا تزال **at-least-once**.
 - تأكد عدم توفر بيئات Moodle Sandbox وCanvas Sandbox وخادم staging عام HTTPS مع API وCelery Worker وBeat؛ لذلك لا توجد نتائج فعلية لتسجيل LTI/OIDC/AGS أو Gradebook في أي منصة. هذه هي بوابة الإطلاق المتبقية، ويلزم توفير البيئات منفصلة ثم توثيق كل السيناريوهات في `backend/LTI_AGS_SANDBOX_RUNBOOK.md`.
 - الحالة: PR #154 **Open + Draft + Unmerged**، و`main` ثابت عند SHA أعلاه. لا دمج ولا Ready for review ولا نشر أو تغيير DB/hosting/secrets/LMS credentials قبل إغلاق Sandbox لكل منصة. لا تغييرات برمجية إضافية مطلوبة قبل توفر البيئات.
+
+---
+
+## أحدث مراجعة هندسية — PR #154 — 2026-11-16
+
+- تحقق مباشر من GitHub: الرأس `283c732d509d107d2dafd2aca37faca78e0f0db7` على `feat/lti-ags-rebased-20261115`، و`main` ثابت عند `5a065c00ff739c21cad06d551c7e3aa51a3d604b`. المقارنة: **34 commits ahead / 0 behind**؛ 29 ملفًا في PR.
+- [CI #43761670173](https://github.com/HVA09/lumen-learning-platform/actions/runs/43761670173) على الرأس نفسه اكتمل **4/4 Success**: Backend، Frontend tests/production build، Browser E2E، Full-history secret scan. Backend: **517 passed / 12 warnings** على Python 3.12 وPostgreSQL 16؛ migration/downgrade وbackup/restore اختُبرت على قواعد مؤقتة فقط. Ruff ما زال report-only (6 diagnostics: خمسة F401 وواحد F841).
+- PR #154 ما زال **Open + Draft + Unmerged**؛ Issue #155 مغلق. لا توجد مراجعات مانعة أو review threads مفتوحة عند آخر فحص.
+- مراجعة migration 0027 على الفرع أكدت قيد unique للـ(assignment_link_id, subject_hash)، وFK مع CASCADE إلى assignment link، وFK مع SET NULL إلى grade event، وفهرس locked_until؛ downgrade يحذف الفهرس ثم الجدول.
+- مراجعة مسار OIDC/JWKS كشفت فجوة hardening غير معالجة: `fetch_platform_public_key()` يحدد DNS بـ10s وHTTPX timeout بـ15s ويحد حجم JWKS إلى 1 MiB، لكنه لا يفرض wall-clock deadline إجماليًا حول عملية HTTP streaming. مهلة HTTPX هنا مهلة inactivity لكل مرحلة/قراءة، وليست حدًا إجماليًا؛ لذلك قد يظل رد بطيء يرسل أجزاء متباعدة ضمن المهلة ممسكًا بطلب الإطلاق لمدة أطول من المتوقع. **ليست CI failure ولا أُجري تعديل غير مختبر**؛ المتابعة المقترحة إضافة `asyncio.timeout` إجمالي واختبار slow-trickle regression.
+- lease يعتمد في إنشاء `locked_until` ومقارنته على ساعة التطبيق لدى العامل؛ لم يُثبت اختبار انحراف الساعة بين العمال. هذا افتراض تشغيلي يحتاج NTP/مزامنة ساعات موثوقة أو اعتماد وقت قاعدة البيانات في حسم lease، ولا يُسجّل كفشل مثبت.
+- بقيت دلالة التسليم **at-least-once**. اختبارات فقد الاستجابة محاكاة محلية وليست إثباتًا لسلوك LMS خارجي.
+- بوابتا الإطلاق ما زالتا مانعتين: Moodle Sandbox وCanvas Sandbox، كل واحدة على حدة، مع registration/OIDC/resource mapping/OAuth/Gradebook/re-grade/retries/uncertain delivery/negative cases. لم تتوفر credentials أو tenants أو staging HTTPS مع API وCelery Worker/Beat، ولم تُختلق نتائج.
+- لم تتغير `main`، ولم يحدث نشر أو merge أو تحويل Draft إلى Ready، ولم تُنفّذ عمليات على قواعد بيانات الإنتاج أو الأسرار أو مفاتيح LMS أو بيانات الطلاب.
