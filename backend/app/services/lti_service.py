@@ -8,6 +8,7 @@
 طفيفة حسب تفاصيل المنصة اللي تربطها.
 """
 import asyncio
+from asyncio import wait_for as asyncio_wait_for
 import base64
 import hashlib
 import ipaddress
@@ -156,13 +157,13 @@ async def resolve_lti_platform_endpoint_url(url: str, *, allow_query: bool = Fal
         resolved_addresses = [literal.compressed]
     else:
         try:
-            records = await asyncio.wait_for(
+            records = await asyncio_wait_for(
                 asyncio.get_running_loop().getaddrinfo(
                     hostname, port, type=socket.SOCK_STREAM
                 ),
                 timeout=LTI_DNS_TIMEOUT_SECONDS,
             )
-        except (OSError, asyncio.TimeoutError) as exc:
+        except (OSError, TimeoutError) as exc:
             raise ValueError("Unable to resolve LTI platform hostname safely") from exc
         resolved_addresses = list(dict.fromkeys(record[4][0] for record in records))
 
