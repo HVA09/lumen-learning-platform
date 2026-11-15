@@ -15,8 +15,8 @@ import json
 import socket
 import uuid
 from datetime import datetime, timedelta, timezone
-from urllib.parse import urlsplit, urlunsplit
 from types import SimpleNamespace
+from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -591,6 +591,7 @@ async def dispatch_lti_grade_event(db, event_id: int) -> bool:
     if event is None or event.status != "pending":
         return False
 
+    assignment_link_id = event.assignment_link_id
     now = datetime.now(timezone.utc)
     if _as_utc(event.next_attempt_at) > now:
         return False
@@ -599,7 +600,7 @@ async def dispatch_lti_grade_event(db, event_id: int) -> bool:
 
     # Check for a newer version before claiming the resource/learner delivery key.
     newer_event = db.query(LTIAGSGradeEvent.id).filter(
-        LTIAGSGradeEvent.assignment_link_id == event.assignment_link_id,
+        LTIAGSGradeEvent.assignment_link_id == assignment_link_id,
         LTIAGSGradeEvent.submission_id == event.submission_id,
         LTIAGSGradeEvent.grade_version > event.grade_version,
     ).first()
@@ -637,7 +638,7 @@ async def dispatch_lti_grade_event(db, event_id: int) -> bool:
     dialect = db.get_bind().dialect.name
     insert_fn = pg_insert if dialect == "postgresql" else sqlite_insert
     lease_statement = insert_fn(lease_table).values(
-        assignment_link_id=event.assignment_link_id,
+        assignment_link_id=assignment_link_id,
         subject_hash=subject_hash,
         owner_token=owner_token,
         event_id=event.id,
@@ -698,7 +699,7 @@ async def dispatch_lti_grade_event(db, event_id: int) -> bool:
         lease = (
             db.query(LTIAGSDeliveryLease)
             .filter(
-                LTIAGSDeliveryLease.assignment_link_id == event.assignment_link_id,
+                LTIAGSDeliveryLease.assignment_link_id == assignment_link_id,
                 LTIAGSDeliveryLease.subject_hash == subject_hash,
                 LTIAGSDeliveryLease.owner_token == owner_token,
             )
@@ -745,7 +746,7 @@ async def dispatch_lti_grade_event(db, event_id: int) -> bool:
     lease = (
         db.query(LTIAGSDeliveryLease)
         .filter(
-            LTIAGSDeliveryLease.assignment_link_id == event.assignment_link_id,
+            LTIAGSDeliveryLease.assignment_link_id == assignment_link_id,
             LTIAGSDeliveryLease.subject_hash == subject_hash,
             LTIAGSDeliveryLease.owner_token == owner_token,
         )
