@@ -590,13 +590,16 @@ async def dispatch_lti_grade_event(db, event_id: int) -> bool:
         .first()
     )
     if event is None or event.status != "pending":
+        db.rollback()
         return False
 
     assignment_link_id = event.assignment_link_id
     now = datetime.now(timezone.utc)
     if _as_utc(event.next_attempt_at) > now:
+        db.rollback()
         return False
     if _as_utc(event.locked_until) and _as_utc(event.locked_until) > now:
+        db.rollback()
         return False
 
     # Check for a newer version before claiming the resource/learner delivery key.
