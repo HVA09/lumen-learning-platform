@@ -3,7 +3,7 @@
 """
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -71,8 +71,95 @@ class LTIAuthCode(Base):
     code_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     token_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+    lti_platform_id: Mapped[int | None] = mapped_column(ForeignKey("lti_platforms.id", ondelete="SET NULL"), nullable=True)
+    lti_deployment_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    lti_resource_link_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    lti_subject: Mapped[str | None] = mapped_column(String(255), nullable=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     user = relationship("User")
+
+
+class LTIAssignmentLink(Base):
+    """Explicit mapping between one Lumen assignment and one LMS resource link."""
+    __tablename__ = "lti_assignment_links"
+    __table_args__ = (
+        UniqueConstraint("platform_id", "deployment_id", "resource_link_id", name="uq_lti_assignment_link_resource"),
+        CheckConstraint("score_maximum > 0", name="ck_lti_assignment_link_score_maximum"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    platform_id: Mapped[int] = mapped_column(ForeignKey("lti_platforms.id", ondelete="CASCADE"), nullable=False)
+    assignment_id: Mapped[int] = mapped_column(ForeignKey("assignments.id", ondelete="CASCADE"), nullable=False)
+    deployment_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    resource_link_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    lineitem_url: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    score_scope_allowed: Mapped[bool] = mapped_column(default=False, server_default="false", nullable=False)
+    score_maximum: Mapped[float] = mapped_column(default=100.0, server_default="100", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    platform = relationship("LTIPlatform")
+    assignment = relationship("Assignment")
+
+    @property
+    def lineitem_ready(self) -> bool:
+        return bool(self.lineitem_url and self.score_scope_allowed)
+
+
+class LTIResourceLinkDiscovery(Base):
+    """Privacy-minimal, admin-visible resource-link discovery record."""
+    __tablename__ = "lti_resource_link_discoveries"
+    __table_args__ = (
+        UniqueConstraint("platform_id", "deployment_id", "resource_link_id", name="uq_lti_resource_link_discovery"),
+        Index("ix_lti_resource_link_discoveries_seen", "last_seen_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    platform_id: Mapped[int] = mapped_column(ForeignKey("lti_platforms.id", ondelete="CASCADE"), nullable=False)
+    deployment_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    resource_link_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    lineitem_url: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    score_scope_allowed: Mapped[bool] = mapped_column(default=False, server_default="false", nullable=False)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    platform = relationship("LTIPlatform")
+
+    @property
+    def lineitem_ready(self) -> bool:
+        return bool(self.lineitem_url and self.score_scope_allowed)
+
+
+class LTIAGSGradeEvent(Base):
+    """Transactional outbox event for one grade version and one exact LMS mapping."""
+    __tablename__ = "lti_ags_grade_events"
+    __table_args__ = (
+        UniqueConstraint("assignment_link_id", "submission_id", "grade_version", name="uq_lti_ags_grade_event_version"),
+        CheckConstraint("score_given >= 0 AND score_given <= score_maximum", name="ck_lti_ags_grade_event_score_range"),
+        CheckConstraint("score_maximum > 0", name="ck_lti_ags_grade_event_score_maximum"),
+        CheckConstraint("status IN ('pending', 'sent', 'dead', 'superseded')", name="ck_lti_ags_grade_event_status"),
+        Index("ix_lti_ags_grade_events_due", "status", "next_attempt_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    assignment_link_id: Mapped[int] = mapped_column(ForeignKey("lti_assignment_links.id", ondelete="CASCADE"), nullable=False)
+    submission_id: Mapped[int] = mapped_column(ForeignKey("assignment_submissions.id", ondelete="CASCADE"), nullable=False)
+    grade_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    lti_subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    score_given: Mapped[float] = mapped_column(nullable=False)
+    score_maximum: Mapped[float] = mapped_column(nullable=False)
+    # Latest timestamp reserved for an AGS delivery attempt; retries advance it.
+    score_timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="pending", server_default="pending", nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+    next_attempt_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_error: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    assignment_link = relationship("LTIAssignmentLink")
+    submission = relationship("AssignmentSubmission")

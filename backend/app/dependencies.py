@@ -27,6 +27,7 @@ def get_current_user(
     db: Session = Depends(get_db),
 ) -> User:
     """Validate either a bearer token or a secure browser session cookie."""
+    request.state.auth_session = None
     cookie_token = request.cookies.get(ACCESS_COOKIE_NAME)
     using_bearer_token = bool(token)
     if cookie_token and request.method not in ("GET", "HEAD", "OPTIONS"):
@@ -70,6 +71,7 @@ def get_current_user(
             or auth_session.expires_at <= now
         ):
             raise credentials_error
+        request.state.auth_session = auth_session
     elif not using_bearer_token:
         # Browser cookies issued by the new flow must always be session-bound.
         # Legacy stateless tokens remain accepted only via explicit Bearer auth.
