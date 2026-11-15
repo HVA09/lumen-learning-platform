@@ -327,3 +327,11 @@ https://github.com/HVA09/lumen-learning-platform
 - بقيت دلالة التسليم **at-least-once**. اختبارات فقد الاستجابة محاكاة محلية وليست إثباتًا لسلوك LMS خارجي.
 - بوابتا الإطلاق ما زالتا مانعتين: Moodle Sandbox وCanvas Sandbox، كل واحدة على حدة، مع registration/OIDC/resource mapping/OAuth/Gradebook/re-grade/retries/uncertain delivery/negative cases. لم تتوفر credentials أو tenants أو staging HTTPS مع API وCelery Worker/Beat، ولم تُختلق نتائج.
 - لم تتغير `main`، ولم يحدث نشر أو merge أو تحويل Draft إلى Ready، ولم تُنفّذ عمليات على قواعد بيانات الإنتاج أو الأسرار أو مفاتيح LMS أو بيانات الطلاب.
+
+---
+
+## تحقق CI ومراجعة سياسة الاستعادة — PR #154 — 2026-11-16
+
+- [CI #43767369696](https://github.com/HVA09/lumen-learning-platform/actions/runs/43767369696) اكتمل **4/4 Success** على الرأس `61662a095015fab03fe955baa9af5273d3aa900d`: Backend، Frontend tests/production build، Browser E2E، Full-history secret scan. Backend: **517 passed، 12 warnings، 89% coverage** على Python 3.12/PostgreSQL 16. Ruff report-only: 6 diagnostics؛ لا فشل.
+- مراجعة حد محاولات AGS بعد تعطل العامل: العامل يزيد `attempts` عند تثبيت lease وقبل I/O. مهمة الالتقاط تختار كل حدث pending مستحق انتهى قفله، ولا تشترط `attempts < AGS_MAX_DELIVERY_ATTEMPTS`؛ ومسار dispatch لا يوقف claim عندما يبلغ attempts الحد. لذلك إذا مات worker بعد claim، يظل الحدث pending إلى انتهاء lease ويمكن إعادة التقاطه بمحاولة إضافية؛ وتكرار انهيارات العامل قد يجعل العدد يتجاوز 8. **هذا عدم تطابق مؤكد بين تطبيق الحد المعلن وحالة crash-recovery، وليس فشلًا في CI.** لم يُعدّل لأن القرار يحتاج موازنة صريحة بين الحد الصارم وبين احتمال قبول LMS للدرجة ثم فقدان الرد (at-least-once). المتابعة المطلوبة: تحديد سياسة نهائية، ثم اختبار انهيار العامل قبل/بعد upstream acceptance عند المحاولة الثامنة، واستعادة lease، وعدم فقد الدرجة أو تجاوز الحد بصمت.
+- الرأس عند هذه النقطة كان `61662a095015fab03fe955baa9af5273d3aa900d`؛ CI نجح على هذا الرأس نفسه. أي تحديث توثيقي لاحق يحتاج CI جديدًا قبل اعتباره الحالة النهائية.
