@@ -8,6 +8,10 @@ import time
 from types import SimpleNamespace
 
 import pytest
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event
+
+from sqlalchemy.orm import sessionmaker
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from jose import jwt
@@ -15,6 +19,7 @@ from jose import jwt
 from app.models.user import UserRole
 from tests.quiz_helpers import set_role
 from app.services import lti_service as lti_service_module
+from app.routers.lti import _build_lti_profile, _lock_lti_identity_creation
 from app.services.lti_service import hash_opaque_token, long_to_base64url
 
 
@@ -786,3 +791,176 @@ def test_lti_platform_dns_lookup_is_bounded(monkeypatch):
                 "https://moodle.example.test/token"
             )
         )
+
+def test_register_platform_rejects_blank_or_oversized_fields(client, db_session):
+    admin_token = _register_admin(client, db_session, "lti-validation-admin@example.com")
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    payload = {
+        "name": "Moodle Sandbox",
+        "issuer": "https://moodle.example.com",
+        "client_id": "client-1",
+        "deployment_id": "deployment-1",
+        "auth_login_url": "https://moodle.example.com/auth",
+        "auth_token_url": "https://moodle.example.com/token",
+        "jwks_url": "https://moodle.example.com/jwks",
+    }
+
+    blank_name = client.post(
+        "/lti/platforms", json={**payload, "name": "   "}, headers=headers
+    )
+    assert blank_name.status_code == 422
+
+    oversized_client_id = client.post(
+        "/lti/platforms", json={**payload, "client_id": "x" * 256}, headers=headers
+    )
+    assert oversized_client_id.status_code == 422
+
+    oversized_endpoint = client.post(
+        "/lti/platforms",
+        json={**payload, "auth_token_url": "https://moodle.example.com/" + "x" * 500},
+        headers=headers,
+    )
+    assert oversized_endpoint.status_code == 422
+
+
+def test_lti_profile_only_trusts_valid_verified_email_and_bounded_name():
+    email, full_name, verified = _build_lti_profile(
+        {
+            "email": "  Student42@Example.com  ",
+            "email_verified": True,
+            "name": "  طالب تجريبي  ",
+        },
+        platform_id=7,
+        lti_subject="student-42",
+    )
+    assert email == "student42@example.com"
+    assert full_name == "طالب تجريبي"
+    assert verified is True
+
+
+def test_lti_profile_uses_unverified_fallback_for_malformed_email_claims():
+    invalid_claims = [
+        {"email": None, "email_verified": True, "name": "Student"},
+        {"email": ["student@example.com"], "email_verified": True, "name": "Student"},
+        {"email": "not-an-email", "email_verified": True, "name": "Student"},
+        {"email": "student@example.com", "email_verified": False, "name": "Student"},
+    ]
+
+    for claims in invalid_claims:
+        email, full_name, verified = _build_lti_profile(
+            claims, platform_id=7, lti_subject="student-42"
+        )
+        assert email.startswith("lti_7_")
+        assert email.endswith("@lti.local")
+        assert full_name == "Student"
+        assert verified is False
+
+
+def test_lti_profile_ignores_invalid_or_oversized_name_claims():
+    for name in (["Student"], "x" * 256, "   "):
+        email, full_name, verified = _build_lti_profile(
+            {
+                "email": "student@example.com",
+                "email_verified": True,
+                "name": name,
+            },
+            platform_id=7,
+            lti_subject="student-42",
+        )
+        assert email == "student@example.com"
+        assert full_name is None
+        assert verified is True
+
+
+def test_lti_identity_creation_uses_deterministic_postgres_advisory_locks():
+    class FakeDialect:
+        name = "postgresql"
+
+    class FakeBind:
+        dialect = FakeDialect()
+
+    class RecordingSession:
+        def __init__(self):
+            self.calls = []
+
+        def get_bind(self):
+            return FakeBind()
+
+        def execute(self, statement, params):
+            self.calls.append((str(statement), params["lock_key"]))
+
+    first = RecordingSession()
+    second = RecordingSession()
+    _lock_lti_identity_creation(first, 7, "subject-42", "student@example.com")
+    _lock_lti_identity_creation(second, 7, "subject-42", "student@example.com")
+
+    first_keys = [key for _statement, key in first.calls]
+    second_keys = [key for _statement, key in second.calls]
+    assert len(first_keys) == 2
+    assert first_keys == sorted(first_keys)
+    assert first_keys == second_keys
+    assert all("pg_advisory_xact_lock" in statement for statement, _key in first.calls)
+
+
+def test_lti_identity_creation_lock_serializes_postgres_sessions(db_session):
+    engine = db_session.get_bind().engine
+    if engine.dialect.name != "postgresql":
+        pytest.skip("PostgreSQL advisory locks are only available on PostgreSQL")
+
+    session_factory = sessionmaker(bind=engine)
+    first_session = session_factory()
+    second_started = Event()
+
+    try:
+        first_session.begin()
+        _lock_lti_identity_creation(
+            first_session, 77, "concurrent-subject", "concurrent@example.com"
+        )
+
+        def acquire_second_lock():
+            with session_factory() as second_session:
+                with second_session.begin():
+                    second_started.set()
+                    _lock_lti_identity_creation(
+                        second_session,
+                        77,
+                        "concurrent-subject",
+                        "concurrent@example.com",
+                    )
+            return True
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            second_future = executor.submit(acquire_second_lock)
+            assert second_started.wait(timeout=5)
+            # The first transaction still owns both advisory locks.
+            time.sleep(0.15)
+            assert not second_future.done()
+            first_session.commit()
+            assert second_future.result(timeout=5) is True
+    finally:
+        if first_session.in_transaction():
+            first_session.rollback()
+        first_session.close()
+
+
+def test_lti_identity_creation_skips_postgres_locks_on_other_dialects():
+    class FakeDialect:
+        name = "sqlite"
+
+    class FakeBind:
+        dialect = FakeDialect()
+
+    class RecordingSession:
+        def __init__(self):
+            self.calls = 0
+
+        def get_bind(self):
+            return FakeBind()
+
+        def execute(self, *_args, **_kwargs):
+            self.calls += 1
+
+    session = RecordingSession()
+    _lock_lti_identity_creation(session, 7, "subject-42", "student@example.com")
+    assert session.calls == 0
+
