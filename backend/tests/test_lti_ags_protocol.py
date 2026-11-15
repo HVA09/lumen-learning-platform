@@ -13,6 +13,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from jose import jwt
 
+from app.auth.sessions import create_browser_session
 from app.models.assignment import Assignment, AssignmentSubmission
 from app.models.lti import (
     LTIAGSGradeEvent, LTIAssignmentLink, LTIPlatform, LTIUserLink,
@@ -77,10 +78,19 @@ def _make_pending_event(client, db_session, *, grade=84.0):
     )
     db_session.commit()
 
+    # Grade passback is only available when the submission originates from a
+    # verified LTI launch session bound to this exact resource link and subject.
+    access_token, _refresh_token, lti_session = create_browser_session(db_session, student)
+    lti_session.lti_platform_id = platform.id
+    lti_session.lti_deployment_id = platform.deployment_id
+    lti_session.lti_resource_link_id = mapping.resource_link_id
+    lti_session.lti_subject = "moodle-subject-42"
+    db_session.commit()
+
     submitted = client.post(
         f"/assignments/{assignment.id}/submit",
         json={"written_answer": "A valid written answer."},
-        headers=auth(student_token),
+        headers=auth(access_token),
     )
     assert submitted.status_code == 200, submitted.text
     graded = client.post(
@@ -107,6 +117,22 @@ def test_assignment_link_is_admin_only_and_unique(client, db_session):
     admin_token = register_and_login(client, "ags-map-admin@example.com")
     set_role(db_session, "ags-map-admin@example.com", UserRole.admin)
     platform = _platform(db_session)
+    # The current API only allows explicit assignment mapping after a verified
+    # launch has discovered this Resource Link and its approved AGS lineitem.
+    assert lti_service.record_lti_ags_launch_context(
+        db_session,
+        platform,
+        {
+            "https://purl.imsglobal.org/spec/lti/claim/resource_link": {
+                "id": "lms-resource-1"
+            },
+            "https://purl.imsglobal.org/spec/lti-ags/claim/endpoint": {
+                "lineitem": "https://moodle.example.test/mod/lti/lineitems/1",
+                "scope": ["https://purl.imsglobal.org/spec/lti-ags/scope/score"],
+            },
+        },
+    )
+    db_session.flush()
     payload = {
         "platform_id": platform.id,
         "assignment_id": assignment["id"],
