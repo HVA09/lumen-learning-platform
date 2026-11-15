@@ -343,3 +343,13 @@ https://github.com/HVA09/lumen-learning-platform
 - [CI #43767878484](https://github.com/HVA09/lumen-learning-platform/actions/runs/43767878484) اكتمل **4/4 Success** على الرأس `4c8a9232458bb8069c4910fcd7c70548fd155fab`: Backend، Frontend tests/production build، Browser E2E، Full-history secret scan. Backend: **517 passed، 12 warnings، 89% coverage**؛ لا تغيير في الشيفرة البرمجية، تحديث Continuity فقط.
 - **تزامن إعادة التقييم مع إعادة محاولة حدث أقدم — نقطة تحتاج اختبارًا قبل الدمج:** في `grade_submission()`، يحسب النظام timestamp للدرجة الجديدة ثم `create_lti_ags_grade_event()` يقرأ آخر `score_timestamp` محفوظ ويُنشئ الحدث داخل transaction. وفي `dispatch_lti_grade_event()`، قد يحدّث العامل timestamp لمحاولة retry لحدث أقدم دون قفل صف `AssignmentSubmission`. توجد interleaving محتملة على PostgreSQL: معاملة re-grade تجهز الحدث الأحدث اعتمادًا على timestamp القديم لكنها لم تُنهِ commit بعد؛ عامل retry لا يرى الحدث غير الملتزم، فيحجز القديم ويثبت timestamp أحدث؛ ثم تلتزم معاملة re-grade بحدث timestamp أقدم من محاولة الحدث السابق. lease يسلسل HTTP delivery لكنه لا يضمن وحده ترتيب timestamps المحجوزة في هذين المسارين. **لم أعدّها عيبًا مثبتًا بحدوث فعلي، لكنها فجوة concurrency لم تغطها الاختبارات الحالية**؛ يلزم اختبار PostgreSQL بحاجز متعمد بين flush وcommit، ثم اختبار ترتيب timestamps بعد إرسال الحدثين. الحل ينبغي أن ينسّق حجز timestamp مع قفل submission أو آلية ذرية مكافئة، مع COMMIT قبل الشبكة.
 - لا تعديل على كود LTI/AGS في هذه النقطة؛ لا تُعلن سلامة ترتيب timestamp عبر هذا السباق قبل اختبار regression مستقل. يبقى Moodle وCanvas Sandbox مطلوبين أيضًا للتحقق من كيفية تطبيق كل منصة للـtimestamp.
+
+---
+
+## نقطة تحقق نهائية على HEAD ac434 — PR #154 — 2026-11-16
+
+- HEAD `ac43460d130389b7fddd8b94d9b9fbd0c9407a78` على الفرع `feat/lti-ags-rebased-20261115` اجتاز [CI #43768291336](https://github.com/HVA09/lumen-learning-platform/actions/runs/43768291336) **4/4 Success**: Backend، Frontend tests/production build، Browser E2E، Full-history secret scan. Backend: **517 passed، 12 warnings، 89% coverage**؛ Ruff report-only مع 6 diagnostics.
+- المقارنة مع `main` عند `5a065c00ff739c21cad06d551c7e3aa51a3d604b`: **37 commits ahead / 0 behind**؛ 29 ملفًا متغيرًا. PR #154 **Open + Draft + Unmerged**.
+- آخر commit على هذا الرأس غيّر `docs/CONTINUITY.md` فقط؛ لا تغييرات جديدة في منطق LTI/AGS. تم تحديث وصف PR ليطابق HEAD وCI ومخاطر المراجعة المفتوحة.
+- تظل بوابتا Moodle Sandbox وCanvas Sandbox مانعتين، كما تظل ملاحظتا crash-retry cap وre-grade/retry timestamp race وJWKS wall-clock timeout بحاجة إلى حسم واختبارات مستقلة قبل الدمج. دلالة التسليم تبقى at-least-once.
+- لا تغيير في `main` أو الإنتاج أو قواعد البيانات أو hosting أو secrets أو مفاتيح LMS أو بيانات الطلاب. لا merge ولا Ready for review.
