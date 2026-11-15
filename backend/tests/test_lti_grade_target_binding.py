@@ -10,7 +10,7 @@ from app.models.lti import LTIAGSDeliveryLease, LTIAGSGradeEvent, LTIAuthCode, L
 from app.models.user import User, UserRole
 from app.services import lti_service as lti_service_module
 from app.services.lti_service import hash_opaque_token
-from tests.conftest import TestingSessionLocal
+from tests.conftest import TestingSessionLocal, engine
 from tests.quiz_helpers import auth, make_student, make_teacher
 
 
@@ -256,10 +256,15 @@ def test_ags_retry_reserves_a_new_timestamp_for_each_delivery_attempt(client, db
     graded_at = db_session.get(AssignmentSubmission, submission_id).graded_at
 
     timestamps = []
+    accepted_by_lms = []
+
     async def fail_once(_platform, _lineitem, payload):
+        # The LMS accepts the score, but the response is lost after acceptance.
+        # Retrying is therefore intentionally at-least-once, not exactly-once.
+        accepted_by_lms.append(dict(payload))
         timestamps.append(payload["timestamp"])
         if len(timestamps) == 1:
-            raise TimeoutError("simulated uncertain response")
+            raise TimeoutError("simulated response lost after LMS acceptance")
 
     monkeypatch.setattr(lti_service_module, "post_lti_ags_score", fail_once)
     # This fixture owns an outer transaction. The simulated HTTP timeout does
@@ -277,12 +282,15 @@ def test_ags_retry_reserves_a_new_timestamp_for_each_delivery_attempt(client, db
     db_session.commit()
 
     async def succeed(_platform, _lineitem, payload):
+        accepted_by_lms.append(dict(payload))
         timestamps.append(payload["timestamp"])
 
     monkeypatch.setattr(lti_service_module, "post_lti_ags_score", succeed)
     assert asyncio.run(lti_service_module.dispatch_lti_grade_event(db_session, event_id)) is True
     assert len(timestamps) == 2
     assert timestamps[1] > timestamps[0]
+    assert [item["scoreGiven"] for item in accepted_by_lms] == [76.0, 76.0]
+    assert accepted_by_lms[1]["timestamp"] > accepted_by_lms[0]["timestamp"]
     event = db_session.get(LTIAGSGradeEvent, event_id)
     assert event.status == "sent"
     assert event.attempts == 2
@@ -645,3 +653,268 @@ def test_ags_delivery_lease_blocks_second_independent_database_worker(monkeypatc
         finally:
             cleanup.close()
 
+
+
+
+def _seed_independent_ags_targets(setup, suffix, count=1):
+    """Create committed PostgreSQL rows for worker tests using independent sessions."""
+    teacher = User(
+        email=f"lti-worker-teacher-{suffix}@example.test",
+        hashed_password="test-only-password-hash",
+        role=UserRole.teacher,
+    )
+    student = User(
+        email=f"lti-worker-student-{suffix}@example.test",
+        hashed_password="test-only-password-hash",
+        role=UserRole.user,
+    )
+    platform = LTIPlatform(
+        name=f"Worker lease sandbox {suffix}",
+        issuer=f"https://moodle-workers-{suffix}.example.test",
+        client_id=f"client-workers-{suffix}",
+        deployment_id=f"deployment-workers-{suffix}",
+        auth_login_url=f"https://moodle-workers-{suffix}.example.test/login",
+        auth_token_url=f"https://moodle-workers-{suffix}.example.test/token",
+        jwks_url=f"https://moodle-workers-{suffix}.example.test/jwks",
+    )
+    setup.add_all([teacher, student, platform])
+    setup.flush()
+
+    assignment_ids = []
+    mapping_ids = []
+    submission_ids = []
+    event_ids = []
+    for index in range(count):
+        assignment = Assignment(
+            created_by_user_id=teacher.id,
+            title=f"Independent AGS target {suffix}-{index}",
+            description="PostgreSQL delivery worker integration test",
+        )
+        setup.add(assignment)
+        setup.flush()
+        mapping = _mapping(setup, platform, assignment.id, f"resource-{suffix}-{index}")
+        subject = f"learner-{suffix}-{index}"
+        submission = AssignmentSubmission(
+            assignment_id=assignment.id,
+            student_user_id=student.id,
+            written_answer="independent AGS worker test",
+            is_late=False,
+            lti_assignment_link_id=mapping.id,
+            lti_subject=subject,
+        )
+        setup.add(submission)
+        setup.flush()
+        now = datetime.now(timezone.utc)
+        event = LTIAGSGradeEvent(
+            assignment_link_id=mapping.id,
+            submission_id=submission.id,
+            grade_version=1,
+            lti_subject=subject,
+            score_given=60 + index,
+            score_maximum=100,
+            status="pending",
+            attempts=0,
+            next_attempt_at=now,
+            score_timestamp=now,
+        )
+        setup.add(event)
+        setup.flush()
+        assignment_ids.append(assignment.id)
+        mapping_ids.append(mapping.id)
+        submission_ids.append(submission.id)
+        event_ids.append(event.id)
+
+    setup.commit()
+    return {
+        "teacher_id": teacher.id,
+        "student_id": student.id,
+        "platform_id": platform.id,
+        "assignment_ids": assignment_ids,
+        "mapping_ids": mapping_ids,
+        "submission_ids": submission_ids,
+        "event_ids": event_ids,
+    }
+
+
+def _cleanup_independent_ags_targets(ids):
+    cleanup = TestingSessionLocal()
+    try:
+        mapping_ids = ids.get("mapping_ids", [])
+        event_ids = ids.get("event_ids", [])
+        submission_ids = ids.get("submission_ids", [])
+        assignment_ids = ids.get("assignment_ids", [])
+        if mapping_ids:
+            cleanup.query(LTIAGSDeliveryLease).filter(
+                LTIAGSDeliveryLease.assignment_link_id.in_(mapping_ids)
+            ).delete(synchronize_session=False)
+        if event_ids:
+            cleanup.query(LTIAGSGradeEvent).filter(
+                LTIAGSGradeEvent.id.in_(event_ids)
+            ).delete(synchronize_session=False)
+        if submission_ids:
+            cleanup.query(AssignmentSubmission).filter(
+                AssignmentSubmission.id.in_(submission_ids)
+            ).delete(synchronize_session=False)
+        if mapping_ids:
+            cleanup.query(LTIAssignmentLink).filter(
+                LTIAssignmentLink.id.in_(mapping_ids)
+            ).delete(synchronize_session=False)
+        if assignment_ids:
+            cleanup.query(Assignment).filter(
+                Assignment.id.in_(assignment_ids)
+            ).delete(synchronize_session=False)
+        if ids.get("platform_id") is not None:
+            cleanup.query(LTIPlatform).filter(
+                LTIPlatform.id == ids["platform_id"]
+            ).delete(synchronize_session=False)
+        user_ids = [
+            value for value in (ids.get("teacher_id"), ids.get("student_id"))
+            if value is not None
+        ]
+        if user_ids:
+            cleanup.query(User).filter(User.id.in_(user_ids)).delete(
+                synchronize_session=False
+            )
+        cleanup.commit()
+    finally:
+        cleanup.close()
+
+
+def test_ags_expired_lease_is_reclaimed_and_stale_worker_is_fenced(monkeypatch):
+    """An expired owner can be replaced; its late completion cannot finalize the event."""
+    suffix = secrets.token_hex(8)
+    setup = TestingSessionLocal()
+    ids = {}
+    try:
+        ids = _seed_independent_ags_targets(setup, suffix, count=1)
+    finally:
+        setup.close()
+
+    worker_one = TestingSessionLocal()
+    worker_two = TestingSessionLocal()
+    attempts = []
+    old_owner = None
+    event_id = ids["event_ids"][0]
+    mapping_id = ids["mapping_ids"][0]
+
+    async def fake_lms_delivery(_platform, _lineitem_url, payload):
+        nonlocal old_owner
+        attempts.append(dict(payload))
+        assert not worker_one.in_transaction()
+        assert not worker_two.in_transaction()
+
+        if len(attempts) == 1:
+            observer = TestingSessionLocal()
+            try:
+                lease = observer.query(LTIAGSDeliveryLease).filter_by(
+                    assignment_link_id=mapping_id
+                ).one()
+                old_owner = lease.owner_token
+                assert old_owner
+                # Model a worker that stopped making progress after its durable
+                # claim. The next worker may recover only after both lease views expire.
+                expired_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+                lease.locked_until = expired_at
+                event = observer.get(LTIAGSGradeEvent, event_id)
+                event.locked_until = expired_at
+                observer.commit()
+            finally:
+                observer.close()
+
+            # A second independent PostgreSQL session reclaims the expired lease
+            # and completes the same at-least-once delivery.
+            assert await lti_service_module.dispatch_lti_grade_event(
+                worker_two, event_id
+            ) is True
+            return
+
+        observer = TestingSessionLocal()
+        try:
+            lease = observer.query(LTIAGSDeliveryLease).filter_by(
+                assignment_link_id=mapping_id
+            ).one()
+            assert lease.owner_token
+            assert lease.owner_token != old_owner
+        finally:
+            observer.close()
+
+    try:
+        monkeypatch.setattr(
+            lti_service_module, "post_lti_ags_score", fake_lms_delivery
+        )
+        # Worker one resumes after worker two has taken over. It must not
+        # overwrite the newer owner's successful finalization.
+        assert asyncio.run(
+            lti_service_module.dispatch_lti_grade_event(worker_one, event_id)
+        ) is False
+        assert len(attempts) == 2
+        assert attempts[1]["timestamp"] > attempts[0]["timestamp"]
+
+        verify = TestingSessionLocal()
+        try:
+            event = verify.get(LTIAGSGradeEvent, event_id)
+            lease = verify.query(LTIAGSDeliveryLease).filter_by(
+                assignment_link_id=mapping_id
+            ).one()
+            assert event.status == "sent"
+            assert event.attempts == 2
+            assert event.delivered_at is not None
+            assert lease.owner_token is None
+            assert lease.event_id is None
+            assert lease.locked_until is None
+        finally:
+            verify.close()
+    finally:
+        worker_one.close()
+        worker_two.close()
+        _cleanup_independent_ags_targets(ids)
+
+
+def test_ags_concurrent_targets_release_all_db_pool_connections_during_lms_io(monkeypatch):
+    """Concurrent deliveries to distinct targets must not pin PostgreSQL pool connections."""
+    suffix = secrets.token_hex(8)
+    setup = TestingSessionLocal()
+    ids = {}
+    try:
+        ids = _seed_independent_ags_targets(setup, suffix, count=6)
+    finally:
+        setup.close()
+
+    workers = [TestingSessionLocal() for _ in ids["event_ids"]]
+    all_started = asyncio.Event()
+    release_network = asyncio.Event()
+    waiting = 0
+
+    async def blocked_lms_delivery(_platform, _lineitem_url, _payload):
+        nonlocal waiting
+        assert all(not worker.in_transaction() for worker in workers)
+        waiting += 1
+        if waiting == len(workers):
+            # Every worker is paused in the simulated network call. No worker
+            # should still hold a checked-out connection from the SQLAlchemy pool.
+            assert engine.pool.checkedout() == 0
+            all_started.set()
+        await release_network.wait()
+
+    async def run_concurrent_deliveries():
+        tasks = [
+            asyncio.create_task(
+                lti_service_module.dispatch_lti_grade_event(worker, event_id)
+            )
+            for worker, event_id in zip(workers, ids["event_ids"])
+        ]
+        await asyncio.wait_for(all_started.wait(), timeout=10)
+        assert engine.pool.checkedout() == 0
+        release_network.set()
+        return await asyncio.gather(*tasks)
+
+    try:
+        monkeypatch.setattr(
+            lti_service_module, "post_lti_ags_score", blocked_lms_delivery
+        )
+        assert asyncio.run(run_concurrent_deliveries()) == [True] * len(workers)
+        assert engine.pool.checkedout() == 0
+    finally:
+        for worker in workers:
+            worker.close()
+        _cleanup_independent_ags_targets(ids)
