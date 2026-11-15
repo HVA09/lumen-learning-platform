@@ -5,6 +5,7 @@ id_token فعلي فيه، ونموّه جلب JWKS المنصة يرجّع مف
 """
 import asyncio
 import time
+from types import SimpleNamespace
 
 import pytest
 from cryptography.hazmat.primitives import serialization
