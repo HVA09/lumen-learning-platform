@@ -764,7 +764,8 @@ async def dispatch_lti_grade_event(db, event_id: int) -> bool:
         .with_for_update()
         .first()
     )
-    if delivered is not None and delivered.status == "pending":
+    delivery_succeeded = delivered is not None and delivered.status == "pending"
+    if delivery_succeeded:
         delivered.status = "sent"
         delivered.delivered_at = datetime.now(timezone.utc)
         delivered.locked_until = None
@@ -774,4 +775,6 @@ async def dispatch_lti_grade_event(db, event_id: int) -> bool:
     lease.event_id = None
     lease.locked_until = None
     db.commit()
-    return delivered is not None and delivered.status == "sent"
+    # Do not inspect expired ORM attributes after commit: that would start a
+    # fresh transaction and could check out a connection after the HTTP call.
+    return delivery_succeeded
