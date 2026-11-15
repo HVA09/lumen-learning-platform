@@ -301,3 +301,15 @@ https://github.com/HVA09/lumen-learning-platform
 - لذلك لا يمكن تنفيذ اختبارات LTI/AGS الخارجية في الوقت الحالي. لا تُنشأ إعدادات أو حسابات افتراضية، ولا تُدّعى نتائج Moodle/Canvas. تبقى هذه البيئات متطلبات منفصلة قبل الدمج أو النشر.
 - نقطة التحقق التي استند إليها القرار: PR #154 على الرأس `bf812eea9522b021a54626c1446b2e9b397dc7bc`؛ [CI #43756879125](https://github.com/HVA09/lumen-learning-platform/actions/runs/43756879125) اكتمل 4/4 Success على هذا الرأس. [PR #154](https://github.com/HVA09/lumen-learning-platform/pull/154) ما زال Open + Draft + Unmerged، و`main` عند `5a065c00ff739c21cad06d551c7e3aa51a3d604b`.
 - القرار التشغيلي: تثبيت الشيفرة الحالية وعدم إدخال تغييرات برمجية غير ضرورية إلى أن تتوفر البيئات. لا تغيير في main أو الإنتاج أو قواعد البيانات أو الاستضافة أو الأسرار أو مفاتيح LMS أو بيانات الطلاب.
+
+
+---
+
+## أحدث نقطة تحقق نهائية — PR #154 — 2026-11-15 — CI 43759595598
+
+- الرأس الحالي وقت التحقق: `12128111cf586ca5c574f95fcb18a87c3f27a929` على الفرع `feat/lti-ags-rebased-20261115`. المقارنة مع `main` عند `5a065c00ff739c21cad06d551c7e3aa51a3d604b`: **33 commits ahead / 0 behind**؛ 29 ملفًا ضمن PR. المقارنة من الرأس البرمجي السابق `555b3033c56ef7b86fda52fdae9db11c5fe02707` إلى هذا الرأس لا تحتوي تغييرات إلا في `docs/CONTINUITY.md`؛ لم تتغير شيفرة LTI/AGS بعد التحقق البرمجي السابق.
+- [CI #43759595598](https://github.com/HVA09/lumen-learning-platform/actions/runs/43759595598) اكتمل **4/4 Success** على الرأس الحالي: Backend، Frontend tests/production build، Browser E2E، Full-history secret scan. Backend: **517 passed، 12 warnings، 89% coverage** على Python 3.12/PostgreSQL 16. migrations/downgrade وbackup/restore اجتازت فحوص CI على قواعد مؤقتة فقط؛ لا تنفيذ إنتاجي.
+- Ruff بقي **report-only** مع 6 تشخيصات في `backend/tests/test_lti_ags_protocol.py`: 5 × F401 و1 × F841. لا تُسجل هذه كفشل CI، ولا تُغيّر gate بسببها ضمن هذا الإصلاح.
+- Issue [#155](https://github.com/HVA09/lumen-learning-platform/issues/155) **Closed**؛ اختبارات PostgreSQL التي أغلقت معاييره موثقة أعلاه: expiry/reclaim وstale-owner fencing، lost-response mock مع timestamp أحدث، وستة أهداف متزامنة مع صفر اتصالات DB محجوزة أثناء انتظار I/O. يبقى اختبار lost-response محاكاة وليس اختبار LMS حقيقيًا؛ دلالة التسليم لا تزال **at-least-once**.
+- تأكد عدم توفر بيئات Moodle Sandbox وCanvas Sandbox وخادم staging عام HTTPS مع API وCelery Worker وBeat؛ لذلك لا توجد نتائج فعلية لتسجيل LTI/OIDC/AGS أو Gradebook في أي منصة. هذه هي بوابة الإطلاق المتبقية، ويلزم توفير البيئات منفصلة ثم توثيق كل السيناريوهات في `backend/LTI_AGS_SANDBOX_RUNBOOK.md`.
+- الحالة: PR #154 **Open + Draft + Unmerged**، و`main` ثابت عند SHA أعلاه. لا دمج ولا Ready for review ولا نشر أو تغيير DB/hosting/secrets/LMS credentials قبل إغلاق Sandbox لكل منصة. لا تغييرات برمجية إضافية مطلوبة قبل توفر البيئات.
