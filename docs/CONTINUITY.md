@@ -191,3 +191,20 @@ https://github.com/HVA09/lumen-learning-platform
 ### نص الاستئناف من جهاز آخر
 
 تابع من `docs/PROJECT_STATUS.md` و`docs/DECISIONS.md` و`docs/PR_STACK_TRIAGE.md` بعد فحص main وCI مباشرة. آخر عمل مدمج في هذه المرحلة هو #145 ثم #147 ثم #146؛ لا تخلط هذا المستودع مع أي مشروع آخر.
+
+
+---
+
+## نقطة تحقق مؤكدة — 2026-11-15: LTI 1.3 / AGS 2.0
+
+- المستودع: `HVA09/lumen-learning-platform`.
+- `main` (آخر تحقق): `5a065c00ff739c21cad06d551c7e3aa51a3d604b`.
+- طلب العمل: [PR #154](https://github.com/HVA09/lumen-learning-platform/pull/154)، ما زال **Draft**، ولم يُدمج. رأسه عند آخر نقطة تحقق قبل هذا التحديث: `f98990e6c48ad4c291169293caff114e14a89732`.
+- آخر تشغيل CI للرأس المذكور: [#43744257767](https://github.com/HVA09/lumen-learning-platform/actions/runs/43744257767)، اكتمل **4/4 Success**: Backend tests، Frontend tests and production build، Browser E2E، Full Git history secret scan.
+- ملخص Backend: **515 passed، 12 warnings، 89% coverage** على Python 3.12؛ تغطية report-only وليست حد قبول مفروضًا.
+- التغيير يعيد تأسيس LTI 1.3 وAGS 2.0 على main الحالي: ربط Resource Link المحدد، outbox للدرجات، migrations 0023–0027، إدارة مفاتيح OAuth/JWT، وإدارة تسليم عبر lease لكل `(assignment_link_id, SHA-256(lti_subject))`.
+- العامل يحجز ويُحدّث الحدث في معاملة قصيرة، ثم ينهي المعاملة قبل OAuth/HTTP؛ DNS محدود بـ10 ثوانٍ وAGS الخارجي بـ45 ثانية، ومدة lease 120 ثانية. بعد الشبكة يبدأ معاملة قصيرة ثانية ويتحقق من owner token. اختبارات التزامن تستخدم جلسات مستقلة للعامل الأول ومصحح الدرجة والعامل الثاني.
+- لا تزال دلالة outbox **at-least-once** وليست exactly-once؛ احتمال إعادة إرسال score موجود عند قبول LMS للدرجة وفقدان الرد.
+- بوابات ما قبل الدمج غير المكتملة: تسجيل الأداة وإعداد OIDC وAGS، اختبار launch، discovery وربط Resource Link، OAuth token endpoint، وصول الدرجة إلى Gradebook، re-grade، timeouts/retries، وحالات الفشل السلبية — كل ذلك في **Moodle Sandbox وCanvas Sandbox كلٌ على حدة**. لم نستخدم أسرار أو بيانات طلاب حقيقية، ولم نغيّر قاعدة بيانات منشورة أو إعدادات استضافة.
+- القرار: لا ترفع الطلب من Draft ولا تدمجه حتى توثيق نتائج Sandbox الفعلية ومراجعة نتائج التسليم المتكرر وtimestamps. نجاح CI وحده لا يثبت توافق LMS الفعلي.
+- الخطوة التالية: تنفيذ دليل `backend/LTI_AGS_SANDBOX_RUNBOOK.md` على Moodle وCanvas Sandbox منفصلين، ثم تسجيل إصدارات المنصتين ونتائج كل سيناريو في سجل الاختبار. إذا لم تتوفر حسابات Sandbox أو مفاتيح/أسرار تجريبية، يبقى هذا الحاجز مفتوحًا ولا تُخمن قيمه.
