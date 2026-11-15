@@ -16,6 +16,7 @@ import socket
 import uuid
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlsplit, urlunsplit
+from types import SimpleNamespace
 
 import httpx
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -334,6 +335,8 @@ AGS_ENDPOINT_CLAIM = "https://purl.imsglobal.org/spec/lti-ags/claim/endpoint"
 AGS_RESOURCE_LINK_CLAIM = "https://purl.imsglobal.org/spec/lti/claim/resource_link"
 AGS_SCORE_SCOPE = "https://purl.imsglobal.org/spec/lti-ags/scope/score"
 AGS_MAX_DELIVERY_ATTEMPTS = 8
+# Two bounded 15-second HTTP exchanges (token + score) plus scheduling margin.
+AGS_DELIVERY_LEASE_SECONDS = 120
 
 
 def validate_lti_ags_lineitem_url(url: str, platform) -> str:
@@ -565,13 +568,21 @@ def _as_utc(value: datetime | None) -> datetime | None:
 
 
 async def dispatch_lti_grade_event(db, event_id: int) -> bool:
-    """Deliver one pending event with monotonic score timestamps and bounded retries."""
-    from app.models.assignment import AssignmentSubmission
-    from app.models.lti import LTIAGSGradeEvent, LTIAssignmentLink, LTIPlatform
+    """Deliver an AGS event using a durable key lease and short DB transactions."""
+    from sqlalchemy import or_
+    from app.models.lti import (
+        LTIAGSDeliveryLease,
+        LTIAGSGradeEvent,
+        LTIAssignmentLink,
+        LTIPlatform,
+    )
 
-    event = db.query(LTIAGSGradeEvent).filter(
-        LTIAGSGradeEvent.id == event_id
-    ).with_for_update().first()
+    event = (
+        db.query(LTIAGSGradeEvent)
+        .filter(LTIAGSGradeEvent.id == event_id)
+        .with_for_update()
+        .first()
+    )
     if event is None or event.status != "pending":
         return False
 
@@ -581,18 +592,7 @@ async def dispatch_lti_grade_event(db, event_id: int) -> bool:
     if _as_utc(event.locked_until) and _as_utc(event.locked_until) > now:
         return False
 
-    # Serialize delivery attempts and grading against the same submission row.
-    submission = db.query(AssignmentSubmission).filter(
-        AssignmentSubmission.id == event.submission_id
-    ).with_for_update().first()
-    if submission is None:
-        event.status = "dead"
-        event.last_error = "ValueError: AGS submission is unavailable"
-        event.locked_until = None
-        db.commit()
-        return False
-
-    # Never retry an older grade after a newer grade version has been recorded.
+    # Check for a newer version before claiming the resource/learner delivery key.
     newer_event = db.query(LTIAGSGradeEvent.id).filter(
         LTIAGSGradeEvent.assignment_link_id == event.assignment_link_id,
         LTIAGSGradeEvent.submission_id == event.submission_id,
@@ -605,91 +605,165 @@ async def dispatch_lti_grade_event(db, event_id: int) -> bool:
         db.commit()
         return False
 
-    # Preserve the grade timestamp on first delivery. Every subsequent
-    # attempt (including a manual retry) reserves a new, strictly later AGS time.
-    score_timestamp = _as_utc(event.score_timestamp or event.created_at)
+    mapping = db.get(LTIAssignmentLink, event.assignment_link_id)
+    platform = db.get(LTIPlatform, mapping.platform_id) if mapping else None
+    mapping_ready = bool(
+        mapping is not None
+        and platform is not None
+        and mapping.lineitem_url
+        and mapping.score_scope_allowed
+    )
+    lineitem_url = mapping.lineitem_url if mapping is not None else None
+    # Copy only the fields required by the HTTP layer. Never use an ORM object
+    # after commit: lazy loading could silently check out a DB connection.
+    platform_snapshot = (
+        SimpleNamespace(
+            client_id=platform.client_id,
+            auth_token_url=platform.auth_token_url,
+        )
+        if platform is not None
+        else None
+    )
+
+    subject_hash = hashlib.sha256(event.lti_subject.encode("utf-8")).hexdigest()
+    owner_token = uuid.uuid4().hex
+    lease_until = now + timedelta(seconds=AGS_DELIVERY_LEASE_SECONDS)
+    lease_table = LTIAGSDeliveryLease.__table__
+    dialect = db.get_bind().dialect.name
+    insert_fn = pg_insert if dialect == "postgresql" else sqlite_insert
+    lease_statement = insert_fn(lease_table).values(
+        assignment_link_id=event.assignment_link_id,
+        subject_hash=subject_hash,
+        owner_token=owner_token,
+        event_id=event.id,
+        locked_until=lease_until,
+    ).on_conflict_do_update(
+        index_elements=[lease_table.c.assignment_link_id, lease_table.c.subject_hash],
+        set_={
+            "owner_token": owner_token,
+            "event_id": event.id,
+            "locked_until": lease_until,
+        },
+        where=or_(
+            lease_table.c.locked_until.is_(None),
+            lease_table.c.locked_until <= now,
+        ),
+    ).returning(lease_table.c.owner_token)
+
+    claimed_owner = db.execute(lease_statement).scalar_one_or_none()
+    if claimed_owner != owner_token:
+        # The same resource/learner is already being delivered by another worker.
+        # End this short transaction without waiting for the external LMS request.
+        db.commit()
+        return False
+
+    # Preserve the original grade timestamp on first delivery. Every retry
+    # reserves a strictly later timestamp, including an uncertain upstream result.
+    score_timestamp = _as_utc(event.score_timestamp or event.created_at) or now
     if event.attempts > 0:
         score_timestamp = max(now, score_timestamp + timedelta(microseconds=1))
     event.score_timestamp = score_timestamp
-    event.locked_until = now + timedelta(minutes=3)
+    event.locked_until = lease_until
     event.attempts += 1
-    reserved_attempts = event.attempts
+
+    score = {
+        "userId": event.lti_subject,
+        "scoreGiven": event.score_given,
+        "scoreMaximum": event.score_maximum,
+        "activityProgress": "Completed",
+        "gradingProgress": "FullyGraded",
+        "timestamp": score_timestamp.isoformat(timespec="microseconds").replace("+00:00", "Z"),
+    }
+    if event.comment:
+        score["comment"] = event.comment[:5000]
+
+    # CRITICAL: commit before OAuth/HTTP. In production this releases the
+    # SQLAlchemy connection and all row locks back to the pool.
     db.commit()
-
-    # Reacquire the event and submission locks after the durable lease commit.
-    # The submission lock is held through the LMS request: grading either
-    # commits before this check (and makes this event superseded), or waits
-    # until this delivery finishes, preserving grade order.
-    event = db.query(LTIAGSGradeEvent).filter(
-        LTIAGSGradeEvent.id == event_id
-    ).with_for_update().first()
-    if (
-        event is None
-        or event.status != "pending"
-        or event.attempts != reserved_attempts
-    ):
-        return False
-
-    submission = db.query(AssignmentSubmission).filter(
-        AssignmentSubmission.id == event.submission_id
-    ).with_for_update().first()
-    if submission is None:
-        event.status = "dead"
-        event.locked_until = None
-        event.last_error = "ValueError: AGS submission is unavailable"
-        db.commit()
-        return False
-
-    newer_event = db.query(LTIAGSGradeEvent.id).filter(
-        LTIAGSGradeEvent.assignment_link_id == event.assignment_link_id,
-        LTIAGSGradeEvent.submission_id == event.submission_id,
-        LTIAGSGradeEvent.grade_version > event.grade_version,
-    ).first()
-    if newer_event is not None:
-        event.status = "superseded"
-        event.locked_until = None
-        event.last_error = None
-        db.commit()
-        return False
 
     try:
-        mapping = db.get(LTIAssignmentLink, event.assignment_link_id)
-        platform = db.get(LTIPlatform, mapping.platform_id) if mapping else None
-        if mapping is None or platform is None or not mapping.lineitem_url or not mapping.score_scope_allowed:
+        if not mapping_ready or platform_snapshot is None or not lineitem_url:
             raise ValueError("AGS mapping is not ready")
-        timestamp = _as_utc(event.score_timestamp).isoformat(timespec="microseconds").replace("+00:00", "Z")
-        score = {
-            "userId": event.lti_subject,
-            "scoreGiven": event.score_given,
-            "scoreMaximum": event.score_maximum,
-            "activityProgress": "Completed",
-            "gradingProgress": "FullyGraded",
-            "timestamp": timestamp,
-        }
-        if event.comment:
-            score["comment"] = event.comment[:5000]
-        await post_lti_ags_score(platform, mapping.lineitem_url, score)
+        await post_lti_ags_score(platform_snapshot, lineitem_url, score)
     except Exception as exc:
+        # No DB transaction is kept open during the network request. Start a new,
+        # short transaction and finalize only if this worker still owns the lease.
         db.rollback()
-        failed = db.get(LTIAGSGradeEvent, event_id)
-        if failed is None:
+        lease = (
+            db.query(LTIAGSDeliveryLease)
+            .filter(
+                LTIAGSDeliveryLease.assignment_link_id == event.assignment_link_id,
+                LTIAGSDeliveryLease.subject_hash == subject_hash,
+                LTIAGSDeliveryLease.owner_token == owner_token,
+            )
+            .with_for_update()
+            .first()
+        )
+        if lease is None:
+            db.commit()
             return False
-        failed.locked_until = None
-        failed.last_error = f"{type(exc).__name__}: AGS delivery failed"[:255]
-        if failed.attempts >= AGS_MAX_DELIVERY_ATTEMPTS:
-            failed.status = "dead"
-        else:
-            delay = min(60 * (2 ** max(failed.attempts - 1, 0)), 21600)
-            failed.next_attempt_at = datetime.now(timezone.utc) + timedelta(seconds=delay)
+
+        failed = (
+            db.query(LTIAGSGradeEvent)
+            .filter(LTIAGSGradeEvent.id == event_id)
+            .with_for_update()
+            .first()
+        )
+        if failed is not None:
+            newer_event = db.query(LTIAGSGradeEvent.id).filter(
+                LTIAGSGradeEvent.assignment_link_id == failed.assignment_link_id,
+                LTIAGSGradeEvent.submission_id == failed.submission_id,
+                LTIAGSGradeEvent.grade_version > failed.grade_version,
+            ).first()
+            failed.locked_until = None
+            if newer_event is not None:
+                # A later grade exists. Do not retry an older, uncertain score
+                # after a newer version becomes eligible for delivery.
+                failed.status = "superseded"
+                failed.last_error = None
+            else:
+                failed.last_error = f"{type(exc).__name__}: AGS delivery failed"[:255]
+                if failed.attempts >= AGS_MAX_DELIVERY_ATTEMPTS:
+                    failed.status = "dead"
+                else:
+                    delay = min(60 * (2 ** max(failed.attempts - 1, 0)), 21600)
+                    failed.next_attempt_at = datetime.now(timezone.utc) + timedelta(seconds=delay)
+
+        lease.owner_token = None
+        lease.event_id = None
+        lease.locked_until = None
         db.commit()
         return False
 
-    delivered = db.get(LTIAGSGradeEvent, event_id)
-    if delivered is None:
+    # A second short transaction records delivery and releases the per-key lease.
+    lease = (
+        db.query(LTIAGSDeliveryLease)
+        .filter(
+            LTIAGSDeliveryLease.assignment_link_id == event.assignment_link_id,
+            LTIAGSDeliveryLease.subject_hash == subject_hash,
+            LTIAGSDeliveryLease.owner_token == owner_token,
+        )
+        .with_for_update()
+        .first()
+    )
+    if lease is None:
+        db.commit()
         return False
-    delivered.status = "sent"
-    delivered.delivered_at = datetime.now(timezone.utc)
-    delivered.locked_until = None
-    delivered.last_error = None
+
+    delivered = (
+        db.query(LTIAGSGradeEvent)
+        .filter(LTIAGSGradeEvent.id == event_id)
+        .with_for_update()
+        .first()
+    )
+    if delivered is not None and delivered.status == "pending":
+        delivered.status = "sent"
+        delivered.delivered_at = datetime.now(timezone.utc)
+        delivered.locked_until = None
+        delivered.last_error = None
+
+    lease.owner_token = None
+    lease.event_id = None
+    lease.locked_until = None
     db.commit()
-    return True
+    return delivered is not None and delivered.status == "sent"
