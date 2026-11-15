@@ -1,6 +1,39 @@
 # دليل استمرارية المشروع عبر الأجهزة والمحادثات
 
-آخر تحديث: 2026-11-07
+آخر تحديث: 2026-11-15
+
+## أحدث نقطة استئناف — 2026-11-15 (LTI AGS delivery hardening)
+
+- المستودع: `HVA09/lumen-learning-platform`. فرع العمل: `feat/lti-ags-rebased-20261115`.
+- PR #154: https://github.com/HVA09/lumen-learning-platform/pull/154 — ما زال **Draft** عمدًا. لا تدمجه قبل اختبار Moodle Sandbox وCanvas Sandbox كلٌّ على حدة.
+- آخر رأس تم التحقق من فحوصه قبل تحديث التوثيق: `daf23532d15893678dd9e949662885cd95779c4b`.
+- آخر تشغيل CI على هذا الرأس: [43687381243](https://github.com/HVA09/lumen-learning-platform/actions/runs/43687381243) — **4/4 Success**. Backend: **497 passed, 21 warnings**؛ اختبار `test_ags_delivery_lease_blocks_second_independent_database_worker` نجح. Frontend production build، Browser E2E، وFull Git history secret scan نجحت.
+- بعد هذه الجولة أضيف تحديث توثيقي إلى `backend/LTI_AGS_SANDBOX_RUNBOOK.md` لشرح lease ومددها ودورة حياة معاملات DB؛ سيحتاج الرأس الناتج إلى CI جديد قبل اعتماده على أنه متحقق.
+
+### هندسة تسليم AGS الحالية في فرع PR #154
+
+- نموذج `LTIAGSDeliveryLease` وجدول `lti_ags_delivery_leases` مع migration `0027_lti_ags_delivery_lease`.
+- قفل فريد حسب `(assignment_link_id, SHA-256(lti_subject)))، مع `owner_token` ومدة lease مقدارها 120 ثانية؛ لا نخزن subject الخام في جدول القفل.
+- معاملة قصيرة لحجز الحدث ثم `COMMIT` قبل OAuth/HTTP، ومعاملة منفصلة بعد الشبكة لتسجيل النتيجة والتحقق من مالك القفل وتحريره.
+- مهلة DNS 10 ثوانٍ، والمهلة الخارجية الإجمالية لإرسال AGS 45 ثانية، أقصر من lease.
+- مسارات الخروج المبكر تنفذ rollback لتحرير أقفال الصفوف، ومسار النجاح لا يقرأ ORM attributes بعد commit لتجنب فتح معاملة جديدة عن غير قصد.
+- الاختبارات تغطي re-grade أثناء إرسال قديم بثلاث جلسات مستقلة: عامل أول، جلسة مصحح تنشئ الدرجة الجديدة، وعامل ثانٍ يحاول حجز القفل. يجب أن يفشل العامل الثاني أثناء lease ثم يرسل الدرجة الأحدث بعد تحرير القفل.
+- الدلالة تبقى at-least-once لا exactly-once؛ أي نجاح CI محلي لا يحسم سلوك timestamp وإعادة الإرسال في Moodle/Canvas.
+
+### البوابات المتبقية
+
+1. إعادة تشغيل CI على آخر رأس بعد تحديث runbook والتأكد من نجاح 4/4.
+2. Moodle Sandbox: تسجيل LTI 1.3، OIDC launch، Resource Link discovery، mapping، OAuth، grade passback وre-grade، timeout/retry، واختبارات السلوك المكرر.
+3. Canvas Sandbox: السيناريو نفسه بشكل مستقل، مع التحقق من Line Item وGradebook وسلوك timestamps.
+4. حفظ تقارير منقحة من دون ID tokens أو access tokens أو مفاتيح خاصة.
+5. إبقاء PR #154 Draft وعدم الدمج حتى اكتمال بوابتي Moodle وCanvas.
+
+لم تُجرَ تغييرات على قواعد بيانات منشورة أو أسرار LMS أو إعدادات الاستضافة أو بيانات طلاب حقيقية. هذا الفرع تطوير واختبار فقط.
+
+---
+
+## أحدث نقطة استئناف — 2026-11-07 (سجل تاريخي)
+
 
 ## أحدث نقطة استئناف — 2026-11-07
 
