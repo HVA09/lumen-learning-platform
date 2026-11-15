@@ -5,11 +5,12 @@ from datetime import datetime, timedelta, timezone
 
 from app.auth.sessions import create_browser_session
 from app.models.auth_session import AuthSession
-from app.models.assignment import AssignmentSubmission
+from app.models.assignment import Assignment, AssignmentSubmission
 from app.models.lti import LTIAGSDeliveryLease, LTIAGSGradeEvent, LTIAuthCode, LTIAssignmentLink, LTIPlatform, LTIUserLink
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.services import lti_service as lti_service_module
 from app.services.lti_service import hash_opaque_token
+from tests.conftest import TestingSessionLocal
 from tests.quiz_helpers import auth, make_student, make_teacher
 
 
@@ -468,4 +469,168 @@ def test_ags_delivery_uses_per_learner_lease_and_releases_session_transaction(
     assert lease.owner_token is None
     assert lease.event_id is None
     assert lease.locked_until is None
+
+def test_ags_delivery_lease_blocks_second_independent_database_worker(monkeypatch):
+    """Two independent PostgreSQL sessions cannot deliver the same learner/resource concurrently."""
+    suffix = secrets.token_hex(8)
+    setup = TestingSessionLocal()
+    ids = {}
+    try:
+        teacher = User(
+            email=f"lti-lease-worker-teacher-{suffix}@example.test",
+            hashed_password="test-only-password-hash",
+            role=UserRole.teacher,
+        )
+        student = User(
+            email=f"lti-lease-worker-student-{suffix}@example.test",
+            hashed_password="test-only-password-hash",
+            role=UserRole.user,
+        )
+        platform = LTIPlatform(
+            name=f"Independent worker sandbox {suffix}",
+            issuer=f"https://moodle-workers-{suffix}.example.test",
+            client_id=f"client-workers-{suffix}",
+            deployment_id=f"deployment-workers-{suffix}",
+            auth_login_url=f"https://moodle-workers-{suffix}.example.test/login",
+            auth_token_url=f"https://moodle-workers-{suffix}.example.test/token",
+            jwks_url=f"https://moodle-workers-{suffix}.example.test/jwks",
+        )
+        setup.add_all([teacher, student, platform])
+        setup.flush()
+
+        assignment = Assignment(
+            created_by_user_id=teacher.id,
+            title=f"Independent worker lease {suffix}",
+            description="Integration-only lease contention fixture",
+        )
+        setup.add(assignment)
+        setup.flush()
+        mapping = _mapping(setup, platform, assignment.id, f"resource-{suffix}")
+        submission = AssignmentSubmission(
+            assignment_id=assignment.id,
+            student_user_id=student.id,
+            written_answer="lease integration test",
+            is_late=False,
+            lti_assignment_link_id=mapping.id,
+            lti_subject=f"learner-{suffix}",
+        )
+        setup.add(submission)
+        setup.flush()
+
+        now = datetime.now(timezone.utc)
+        first = LTIAGSGradeEvent(
+            assignment_link_id=mapping.id,
+            submission_id=submission.id,
+            grade_version=1,
+            lti_subject=f"learner-{suffix}",
+            score_given=60,
+            score_maximum=100,
+            status="pending",
+            attempts=0,
+            next_attempt_at=now,
+            score_timestamp=now,
+        )
+        setup.add(first)
+        setup.commit()
+        ids = {
+            "teacher_id": teacher.id,
+            "student_id": student.id,
+            "platform_id": platform.id,
+            "assignment_id": assignment.id,
+            "mapping_id": mapping.id,
+            "submission_id": submission.id,
+            "first_event_id": first.id,
+        }
+    finally:
+        setup.close()
+
+    worker_one = TestingSessionLocal()
+    worker_two = TestingSessionLocal()
+    second_event_ids = []
+    delivered_scores = []
+
+    async def fake_lms_delivery(_platform, _lineitem_url, payload):
+        # The first worker must have released its SQLAlchemy transaction before
+        # invoking the external LMS. Its second worker uses a different DB connection.
+        assert not worker_one.in_transaction()
+        delivered_scores.append(payload["scoreGiven"])
+
+        if not second_event_ids:
+            later = LTIAGSGradeEvent(
+                assignment_link_id=ids["mapping_id"],
+                submission_id=ids["submission_id"],
+                grade_version=2,
+                lti_subject=f"learner-{suffix}",
+                score_given=95,
+                score_maximum=100,
+                status="pending",
+                attempts=0,
+                next_attempt_at=datetime.now(timezone.utc),
+                score_timestamp=datetime.now(timezone.utc),
+            )
+            worker_one.add(later)
+            worker_one.commit()
+            second_event_ids.append(later.id)
+
+            # This is a different SQLAlchemy Session/connection. It must fail
+            # the atomic lease claim while worker one's simulated HTTP call is in flight.
+            assert not worker_two.in_transaction()
+            assert await lti_service_module.dispatch_lti_grade_event(
+                worker_two, later.id
+            ) is False
+            assert not worker_two.in_transaction()
+
+    try:
+        monkeypatch.setattr(
+            lti_service_module, "post_lti_ags_score", fake_lms_delivery
+        )
+        assert asyncio.run(
+            lti_service_module.dispatch_lti_grade_event(
+                worker_one, ids["first_event_id"]
+            )
+        ) is True
+        assert len(second_event_ids) == 1
+
+        # After worker one records success and releases the lease, worker two
+        # can claim and deliver the latest grade. Delivery order is preserved.
+        assert asyncio.run(
+            lti_service_module.dispatch_lti_grade_event(
+                worker_two, second_event_ids[0]
+            )
+        ) is True
+        assert delivered_scores == [60.0, 95.0]
+    finally:
+        worker_one.close()
+        worker_two.close()
+        cleanup = TestingSessionLocal()
+        try:
+            cleanup.query(LTIAGSDeliveryLease).filter_by(
+                assignment_link_id=ids.get("mapping_id", -1)
+            ).delete(synchronize_session=False)
+            cleanup.query(LTIAGSGradeEvent).filter_by(
+                submission_id=ids.get("submission_id", -1)
+            ).delete(synchronize_session=False)
+            cleanup.query(AssignmentSubmission).filter_by(
+                id=ids.get("submission_id", -1)
+            ).delete(synchronize_session=False)
+            cleanup.query(LTIAssignmentLink).filter_by(
+                id=ids.get("mapping_id", -1)
+            ).delete(synchronize_session=False)
+            cleanup.query(Assignment).filter_by(
+                id=ids.get("assignment_id", -1)
+            ).delete(synchronize_session=False)
+            cleanup.query(LTIPlatform).filter_by(
+                id=ids.get("platform_id", -1)
+            ).delete(synchronize_session=False)
+            user_ids = [
+                value for value in (ids.get("teacher_id"), ids.get("student_id"))
+                if value is not None
+            ]
+            if user_ids:
+                cleanup.query(User).filter(User.id.in_(user_ids)).delete(
+                    synchronize_session=False
+                )
+            cleanup.commit()
+        finally:
+            cleanup.close()
 
