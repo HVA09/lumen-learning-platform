@@ -28,6 +28,8 @@ from app.config import settings
 
 LTI_STATE_TTL_SECONDS = 600  # 10 دقايق كافية لإكمال تدفق OIDC
 LTI_AUTH_CODE_TTL_SECONDS = 60  # رمز تبادل الدخول صالح لدقيقة واحدة
+LTI_DNS_TIMEOUT_SECONDS = 10.0
+AGS_DELIVERY_HTTP_TIMEOUT_SECONDS = 45.0
 
 
 def validate_lti_platform_endpoint_url(url: str) -> str:
@@ -154,10 +156,13 @@ async def resolve_lti_platform_endpoint_url(url: str, *, allow_query: bool = Fal
         resolved_addresses = [literal.compressed]
     else:
         try:
-            records = await asyncio.get_running_loop().getaddrinfo(
-                hostname, port, type=socket.SOCK_STREAM
+            records = await asyncio.wait_for(
+                asyncio.get_running_loop().getaddrinfo(
+                    hostname, port, type=socket.SOCK_STREAM
+                ),
+                timeout=LTI_DNS_TIMEOUT_SECONDS,
             )
-        except OSError as exc:
+        except (OSError, asyncio.TimeoutError) as exc:
             raise ValueError("Unable to resolve LTI platform hostname safely") from exc
         resolved_addresses = list(dict.fromkeys(record[4][0] for record in records))
 
@@ -684,7 +689,8 @@ async def dispatch_lti_grade_event(db, event_id: int) -> bool:
     try:
         if not mapping_ready or platform_snapshot is None or not lineitem_url:
             raise ValueError("AGS mapping is not ready")
-        await post_lti_ags_score(platform_snapshot, lineitem_url, score)
+        async with asyncio.timeout(AGS_DELIVERY_HTTP_TIMEOUT_SECONDS):
+            await post_lti_ags_score(platform_snapshot, lineitem_url, score)
     except Exception as exc:
         # No DB transaction is kept open during the network request. Start a new,
         # short transaction and finalize only if this worker still owns the lease.
