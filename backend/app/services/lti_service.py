@@ -30,6 +30,7 @@ from app.config import settings
 LTI_STATE_TTL_SECONDS = 600  # 10 دقايق كافية لإكمال تدفق OIDC
 LTI_AUTH_CODE_TTL_SECONDS = 60  # رمز تبادل الدخول صالح لدقيقة واحدة
 LTI_DNS_TIMEOUT_SECONDS = 10.0
+LTI_JWKS_FETCH_TOTAL_TIMEOUT_SECONDS = 25.0
 AGS_DELIVERY_HTTP_TIMEOUT_SECONDS = 45.0
 
 
@@ -209,37 +210,47 @@ def build_tool_jwks() -> dict:
 
 
 async def fetch_platform_public_key(jwks_url: str, kid: str):
-    """Fetch a bounded JWKS response over a DNS-pinned, public-IP-only connection."""
-    pinned_url, headers, extensions = await resolve_lti_platform_endpoint_url(jwks_url)
-    content = bytearray()
-    async with httpx.AsyncClient(
-        timeout=15.0,
-        follow_redirects=False,
-        trust_env=False,
-    ) as client:
-        async with client.stream(
-            "GET", pinned_url, headers=headers, extensions=extensions
-        ) as response:
-            if 300 <= response.status_code < 400:
-                raise ValueError("LTI JWKS endpoint redirects are not allowed")
-            response.raise_for_status()
-            async for chunk in response.aiter_bytes():
-                content.extend(chunk)
-                if len(content) > 1024 * 1024:
-                    raise ValueError("LTI JWKS response exceeds the 1 MiB limit")
+    """Fetch a bounded JWKS response with a total wall-clock deadline."""
+    async def _fetch():
+        pinned_url, headers, extensions = await resolve_lti_platform_endpoint_url(jwks_url)
+        content = bytearray()
+        async with httpx.AsyncClient(
+            timeout=15.0,
+            follow_redirects=False,
+            trust_env=False,
+        ) as client:
+            async with client.stream(
+                "GET", pinned_url, headers=headers, extensions=extensions
+            ) as response:
+                if 300 <= response.status_code < 400:
+                    raise ValueError("LTI JWKS endpoint redirects are not allowed")
+                response.raise_for_status()
+                async for chunk in response.aiter_bytes():
+                    content.extend(chunk)
+                    if len(content) > 1024 * 1024:
+                        raise ValueError("LTI JWKS response exceeds the 1 MiB limit")
+
+        try:
+            document = json.loads(bytes(content))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise ValueError("LTI JWKS response is not valid JSON") from exc
+
+        keys = document.get("keys") if isinstance(document, dict) else None
+        if not isinstance(keys, list):
+            raise ValueError("LTI JWKS response does not contain a keys array")
+        matching_key = next((key for key in keys if isinstance(key, dict) and key.get("kid") == kid), None)
+        if not matching_key:
+            raise ValueError("ما لقينا مفتاح مطابق بـ JWKS الخاص بالمنصة")
+        return matching_key
 
     try:
-        document = json.loads(bytes(content))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise ValueError("LTI JWKS response is not valid JSON") from exc
-
-    keys = document.get("keys") if isinstance(document, dict) else None
-    if not isinstance(keys, list):
-        raise ValueError("LTI JWKS response does not contain a keys array")
-    matching_key = next((key for key in keys if isinstance(key, dict) and key.get("kid") == kid), None)
-    if not matching_key:
-        raise ValueError("ما لقينا مفتاح مطابق بـ JWKS الخاص بالمنصة")
-    return matching_key
+        # Includes DNS resolution, connection setup, response headers and every body chunk.
+        # HTTPX read timeouts alone are inactivity limits, not a stream-wide deadline.
+        return await asyncio_wait_for(
+            _fetch(), timeout=LTI_JWKS_FETCH_TOTAL_TIMEOUT_SECONDS
+        )
+    except TimeoutError as exc:
+        raise ValueError("LTI JWKS fetch exceeded the total wall-clock deadline") from exc
 
 async def verify_platform_id_token(
     id_token: str, platform, expected_nonce: str, expected_target_link_uri: str
@@ -576,6 +587,7 @@ def _as_utc(value: datetime | None) -> datetime | None:
 async def dispatch_lti_grade_event(db, event_id: int) -> bool:
     """Deliver an AGS event using a durable key lease and short DB transactions."""
     from sqlalchemy import or_
+    from app.models.assignment import AssignmentSubmission
     from app.models.lti import (
         LTIAGSDeliveryLease,
         LTIAGSGradeEvent,
@@ -602,7 +614,20 @@ async def dispatch_lti_grade_event(db, event_id: int) -> bool:
         db.rollback()
         return False
 
-    # Check for a newer version before claiming the resource/learner delivery key.
+    # Re-grade locks this same submission row before incrementing grade_version and
+    # creating the next outbox event. Lock it here before checking newer versions or
+    # reserving a retry timestamp, otherwise a retry can race an uncommitted re-grade.
+    submission_exists = (
+        db.query(AssignmentSubmission.id)
+        .filter(AssignmentSubmission.id == event.submission_id)
+        .with_for_update()
+        .first()
+    )
+    if submission_exists is None:
+        db.rollback()
+        return False
+
+    # Check for a newer version only after acquiring the submission lock.
     newer_event = db.query(LTIAGSGradeEvent.id).filter(
         LTIAGSGradeEvent.assignment_link_id == assignment_link_id,
         LTIAGSGradeEvent.submission_id == event.submission_id,
@@ -611,7 +636,19 @@ async def dispatch_lti_grade_event(db, event_id: int) -> bool:
     if newer_event is not None:
         event.status = "superseded"
         event.locked_until = None
+        event.manual_retry_requested_at = None
         event.last_error = None
+        db.commit()
+        return False
+
+    # Worker crashes after claim count as consumed automatic attempts. Once the
+    # lease has expired, exhausted events stop here until an administrator authorizes
+    # one explicit retry; this prevents crash loops from bypassing the attempt cap.
+    manual_retry_authorized = event.manual_retry_requested_at is not None
+    if event.attempts >= AGS_MAX_DELIVERY_ATTEMPTS and not manual_retry_authorized:
+        event.status = "dead"
+        event.locked_until = None
+        event.last_error = "AGS automatic attempt limit reached; admin retry required"
         db.commit()
         return False
 
@@ -674,6 +711,8 @@ async def dispatch_lti_grade_event(db, event_id: int) -> bool:
         score_timestamp = max(now, score_timestamp + timedelta(microseconds=1))
     event.score_timestamp = score_timestamp
     event.locked_until = lease_until
+    # A manual retry authorization is one-shot and is consumed by this durable claim.
+    event.manual_retry_requested_at = None
     event.attempts += 1
 
     score = {

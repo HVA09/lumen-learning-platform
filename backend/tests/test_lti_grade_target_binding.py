@@ -1,7 +1,10 @@
 """Regression tests for resource-bound AGS passback and delivery ordering."""
 import asyncio
 import secrets
+import threading
 from datetime import datetime, timedelta, timezone
+
+from sqlalchemy import event as sqlalchemy_event
 
 from app.auth.sessions import create_browser_session
 from app.models.auth_session import AuthSession
@@ -11,7 +14,7 @@ from app.models.user import User, UserRole
 from app.services import lti_service as lti_service_module
 from app.services.lti_service import hash_opaque_token
 from tests.conftest import TestingSessionLocal, engine
-from tests.quiz_helpers import auth, make_student, make_teacher
+from tests.quiz_helpers import auth, make_student, make_teacher, set_role
 
 
 def _create_assignment(client, teacher_token):
@@ -917,4 +920,212 @@ def test_ags_concurrent_targets_release_all_db_pool_connections_during_lms_io(mo
     finally:
         for worker in workers:
             worker.close()
+        _cleanup_independent_ags_targets(ids)
+
+
+def test_ags_exhausted_crash_recovery_requires_one_admin_authorized_retry(
+    client, db_session, monkeypatch
+):
+    suffix = secrets.token_hex(6)
+    admin_email = f"lti-ags-retry-admin-{suffix}@example.test"
+    admin_token = make_teacher(client, db_session, admin_email)
+    set_role(db_session, admin_email, UserRole.admin)
+    make_student(client, f"lti-ags-retry-student-{suffix}@example.test")
+
+    student = db_session.query(User).filter(
+        User.email == f"lti-ags-retry-student-{suffix}@example.test"
+    ).one()
+    assignment_id = _create_assignment(client, admin_token)
+    platform = _platform(db_session, f"retry-{suffix}")
+    mapping = _mapping(db_session, platform, assignment_id, f"retry-resource-{suffix}")
+    now = datetime.now(timezone.utc)
+    submission = AssignmentSubmission(
+        assignment_id=assignment_id,
+        student_user_id=student.id,
+        written_answer="AGS retry-cap regression",
+        is_late=False,
+        grade_version=1,
+        lti_assignment_link_id=mapping.id,
+        lti_subject=f"learner-{suffix}",
+    )
+    db_session.add(submission)
+    db_session.flush()
+    event = LTIAGSGradeEvent(
+        assignment_link_id=mapping.id,
+        submission_id=submission.id,
+        grade_version=1,
+        lti_subject=submission.lti_subject,
+        score_given=80,
+        score_maximum=100,
+        status="pending",
+        attempts=lti_service_module.AGS_MAX_DELIVERY_ATTEMPTS,
+        next_attempt_at=now - timedelta(minutes=1),
+        score_timestamp=now - timedelta(minutes=5),
+        locked_until=now - timedelta(seconds=1),
+    )
+    db_session.add(event)
+    db_session.commit()
+
+    unexpected_calls = []
+
+    async def unexpected_delivery(*_args, **_kwargs):
+        unexpected_calls.append(True)
+
+    monkeypatch.setattr(
+        lti_service_module, "post_lti_ags_score", unexpected_delivery
+    )
+    assert asyncio.run(
+        lti_service_module.dispatch_lti_grade_event(db_session, event.id)
+    ) is False
+    db_session.refresh(event)
+    assert event.status == "dead"
+    assert event.attempts == lti_service_module.AGS_MAX_DELIVERY_ATTEMPTS
+    assert event.manual_retry_requested_at is None
+    assert unexpected_calls == []
+
+    retry_response = client.post(
+        f"/lti/grade-events/{event.id}/retry",
+        headers=auth(admin_token),
+    )
+    assert retry_response.status_code == 200, retry_response.text
+    db_session.refresh(event)
+    assert event.status == "pending"
+    assert event.manual_retry_requested_at is not None
+
+    delivered = []
+
+    async def accepted_delivery(_platform, _lineitem_url, score):
+        delivered.append(score)
+
+    monkeypatch.setattr(
+        lti_service_module, "post_lti_ags_score", accepted_delivery
+    )
+    assert asyncio.run(
+        lti_service_module.dispatch_lti_grade_event(db_session, event.id)
+    ) is True
+    db_session.refresh(event)
+    assert len(delivered) == 1
+    assert event.status == "sent"
+    assert event.attempts == lti_service_module.AGS_MAX_DELIVERY_ATTEMPTS + 1
+    assert event.manual_retry_requested_at is None
+
+
+def test_ags_retry_waits_for_uncommitted_regrade_before_reserving_timestamp(monkeypatch):
+    """A retry must wait on the submission lock, then supersede an uncommitted newer grade."""
+    if engine.dialect.name != "postgresql":
+        import pytest
+        pytest.skip("Requires PostgreSQL row-level FOR UPDATE semantics")
+
+    suffix = secrets.token_hex(8)
+    setup = TestingSessionLocal()
+    ids = {}
+    try:
+        ids = _seed_independent_ags_targets(setup, suffix, count=1)
+        old_event = setup.get(LTIAGSGradeEvent, ids["event_ids"][0])
+        old_timestamp = datetime.now(timezone.utc) - timedelta(minutes=5)
+        old_event.attempts = 1
+        old_event.score_timestamp = old_timestamp
+        old_event.next_attempt_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+        old_event.locked_until = None
+        setup.commit()
+    finally:
+        setup.close()
+
+    grader = TestingSessionLocal()
+    lock_query_started = threading.Event()
+    worker_result = {}
+    worker_errors = []
+    network_calls = []
+    listener = None
+    worker = None
+
+    try:
+        submission = (
+            grader.query(AssignmentSubmission)
+            .filter(AssignmentSubmission.id == ids["submission_ids"][0])
+            .with_for_update()
+            .one()
+        )
+        assignment = grader.get(Assignment, ids["assignment_ids"][0])
+        grader.add(
+            LTIUserLink(
+                platform_id=ids["platform_id"],
+                lti_subject=submission.lti_subject,
+                user_id=ids["student_id"],
+            )
+        )
+        submission.grade_version = 2
+        submission.grade_percentage = 95
+        submission.feedback = "Concurrent re-grade"
+        submission.graded_at = old_timestamp + timedelta(microseconds=2)
+        new_event_id = lti_service_module.create_lti_ags_grade_event(
+            grader, assignment, submission
+        )
+        assert new_event_id is not None
+        grader.flush()
+
+        def before_cursor_execute(
+            _connection, _cursor, statement, _parameters, _context, _executemany
+        ):
+            normalized = statement.lower()
+            if "assignment_submissions" in normalized and "for update" in normalized:
+                lock_query_started.set()
+
+        listener = before_cursor_execute
+        sqlalchemy_event.listen(engine, "before_cursor_execute", listener)
+
+        async def should_not_deliver(*_args, **_kwargs):
+            network_calls.append(True)
+
+        monkeypatch.setattr(
+            lti_service_module, "post_lti_ags_score", should_not_deliver
+        )
+
+        def run_dispatch():
+            worker_session = TestingSessionLocal()
+            try:
+                worker_result["result"] = asyncio.run(
+                    lti_service_module.dispatch_lti_grade_event(
+                        worker_session, ids["event_ids"][0]
+                    )
+                )
+            except BaseException as exc:
+                worker_errors.append(exc)
+            finally:
+                worker_session.close()
+
+        worker = threading.Thread(target=run_dispatch, daemon=True)
+        worker.start()
+        assert lock_query_started.wait(timeout=5), (
+            "dispatcher did not request the submission row lock before retry timestamp reservation"
+        )
+
+        # The dispatcher is waiting on the row lock held by the re-grade transaction.
+        # Commit the newer grade; the retry must observe it and stop before network I/O.
+        grader.commit()
+        ids["event_ids"].append(new_event_id)
+        worker.join(timeout=10)
+        assert not worker.is_alive(), "dispatcher remained blocked after the re-grade committed"
+        assert not worker_errors, repr(worker_errors)
+        assert worker_result.get("result") is False
+        assert network_calls == []
+
+        verify = TestingSessionLocal()
+        try:
+            old_after = verify.get(LTIAGSGradeEvent, ids["event_ids"][0])
+            new_after = verify.get(LTIAGSGradeEvent, new_event_id)
+            assert old_after.status == "superseded"
+            assert old_after.score_timestamp == old_timestamp
+            assert new_after.status == "pending"
+            assert new_after.score_timestamp == old_timestamp + timedelta(microseconds=2)
+        finally:
+            verify.close()
+    finally:
+        if worker is not None:
+            worker.join(timeout=2)
+        if listener is not None:
+            sqlalchemy_event.remove(engine, "before_cursor_execute", listener)
+        if grader.in_transaction():
+            grader.rollback()
+        grader.close()
         _cleanup_independent_ags_targets(ids)
