@@ -291,3 +291,13 @@ https://github.com/HVA09/lumen-learning-platform
 - قيد توافق مفتوح: lineitem URL يجب أن يشارك origin الخاص بـ OAuth token endpoint. لا توسّع هذا القيد قبل إثباته على Moodle وCanvas.
 - مانع خارجي: لم تتوفر ضمن سياق التنفيذ بيانات اعتماد أو tenants لـ **Moodle Sandbox** أو **Canvas Sandbox**؛ لم تُخمن إعدادات ولم يُجر اتصال بمنصة غير معروفة. يلزم لكل منصة على حدة اختبار registration، OIDC launch، resource-link discovery/mapping، OAuth، Gradebook passback، re-grade، retry/timeouts، duplicate/uncertain delivery، والحالات السلبية.
 - لا دمج ولا تحويل من Draft إلى Ready for review قبل اكتمال Sandbox لكل منصة وتوثيق النتائج. لم تتغير `main` أو قواعد بيانات منشورة أو hosting أو secrets أو مفاتيح LMS أو بيانات طلاب.
+
+
+---
+
+## قرار توفر بيئات اختبار LTI — 2026-11-15
+
+- أكد المستخدم أن بيئات التحقق الثلاث غير متاحة حاليًا: **Moodle Sandbox**، و**Canvas Sandbox**، وخادم Lumen تجريبي عام بعنوان HTTPS مع API وCelery Worker وCelery Beat.
+- لذلك لا يمكن تنفيذ اختبارات LTI/AGS الخارجية في الوقت الحالي. لا تُنشأ إعدادات أو حسابات افتراضية، ولا تُدّعى نتائج Moodle/Canvas. تبقى هذه البيئات متطلبات منفصلة قبل الدمج أو النشر.
+- نقطة التحقق التي استند إليها القرار: PR #154 على الرأس `bf812eea9522b021a54626c1446b2e9b397dc7bc`؛ [CI #43756879125](https://github.com/HVA09/lumen-learning-platform/actions/runs/43756879125) اكتمل 4/4 Success على هذا الرأس. [PR #154](https://github.com/HVA09/lumen-learning-platform/pull/154) ما زال Open + Draft + Unmerged، و`main` عند `5a065c00ff739c21cad06d551c7e3aa51a3d604b`.
+- القرار التشغيلي: تثبيت الشيفرة الحالية وعدم إدخال تغييرات برمجية غير ضرورية إلى أن تتوفر البيئات. لا تغيير في main أو الإنتاج أو قواعد البيانات أو الاستضافة أو الأسرار أو مفاتيح LMS أو بيانات الطلاب.
