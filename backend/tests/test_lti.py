@@ -3,6 +3,7 @@
 id_token فعلي فيه، ونموّه جلب JWKS المنصة يرجّع مفتاحنا التجريبي. هذا يتحقق
 فعليًا إن منطق التحقق من التوقيع يشتغل صح، مو بس شكل الاستجابة.
 """
+import asyncio
 import time
 
 import pytest
@@ -761,3 +762,26 @@ def test_record_ags_launch_context_discovers_only_safe_lineitems(db_session, mon
     ).one()
     assert unsafe.lineitem_url is None
     assert unsafe.score_scope_allowed is False
+
+
+def test_lti_platform_dns_lookup_is_bounded(monkeypatch):
+    original_sleep = asyncio.sleep
+
+    class SlowResolver:
+        async def getaddrinfo(self, *_args, **_kwargs):
+            await original_sleep(0.2)
+            return []
+
+    monkeypatch.setattr(lti_service_module, "LTI_DNS_TIMEOUT_SECONDS", 0.01)
+    monkeypatch.setattr(
+        lti_service_module.asyncio,
+        "get_running_loop",
+        lambda: SlowResolver(),
+    )
+
+    with pytest.raises(ValueError, match="resolve LTI platform hostname safely"):
+        asyncio.run(
+            lti_service_module.resolve_lti_platform_endpoint_url(
+                "https://moodle.example.test/token"
+            )
+        )
