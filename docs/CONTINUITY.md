@@ -227,3 +227,14 @@ https://github.com/HVA09/lumen-learning-platform
 - نقطة توافق تحتاج إثباتًا خارجيًا: التحقق الحالي يشترط أن يكون lineitem على origin نفسه لـ OAuth token endpoint. هذا يقلل مساحة SSRF، لكنه قد يرفض إعدادات LMS التي تفصل API origin؛ لا تغيّره دون إثبات من Moodle وCanvas Sandbox.
 - بوابة خارجية ما زالت مانعة: لا توجد في سياق التنفيذ حسابات/بيانات اعتماد Moodle Sandbox أو Canvas Sandbox متاحة للتحقق الفعلي. لم نحاول الاتصال بمنصات مجهولة ولم نستخدم أسرارًا أو بيانات طلاب. يلزم اختبار مستقل لكل منصة: registration، OIDC launch، discovery/mapping، OAuth، Gradebook passback، re-grade، retry/timeouts، duplicate/uncertain delivery، والفشل السلبي.
 - حالة PR عند هذا التحقق: #154 مفتوح وDraft وغير مدمج؛ `main` ثابت عند `5a065c00ff739c21cad06d551c7e3aa51a3d604b`. نجاح CI لا يرفع Draft ولا يغلق بوابة Sandbox.
+
+
+---
+
+## تحديث تحقق PR #154 — 2026-11-15 — CI 43753017021
+
+- الرأس: `fb158224d588ea6af0b8bb4d740abcd680aed991`; [CI #43753017021](https://github.com/HVA09/lumen-learning-platform/actions/runs/43753017021) اكتمل **4/4 Success**.
+- Backend: **515 passed، 12 warnings، 89% coverage**؛ Frontend tests/build، Browser E2E، وFull Git history secret scan كلها Success. تشغيل CI أكد migrations وbackup/restore على PostgreSQL مؤقت، ولم ينفذ أي تغيير إنتاجي.
+- Ruff ما زال report-only ويعرض 6 تشخيصات F401/F841 في `backend/tests/test_lti_ags_protocol.py` (imports غير مستخدمة ومتغير محلي غير مستخدم). ليست فحوصًا فاشلة ولا تم تغيير إعدادات lint؛ يمكن تنظيفها لاحقًا في تغيير مستقل صغير.
+- تم فحص Issue [#155](https://github.com/HVA09/lumen-learning-platform/issues/155) ومعايير قبوله: إضافة تحقق مباشر من lease expiry/recovery، stale-owner fencing، قبول LMS مع فقدان الرد، وقياس عدم استنزاف DB pool تحت عدة أهداف متزامنة. الاختبارات الحالية تثبت الجلسات المستقلة ومنع التوازي والترتيب، لكنها لا تثبت كل هذه الحالات؛ أبقِ هذه الفجوات مفتوحة ولا تدّعِ اكتمالها.
+- PR #154 لا يزال Open + Draft وغير مدمج؛ `main` لم يتغير عن `5a065c00ff739c21cad06d551c7e3aa51a3d604b`. لا توجد حسابات/بيانات اعتماد Sandbox متاحة في هذا التنفيذ، لذلك Moodle وCanvas E2E ما زالا مانع الدمج.
