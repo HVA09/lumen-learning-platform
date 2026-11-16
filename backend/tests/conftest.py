@@ -23,7 +23,14 @@ TEST_DATABASE_URL = os.getenv(
 )
 
 engine = create_engine(normalize_database_url(TEST_DATABASE_URL))
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# Keep each test's outer transaction intact when application code commits or rolls back.
+# Session commits and rollbacks are isolated behind SAVEPOINTs; the fixture owns the final rollback.
+TestingSessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine,
+    join_transaction_mode="create_savepoint",
+)
 
 
 @pytest.fixture(autouse=True)

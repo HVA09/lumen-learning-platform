@@ -3,9 +3,15 @@
 id_token فعلي فيه، ونموّه جلب JWKS المنصة يرجّع مفتاحنا التجريبي. هذا يتحقق
 فعليًا إن منطق التحقق من التوقيع يشتغل صح، مو بس شكل الاستجابة.
 """
+import asyncio
 import time
+from types import SimpleNamespace
 
 import pytest
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event
+
+from sqlalchemy.orm import sessionmaker
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from jose import jwt
@@ -13,7 +19,8 @@ from jose import jwt
 from app.models.user import UserRole
 from tests.quiz_helpers import set_role
 from app.services import lti_service as lti_service_module
-from app.services.lti_service import long_to_base64url
+from app.routers.lti import _build_lti_profile, _lock_lti_identity_creation
+from app.services.lti_service import hash_opaque_token, long_to_base64url
 
 
 def _generate_fake_platform_keypair():
@@ -35,6 +42,21 @@ def _register_admin(
     if make_admin:
         set_role(db_session, email, UserRole.admin)
     return login_response.cookies.get("lumen_access")
+
+
+def _state_cookie(state: str) -> tuple[str, str]:
+    state_hash = hash_opaque_token(state)
+    return f"lti_state_{state_hash}", state_hash
+
+
+def _post_lti_launch(client, state: str, id_token: str, **kwargs):
+    cookie_name, cookie_value = _state_cookie(state)
+    client.cookies.set(cookie_name, cookie_value, path="/lti/launch")
+    return client.post(
+        "/lti/launch",
+        data={"id_token": id_token, "state": state},
+        **kwargs,
+    )
 
 
 def _register_platform(client, admin_token):
@@ -103,6 +125,47 @@ def test_login_redirects_to_platform_auth_endpoint(client, db_session):
     assert "nonce=" in response.headers["location"]
     assert response.headers["cache-control"] == "no-store"
     assert response.headers["referrer-policy"] == "no-referrer"
+    state_cookie = response.headers.get("set-cookie", "").lower()
+    assert "httponly" in state_cookie
+    assert "secure" in state_cookie
+    assert "samesite=none" in state_cookie
+    assert "partitioned" in state_cookie
+
+
+def test_launch_rejects_state_without_initiating_browser_cookie(client, db_session):
+    admin_token = _register_admin(client, db_session, "state-cookie@example.com")
+    platform_data = _register_platform(client, admin_token)
+    login_response = client.get(
+        "/lti/login",
+        params={
+            "iss": platform_data["issuer"],
+            "login_hint": "student-cookie",
+            "target_link_uri": "https://mylumen.example.com/lti/launch",
+            "client_id": platform_data["client_id"],
+        },
+        follow_redirects=False,
+    )
+    from urllib.parse import parse_qs, urlparse
+    state = parse_qs(urlparse(login_response.headers["location"]).query)["state"][0]
+
+    cookie_name, _ = _state_cookie(state)
+    client.cookies.clear()
+    client.cookies.set("unrelated", "value")
+    response = client.post(
+        "/lti/launch",
+        data={"id_token": "not-used-without-the-state-cookie", "state": state},
+    )
+    assert cookie_name not in client.cookies
+    assert response.status_code == 400
+    assert "state" in response.json()["detail"].lower()
+
+    cookie_name, _ = _state_cookie(state)
+    client.cookies.set(cookie_name, "not-the-state-hash", path="/lti/launch")
+    mismatched = client.post(
+        "/lti/launch",
+        data={"id_token": "not-used-with-a-mismatched-state-cookie", "state": state},
+    )
+    assert mismatched.status_code == 400
 
 
 def test_full_launch_flow_creates_user_and_issues_tokens(client, db_session, monkeypatch):
@@ -154,10 +217,13 @@ def test_full_launch_flow_creates_user_and_issues_tokens(client, db_session, mon
     monkeypatch.setattr(lti_service_module, "fetch_platform_public_key", fake_fetch_key)
 
     # 3) نستدعي /lti/launch فعليًا — هذا يتحقق من التوقيع الحقيقي
-    launch_response = client.post(
-        "/lti/launch", data={"id_token": id_token, "state": state}, follow_redirects=False
+    launch_response = _post_lti_launch(
+        client, state, id_token, follow_redirects=False
     )
     assert launch_response.status_code == 302
+    cleared_state_cookie = launch_response.headers.get("set-cookie", "").lower()
+    assert "max-age=0" in cleared_state_cookie
+    assert "partitioned" in cleared_state_cookie
     location = launch_response.headers["location"]
     assert "/lti-callback" in location
     assert "code=" in location
@@ -180,8 +246,8 @@ def test_full_launch_flow_creates_user_and_issues_tokens(client, db_session, mon
     assert replay.status_code == 401
 
     # وحالة OIDC نفسها لا يمكن استعمالها مجددًا.
-    replay_state = client.post(
-        "/lti/launch", data={"id_token": id_token, "state": state}, follow_redirects=False
+    replay_state = _post_lti_launch(
+        client, state, id_token, follow_redirects=False
     )
     assert replay_state.status_code == 400
 
@@ -221,7 +287,7 @@ def test_launch_rejects_invalid_signature(client, db_session, monkeypatch):
 
     monkeypatch.setattr(lti_service_module, "fetch_platform_public_key", fake_fetch_key)
 
-    response = client.post("/lti/launch", data={"id_token": bad_token, "state": state})
+    response = _post_lti_launch(client, state, bad_token)
     assert response.status_code == 401
 
 
@@ -311,7 +377,7 @@ def test_launch_rejects_signed_target_link_uri_mismatch(client, db_session, monk
         return platform_jwk
 
     monkeypatch.setattr(lti_service_module, "fetch_platform_public_key", fake_fetch_key)
-    response = client.post("/lti/launch", data={"id_token": id_token, "state": state})
+    response = _post_lti_launch(client, state, id_token)
     assert response.status_code == 401
 
 
@@ -368,9 +434,7 @@ def test_launch_rejects_unsupported_lti_message_and_missing_azp(client, db_sessi
     wrong_type_token = jwt.encode(
         wrong_type, pem, algorithm="RS256", headers={"kid": "platform-key-1"}
     )
-    assert client.post(
-        "/lti/launch", data={"id_token": wrong_type_token, "state": state}
-    ).status_code == 401
+    assert _post_lti_launch(client, state, wrong_type_token).status_code == 401
 
     multiple_audiences = {
         **valid_claims,
@@ -379,9 +443,7 @@ def test_launch_rejects_unsupported_lti_message_and_missing_azp(client, db_sessi
     multiple_audience_token = jwt.encode(
         multiple_audiences, pem, algorithm="RS256", headers={"kid": "platform-key-1"}
     )
-    assert client.post(
-        "/lti/launch", data={"id_token": multiple_audience_token, "state": state}
-    ).status_code == 401
+    assert _post_lti_launch(client, state, multiple_audience_token).status_code == 401
 
     missing_resource_id = {
         **valid_claims,
@@ -390,17 +452,15 @@ def test_launch_rejects_unsupported_lti_message_and_missing_azp(client, db_sessi
     missing_resource_token = jwt.encode(
         missing_resource_id, pem, algorithm="RS256", headers={"kid": "platform-key-1"}
     )
-    assert client.post(
-        "/lti/launch", data={"id_token": missing_resource_token, "state": state}
-    ).status_code == 401
+    assert _post_lti_launch(client, state, missing_resource_token).status_code == 401
 
     # The same OIDC state remains available after rejected tokens and accepts
     # only a correctly signed, complete LTI Resource Link Request.
     valid_token = jwt.encode(
         valid_claims, pem, algorithm="RS256", headers={"kid": "platform-key-1"}
     )
-    accepted = client.post(
-        "/lti/launch", data={"id_token": valid_token, "state": state}, follow_redirects=False
+    accepted = _post_lti_launch(
+        client, state, valid_token, follow_redirects=False
     )
     assert accepted.status_code == 302
 
@@ -597,3 +657,333 @@ def test_browser_lti_exchange_requires_trusted_origin_and_csrf(client, db_sessio
     assert accepted.status_code == 200
     assert accepted.json()["authenticated"] is True
     assert "access_token" not in accepted.json()
+
+
+
+def test_lti_key_generator_outputs_dotenv_compatible_multiline_pem(tmp_path):
+    import subprocess
+    import sys
+
+    from dotenv import dotenv_values
+
+    output = subprocess.run(
+        [sys.executable, "scripts/generate_lti_key.py"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    env_file = tmp_path / ".env"
+    env_file.write_text(output, encoding="utf-8")
+    values = dotenv_values(env_file)
+
+    private_key_pem = values["LTI_TOOL_PRIVATE_KEY"]
+    assert private_key_pem.startswith("-----BEGIN PRIVATE KEY-----\n")
+    assert private_key_pem.endswith("-----END PRIVATE KEY-----\n")
+    assert values["LTI_TOOL_KID"].startswith("lumen-")
+    private_key = serialization.load_pem_private_key(private_key_pem.encode("utf-8"), password=None)
+    assert private_key.key_size >= 2048
+
+
+def test_ags_lineitem_url_must_match_registered_https_origin(monkeypatch):
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(lti_service_module.settings, "ENVIRONMENT", "production")
+    platform = SimpleNamespace(auth_token_url="https://moodle.example.com/token")
+
+    assert lti_service_module.validate_lti_ags_lineitem_url(
+        "https://moodle.example.com/lineitems/42", platform
+    ) == "https://moodle.example.com/lineitems/42"
+
+    for unsafe in (
+        "http://moodle.example.com/lineitems/42",
+        "https://attacker.example/lineitems/42",
+        "https://moodle.example.com.evil.invalid/lineitems/42",
+        "https://user@moodle.example.com/lineitems/42",
+        "https://moodle.example.com/lineitems/42#fragment",
+    ):
+        with pytest.raises(ValueError):
+            lti_service_module.validate_lti_ags_lineitem_url(unsafe, platform)
+
+
+def test_lti_profile_uses_only_verified_valid_email():
+    from app.routers.lti import _build_lti_profile
+
+    fallback, full_name, verified = _build_lti_profile(
+        {"email": "student@example.com", "email_verified": False, "name": " Student "},
+        7,
+        "external-subject-7",
+    )
+    assert fallback.endswith("@lti.local")
+    assert full_name == "Student"
+    assert verified is False
+
+    email, _, verified = _build_lti_profile(
+        {"email": " STUDENT@example.com ", "email_verified": True},
+        7,
+        "external-subject-7",
+    )
+    assert email == "student@example.com"
+    assert verified is True
+
+
+def test_record_ags_launch_context_discovers_only_safe_lineitems(db_session, monkeypatch):
+    from app.models.lti import LTIPlatform, LTIResourceLinkDiscovery
+
+    monkeypatch.setattr(lti_service_module.settings, "ENVIRONMENT", "production")
+    platform = LTIPlatform(
+        name="AGS test",
+        issuer="https://moodle.example.com",
+        client_id="ags-client",
+        deployment_id="ags-deployment",
+        auth_login_url="https://moodle.example.com/auth",
+        auth_token_url="https://moodle.example.com/token",
+        jwks_url="https://moodle.example.com/jwks",
+    )
+    db_session.add(platform)
+    db_session.flush()
+
+    resource_claim = "https://purl.imsglobal.org/spec/lti/claim/resource_link"
+    endpoint_claim = "https://purl.imsglobal.org/spec/lti-ags/claim/endpoint"
+    claims = {
+        resource_claim: {"id": "resource-safe-1"},
+        endpoint_claim: {
+            "scope": ["https://purl.imsglobal.org/spec/lti-ags/scope/score"],
+            "lineitem": "https://moodle.example.com/lineitems/42",
+        },
+    }
+    assert lti_service_module.record_lti_ags_launch_context(db_session, platform, claims)
+    db_session.flush()
+    discovered = db_session.query(LTIResourceLinkDiscovery).filter_by(
+        platform_id=platform.id, resource_link_id="resource-safe-1"
+    ).one()
+    assert discovered.lineitem_url == "https://moodle.example.com/lineitems/42"
+    assert discovered.score_scope_allowed is True
+
+    claims[resource_claim] = {"id": "resource-unsafe-2"}
+    claims[endpoint_claim]["lineitem"] = "https://attacker.example/lineitems/99"
+    assert lti_service_module.record_lti_ags_launch_context(db_session, platform, claims)
+    db_session.flush()
+    unsafe = db_session.query(LTIResourceLinkDiscovery).filter_by(
+        platform_id=platform.id, resource_link_id="resource-unsafe-2"
+    ).one()
+    assert unsafe.lineitem_url is None
+    assert unsafe.score_scope_allowed is False
+
+
+def test_lti_platform_dns_lookup_is_bounded(monkeypatch):
+    original_sleep = asyncio.sleep
+
+    class SlowResolver:
+        async def getaddrinfo(self, *_args, **_kwargs):
+            await original_sleep(0.2)
+            return []
+
+    monkeypatch.setattr(lti_service_module, "LTI_DNS_TIMEOUT_SECONDS", 0.01)
+    monkeypatch.setattr(
+        lti_service_module,
+        "asyncio",
+        SimpleNamespace(get_running_loop=lambda: SlowResolver()),
+    )
+
+    with pytest.raises(ValueError, match="resolve LTI platform hostname safely"):
+        asyncio.run(
+            lti_service_module.resolve_lti_platform_endpoint_url(
+                "https://moodle.example.test/token"
+            )
+        )
+
+def test_register_platform_rejects_blank_or_oversized_fields(client, db_session):
+    admin_token = _register_admin(client, db_session, "lti-validation-admin@example.com")
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    payload = {
+        "name": "Moodle Sandbox",
+        "issuer": "https://moodle.example.com",
+        "client_id": "client-1",
+        "deployment_id": "deployment-1",
+        "auth_login_url": "https://moodle.example.com/auth",
+        "auth_token_url": "https://moodle.example.com/token",
+        "jwks_url": "https://moodle.example.com/jwks",
+    }
+
+    blank_name = client.post(
+        "/lti/platforms", json={**payload, "name": "   "}, headers=headers
+    )
+    assert blank_name.status_code == 422
+
+    oversized_client_id = client.post(
+        "/lti/platforms", json={**payload, "client_id": "x" * 256}, headers=headers
+    )
+    assert oversized_client_id.status_code == 422
+
+    oversized_endpoint = client.post(
+        "/lti/platforms",
+        json={**payload, "auth_token_url": "https://moodle.example.com/" + "x" * 500},
+        headers=headers,
+    )
+    assert oversized_endpoint.status_code == 422
+
+
+def test_lti_profile_only_trusts_valid_verified_email_and_bounded_name():
+    email, full_name, verified = _build_lti_profile(
+        {
+            "email": "  Student42@Example.com  ",
+            "email_verified": True,
+            "name": "  طالب تجريبي  ",
+        },
+        platform_id=7,
+        lti_subject="student-42",
+    )
+    assert email == "student42@example.com"
+    assert full_name == "طالب تجريبي"
+    assert verified is True
+
+
+def test_lti_profile_uses_unverified_fallback_for_malformed_email_claims():
+    invalid_claims = [
+        {"email": None, "email_verified": True, "name": "Student"},
+        {"email": ["student@example.com"], "email_verified": True, "name": "Student"},
+        {"email": "not-an-email", "email_verified": True, "name": "Student"},
+        {"email": "student@example.com", "email_verified": False, "name": "Student"},
+    ]
+
+    for claims in invalid_claims:
+        email, full_name, verified = _build_lti_profile(
+            claims, platform_id=7, lti_subject="student-42"
+        )
+        assert email.startswith("lti_7_")
+        assert email.endswith("@lti.local")
+        assert full_name == "Student"
+        assert verified is False
+
+
+def test_lti_profile_ignores_invalid_or_oversized_name_claims():
+    for name in (["Student"], "x" * 256, "   "):
+        email, full_name, verified = _build_lti_profile(
+            {
+                "email": "student@example.com",
+                "email_verified": True,
+                "name": name,
+            },
+            platform_id=7,
+            lti_subject="student-42",
+        )
+        assert email == "student@example.com"
+        assert full_name is None
+        assert verified is True
+
+
+def test_lti_identity_creation_uses_deterministic_postgres_advisory_locks():
+    class FakeDialect:
+        name = "postgresql"
+
+    class FakeBind:
+        dialect = FakeDialect()
+
+    class RecordingSession:
+        def __init__(self):
+            self.calls = []
+
+        def get_bind(self):
+            return FakeBind()
+
+        def execute(self, statement, params):
+            self.calls.append((str(statement), params["lock_key"]))
+
+    first = RecordingSession()
+    second = RecordingSession()
+    _lock_lti_identity_creation(first, 7, "subject-42", "student@example.com")
+    _lock_lti_identity_creation(second, 7, "subject-42", "student@example.com")
+
+    first_keys = [key for _statement, key in first.calls]
+    second_keys = [key for _statement, key in second.calls]
+    assert len(first_keys) == 2
+    assert first_keys == sorted(first_keys)
+    assert first_keys == second_keys
+    assert all("pg_advisory_xact_lock" in statement for statement, _key in first.calls)
+
+
+def test_lti_identity_creation_lock_serializes_postgres_sessions(db_session):
+    engine = db_session.get_bind().engine
+    if engine.dialect.name != "postgresql":
+        pytest.skip("PostgreSQL advisory locks are only available on PostgreSQL")
+
+    session_factory = sessionmaker(bind=engine)
+    first_session = session_factory()
+    second_started = Event()
+
+    try:
+        first_session.begin()
+        _lock_lti_identity_creation(
+            first_session, 77, "concurrent-subject", "concurrent@example.com"
+        )
+
+        def acquire_second_lock():
+            with session_factory() as second_session:
+                with second_session.begin():
+                    second_started.set()
+                    _lock_lti_identity_creation(
+                        second_session,
+                        77,
+                        "concurrent-subject",
+                        "concurrent@example.com",
+                    )
+            return True
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            second_future = executor.submit(acquire_second_lock)
+            assert second_started.wait(timeout=5)
+            # The first transaction still owns both advisory locks.
+            time.sleep(0.15)
+            assert not second_future.done()
+            first_session.commit()
+            assert second_future.result(timeout=5) is True
+    finally:
+        if first_session.in_transaction():
+            first_session.rollback()
+        first_session.close()
+
+
+def test_lti_identity_creation_skips_postgres_locks_on_other_dialects():
+    class FakeDialect:
+        name = "sqlite"
+
+    class FakeBind:
+        dialect = FakeDialect()
+
+    class RecordingSession:
+        def __init__(self):
+            self.calls = 0
+
+        def get_bind(self):
+            return FakeBind()
+
+        def execute(self, *_args, **_kwargs):
+            self.calls += 1
+
+    session = RecordingSession()
+    _lock_lti_identity_creation(session, 7, "subject-42", "student@example.com")
+    assert session.calls == 0
+
+def test_login_rejects_loopback_http_target_in_production(client, db_session, monkeypatch):
+    admin_token = _register_admin(client, db_session, "insecure-target-admin@example.com")
+    platform = _register_platform(client, admin_token)
+    monkeypatch.setattr(lti_service_module.settings, "ENVIRONMENT", "production")
+    monkeypatch.setattr(
+        lti_service_module.settings,
+        "LTI_TARGET_LINK_URI",
+        "http://localhost:8080/lti/launch",
+    )
+
+    response = client.get(
+        "/lti/login",
+        params={
+            "iss": platform["issuer"],
+            "login_hint": "student-insecure-target",
+            "target_link_uri": "http://localhost:8080/lti/launch",
+            "client_id": platform["client_id"],
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 400
+    assert "HTTPS" in response.json()["detail"]

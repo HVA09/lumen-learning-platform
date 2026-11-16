@@ -222,6 +222,30 @@ def test_fetch_platform_public_key_rejects_responses_over_one_mib(monkeypatch):
         )
 
 
+def test_fetch_platform_public_key_enforces_total_wall_clock_deadline(monkeypatch):
+    class SlowJWKSResponse(FakeJWKSResponse):
+        async def aiter_bytes(self):
+            await asyncio.sleep(0.05)
+            yield self.body
+
+    monkeypatch.setattr(
+        lti_service,
+        "LTI_JWKS_FETCH_TOTAL_TIMEOUT_SECONDS",
+        0.005,
+    )
+    _stub_jwks_http(
+        monkeypatch,
+        SlowJWKSResponse(b'{"keys":[{"kid":"platform-key","kty":"RSA"}]}'),
+    )
+
+    with pytest.raises(ValueError, match="total wall-clock deadline"):
+        asyncio.run(
+            lti_service.fetch_platform_public_key(
+                "https://moodle.example.test/jwks", "platform-key"
+            )
+        )
+
+
 @pytest.mark.parametrize(
     ("body", "expected_error"),
     [
