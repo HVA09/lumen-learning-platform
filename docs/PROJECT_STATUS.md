@@ -203,11 +203,11 @@
 - لا يوجد نشر إنتاجي مثبت. الميزانية صفر، لا بطاقة ولا دفع، ولا تعطيل لفحوص الأمن أو CI.
 
 
-## نقطة الاستئناف المعتمدة — 2026-11-06 بعد PR #119
+## نقطة الاستئناف التاريخية — 2026-11-06 بعد PR #119
 
 > هذا الملحق أحدث من ملاحظات الحالة السابقة في هذه الوثيقة، ويُستخدم مرجعًا للحالة الحالية حتى تحديث لاحق.
 
-- رأس `main` الحالي بعد PR #123: `53a1912773dbbaf4a854ec7d110dc4fd46a2b6a3`.
+- رأس `main` في لقطة 6 نوفمبر بعد PR #123: `53a1912773dbbaf4a854ec7d110dc4fd46a2b6a3`.
 - PR #100 مدمج: Backend coverage report-only، 431 passed و89% على رأسه قبل التوسعات اللاحقة.
 - PR #109 مدمج: تحديث توثيق الاستمرارية وخطة المشروع بعد دمج خط الأساس.
 - PR #113 مدمج: اختبارات حصص الملفات وتنظيف الرفع وفشل ClamAV؛ CI #42241558869 نجح 4/4، وBackend 447 passed و21 warnings.
@@ -260,11 +260,11 @@
 - لا تغيير API/DB/migrations أو اعتماديات runtime في PRs #129/#133/#136/#137/#140/#141. الميزانية صفر؛ لا موارد مدفوعة أو دفع إلكتروني، ولا تجاوز لحماية GitHub.
 
 
-## تحقق استمرارية 2026-11-07 — دمج PRs #145 و#147 و#146
+## سجل تاريخي — تحقق استمرارية 2026-11-07 بعد دمج PRs #145 و#147 و#146
 
 هذا الملحق أحدث من نقاط الاستئناف المؤرخة 2026-11-06 أدناه. يعتمد على حالة GitHub وActions التي تم التحقق منها بعد الدمج، ولا يساوي نجاح CI إثبات نشر إنتاجي.
 
-- رأس `main` الحالي: `362aac61f3df486027eef014d3f6bc577cc2aa3d`، وهو merge commit لطلب #146. الفرع الافتراضي `main` محمي.
+- رأس `main` في لقطة 7 نوفمبر: `362aac61f3df486027eef014d3f6bc577cc2aa3d`، وهو merge commit لطلب #146؛ لا يمثل الرأس الحالي.
 - PR [#145](https://github.com/HVA09/lumen-learning-platform/pull/145) مدمج عند `11969f183d18d33028bc37ec53e7ecbf4ee4e11f`؛ أضاف تغطية اختبارية للمسارات المؤجلة ولوحات الميزات والتوست والإنجازات في `App.test.jsx` دون تغيير runtime أو API أو قاعدة البيانات. PR CI [#42295018064](https://github.com/HVA09/lumen-learning-platform/actions/runs/42295018064) نجح 4/4، وmain CI بعد الدمج [#42404350575](https://github.com/HVA09/lumen-learning-platform/actions/runs/42404350575) نجح 4/4.
 - PR [#147](https://github.com/HVA09/lumen-learning-platform/pull/147) مدمج عند `d5245af119bc5737fd0e1822b886648013394e14`؛ رأس الفرع النهائي `6918ebf0ffa347057713a7da5620e5e59a429d29`. أضاف Nginx location مشتركة لـ HTTP وخادم HTTPS المستقبلي، ومسار WebSocket صريحًا `/ws/` مع HTTP/1.1 وترويسات Upgrade/Connection وbuffering معطلاً ومهل خمول تصل إلى ساعة. كما وجّه Browser E2E طلبات REST وWebSocket عبر حاوية Nginx فعلية. PR CI النهائي [#42404937903](https://github.com/HVA09/lumen-learning-platform/actions/runs/42404937903) نجح 4/4، وmain CI بعد الدمج [#42405264997](https://github.com/HVA09/lumen-learning-platform/actions/runs/42405264997) نجح 4/4.
 - PR [#146](https://github.com/HVA09/lumen-learning-platform/pull/146) مدمج عند `362aac61f3df486027eef014d3f6bc577cc2aa3d`؛ رأس فرعه `4ea272d941d0a4042fdefb8f8a8c7267db2304b2` مبني على main بعد #145 و#147. نقل تنفيذ Python الذي يكتبه المتعلم إلى iframe ذي opaque origin وعامل Blob Worker، مع CSP تمنع الوصول إلى API. CI على الرأس المحدث [#42405345735](https://github.com/HVA09/lumen-learning-platform/actions/runs/42405345735) نجح 4/4.
