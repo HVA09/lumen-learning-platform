@@ -206,3 +206,27 @@ def test_concurrent_bootstrap_serializes_and_creates_exactly_one_admin(db_sessio
             cleanup.query(User).filter(User.email.in_([email_a, email_b])).delete(
                 synchronize_session=False
             )
+
+
+def test_confirmation_phrase_identifies_target_without_credentials():
+    from sqlalchemy.engine import URL
+
+    from app.ops.promote_initial_admin import _build_confirmation_phrase
+
+    url = URL.create(
+        drivername="postgresql+psycopg2",
+        username="private-user",
+        password="private-password",
+        host="db.example.internal",
+        port=5432,
+        database="lumen_prod",
+        query={"sslmode": "require"},
+    )
+    phrase = _build_confirmation_phrase(
+        "owner@example.com", "production", url
+    )
+
+    assert phrase == "owner@example.com | production | db.example.internal:5432/lumen_prod"
+    assert "private-user" not in phrase
+    assert "private-password" not in phrase
+    assert "sslmode" not in phrase
