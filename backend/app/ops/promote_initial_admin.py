@@ -10,9 +10,11 @@ import logging
 import sys
 
 from sqlalchemy import text
+from sqlalchemy.engine import URL
 from sqlalchemy.orm import Session
 
-from app.database import SessionLocal
+from app.config import settings
+from app.database import SessionLocal, engine
 from app.models.audit_log import AuditLog
 from app.models.user import User, UserRole
 
@@ -22,6 +24,17 @@ logger = logging.getLogger(__name__)
 # signed int32 and are reserved for the Lumen first-admin bootstrap operation.
 _ADMIN_BOOTSTRAP_LOCK_NAMESPACE = 0x4C554D45  # "LUME"
 _ADMIN_BOOTSTRAP_LOCK_ID = 0x41444D49  # "ADMI"
+
+
+
+
+def _build_confirmation_phrase(email: str, environment: str, database_url: URL) -> str:
+    """Identify the target without exposing DB username, password, or query."""
+    host = database_url.host or "<no-host>"
+    port = str(database_url.port) if database_url.port is not None else "<default-port>"
+    database = database_url.database or "<no-database>"
+    target_environment = environment.strip() or "<unspecified>"
+    return f"{email.strip()} | {target_environment} | {host}:{port}/{database}"
 
 
 def promote_initial_admin(db: Session, email: str, confirmation: str) -> None:
@@ -92,12 +105,22 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
-        confirmation = input(
-            f"سيتم منح صلاحية المدير للحساب {args.email}. اكتب البريد نفسه للتأكيد: "
+        phrase = _build_confirmation_phrase(args.email, settings.ENVIRONMENT, engine.url)
+        print(
+            "قاعدة الهدف (من دون بيانات اعتماد): "
+            f"environment={settings.ENVIRONMENT}, "
+            f"host={engine.url.host or '<no-host>'}, "
+            f"port={engine.url.port or '<default-port>'}, "
+            f"database={engine.url.database or '<no-database>'}"
         )
+        confirmation = input(
+            "اكتب عبارة التأكيد التالية حرفيًا للمتابعة: " + phrase + "\\n> "
+        )
+        if confirmation != phrase:
+            raise ValueError("لم تتطابق عبارة التأكيد؛ لم يتم إجراء أي تغيير.")
         with SessionLocal() as db:
             with db.begin():
-                promote_initial_admin(db, args.email, confirmation)
+                promote_initial_admin(db, args.email, args.email)
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return 1
