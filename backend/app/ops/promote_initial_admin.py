@@ -30,8 +30,8 @@ def promote_initial_admin(db: Session, email: str, confirmation: str) -> None:
     The caller owns the transaction. The advisory lock serializes concurrent
     invocations; the target row is also locked before its role is changed.
     """
-    normalized_email = email.strip().lower()
-    if not normalized_email or confirmation.strip().lower() != normalized_email:
+    normalized_email = email.strip()
+    if not normalized_email or confirmation.strip() != normalized_email:
         raise ValueError("لم يتطابق تأكيد البريد الإلكتروني؛ لم يتم إجراء أي تغيير.")
 
     if db.get_bind().dialect.name != "postgresql":
@@ -113,7 +113,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
 
-    print(f"تمت ترقية {args.email.strip().lower()} إلى admin بنجاح.")
+    print(f"تمت ترقية {args.email.strip()} إلى admin بنجاح.")
     return 0
 
 
