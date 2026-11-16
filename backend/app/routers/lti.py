@@ -158,7 +158,13 @@ def _start_lti_login(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="target_link_uri غير صالح"
         )
-    if target.scheme == "http" and target.hostname not in {"localhost", "127.0.0.1", "::1"}:
+    environment = settings.ENVIRONMENT.strip().lower()
+    local_http_allowed = (
+        environment in {"development", "test", "testing"}
+        and target.scheme == "http"
+        and target.hostname in {"localhost", "127.0.0.1", "::1"}
+    )
+    if target.scheme != "https" and not local_http_allowed:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="يجب استخدام HTTPS في target_link_uri خارج التطوير المحلي",
