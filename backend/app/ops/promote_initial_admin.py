@@ -26,8 +26,6 @@ _ADMIN_BOOTSTRAP_LOCK_NAMESPACE = 0x4C554D45  # "LUME"
 _ADMIN_BOOTSTRAP_LOCK_ID = 0x41444D49  # "ADMI"
 
 
-
-
 def _build_confirmation_phrase(email: str, environment: str, database_url: URL) -> str:
     """Identify the target without exposing DB username, password, or query."""
     host = database_url.host or "<no-host>"
@@ -110,7 +108,7 @@ def main(argv: list[str] | None = None) -> int:
             "قاعدة الهدف (من دون بيانات اعتماد): "
             f"environment={settings.ENVIRONMENT}, "
             f"host={engine.url.host or '<no-host>'}, "
-            f"port={engine.url.port or '<default-port>'}, "
+            f"port={engine.url.port if engine.url.port is not None else '<default-port>'}, "
             f"database={engine.url.database or '<no-database>'}"
         )
         confirmation = input(
