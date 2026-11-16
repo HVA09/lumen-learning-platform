@@ -51,6 +51,16 @@ def test_bootstrap_promotes_only_existing_verified_active_user(db_session):
     assert "server-side bootstrap" in event.description
 
 
+
+
+def test_bootstrap_preserves_email_local_part_case(db_session):
+    email = "Owner.Case@example.com"
+    user = _add_user(db_session, email)
+
+    promote_initial_admin(db_session, email, email)
+
+    assert user.role == UserRole.admin
+
 def test_bootstrap_rejects_unverified_account(db_session):
     user = _add_user(db_session, "first-admin-unverified@example.com", verified=False)
 
