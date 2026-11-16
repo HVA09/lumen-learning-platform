@@ -964,3 +964,26 @@ def test_lti_identity_creation_skips_postgres_locks_on_other_dialects():
     _lock_lti_identity_creation(session, 7, "subject-42", "student@example.com")
     assert session.calls == 0
 
+def test_login_rejects_loopback_http_target_in_production(client, db_session, monkeypatch):
+    admin_token = _register_admin(client, db_session, "insecure-target-admin@example.com")
+    platform = _register_platform(client, admin_token)
+    monkeypatch.setattr(lti_service_module.settings, "ENVIRONMENT", "production")
+    monkeypatch.setattr(
+        lti_service_module.settings,
+        "LTI_TARGET_LINK_URI",
+        "http://localhost:8080/lti/launch",
+    )
+
+    response = client.get(
+        "/lti/login",
+        params={
+            "iss": platform["issuer"],
+            "login_hint": "student-insecure-target",
+            "target_link_uri": "http://localhost:8080/lti/launch",
+            "client_id": platform["client_id"],
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 400
+    assert "HTTPS" in response.json()["detail"]
