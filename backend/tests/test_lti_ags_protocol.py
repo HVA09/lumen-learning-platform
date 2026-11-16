@@ -1,11 +1,7 @@
 """Protocol-level tests for LTI AGS mappings, grade outbox, OAuth and score delivery."""
 import asyncio
 from datetime import datetime, timedelta, timezone
-import subprocess
-import sys
-from pathlib import Path
 
-from dotenv import dotenv_values
 from types import SimpleNamespace
 from urllib.parse import urlsplit
 
@@ -14,7 +10,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from jose import jwt
 
 from app.auth.sessions import create_browser_session
-from app.models.assignment import Assignment, AssignmentSubmission
+from app.models.assignment import Assignment
 from app.models.lti import (
     LTIAGSGradeEvent, LTIAssignmentLink, LTIPlatform, LTIUserLink,
     LTIResourceLinkDiscovery,
@@ -49,7 +45,7 @@ def _platform(db_session):
 
 def _make_pending_event(client, db_session, *, grade=84.0):
     teacher_token = make_teacher(client, db_session, "ags-teacher@example.com")
-    student_token = make_student(client, "ags-student@example.com")
+    make_student(client, "ags-student@example.com")
     assignment_response = client.post(
         "/assignments",
         json={"title": "AGS assignment", "description": "Grade passback test"},
