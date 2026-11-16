@@ -112,7 +112,7 @@ def main(argv: list[str] | None = None) -> int:
             f"database={engine.url.database or '<no-database>'}"
         )
         confirmation = input(
-            "اكتب عبارة التأكيد التالية حرفيًا للمتابعة: " + phrase + "\\n> "
+            "اكتب عبارة التأكيد التالية حرفيًا للمتابعة: " + phrase + "\n> "
         )
         if confirmation != phrase:
             raise ValueError("لم تتطابق عبارة التأكيد؛ لم يتم إجراء أي تغيير.")
