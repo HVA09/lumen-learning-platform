@@ -121,21 +121,21 @@ P5.1–P5.4 دخلت `main`: WebSocket (#41)، Session (#43)، notification stat
 - حدّث `PROJECT_STATUS.md` و`DECISIONS.md` و`ARCHITECTURE_PLAN.md` بعد التغييرات ذات الصلة.
 
 
-## 7. تحقق حديث — 2026-11-06 بعد PR #141
+## 7. سجل تاريخي — تحقق 2026-11-06 بعد PR #141
 
-- HEAD الحالي لـ `main`: `1f76de769a224fb01c5ac66e9bccede331650dac` بعد PR #141.
+- HEAD لـ `main` في لقطة 6 نوفمبر: `1f76de769a224fb01c5ac66e9bccede331650dac` بعد PR #141.
 - PR #129/#133/#136/#137/#138/#140/#141 مغلقة بعد الدمج. PR #141 CI #42265153710 وmain CI بعد الدمج #42265976307 نجحا 4/4.
 - P6 Frontend baseline في CI PR #141: 187 passed عبر 28 ملفًا؛ statements 70.83%، branches 65.26%، functions 60.16%، lines 71.85%. Backend 480 passed، 21 warnings، 90% coverage.
-- طلبات LTI/AGS #16–#23 ما زالت مفتوحة ومتراكبة على فروع قديمة (bases ليست `main`). لا تدمجها مباشرة. أعد تأسيس سلسلة التكامل على رأس `main` الحالي بالترتيب، وافحص migration graph وOIDC/AGS security قبل أي دمج.
+- طلبات LTI/AGS #16–#23 كانت مفتوحة ومتراكبة على فروع قديمة في لقطة 6 نوفمبر (bases ليست `main`). لا تدمجها مباشرة. أعد تأسيس سلسلة التكامل على رأس `main` المستهدف وقت التنفيذ، وافحص migration graph وOIDC/AGS security قبل أي دمج.
 - الطلبات القديمة #1/#2/#3/#5/#6 ما زالت ظاهرة مفتوحة في قائمة GitHub الأخيرة، لكن قواعدها التاريخية/قواعدها الأساسية قديمة. لا تدمجها كما هي؛ قارن كل فرق فريد مع `main` ثم أغلق المكرر أو أعد تأسيس الجزء المطلوب بعد مراجعته.
 - لا تظهر PRs #47 و#71 ضمن قائمة الطلبات المفتوحة في آخر تحقق؛ لا تفترض أنها مدمجة إلا بالرجوع إلى حالة GitHub الفعلية.
 - الخطوات الحالية: إكمال RUM/Core Web Vitals واختبار هاتف/اتصال بطيء؛ تقييم فحص JS ساكن تدريجي؛ ثم تحديد قرار P7 والاستضافة المجانية بلا بطاقة.
 - لا يوجد نشر إنتاجي مثبت. لا تجاوز للحماية، ولا موارد مدفوعة أو دفع إلكتروني.
 
 
-## 8. تحقق مباشر — 2026-11-07 بعد دمج PRs #145/#147/#146
+## 8. سجل تاريخي — تحقق 2026-11-07 بعد دمج PRs #145/#147/#146
 
-- رأس `main` الحالي بعد الدمج الثلاثي: `362aac61f3df486027eef014d3f6bc577cc2aa3d`.
+- رأس `main` في لقطة 7 نوفمبر بعد الدمج الثلاثي: `362aac61f3df486027eef014d3f6bc577cc2aa3d`.
 - PR #145: **مغلق ومُدمج** عند `11969f183d18d33028bc37ec53e7ecbf4ee4e11f`. CI على رأسه [#42295018064](https://github.com/HVA09/lumen-learning-platform/actions/runs/42295018064) وCI بعد الدمج [#42404350575](https://github.com/HVA09/lumen-learning-platform/actions/runs/42404350575) نجحا 4/4.
 - PR #147: **مغلق ومُدمج** عند `d5245af119bc5737fd0e1822b886648013394e14`. رأسه النهائي `6918ebf0ffa347057713a7da5620e5e59a429d29`؛ CI على الرأس [#42404937903](https://github.com/HVA09/lumen-learning-platform/actions/runs/42404937903) وmain CI بعد الدمج [#42405264997](https://github.com/HVA09/lumen-learning-platform/actions/runs/42405264997) نجحا 4/4.
 - PR #146: **مغلق ومُدمج** عند `362aac61f3df486027eef014d3f6bc577cc2aa3d`. رأس الفرع بعد إدخال main `4ea272d941d0a4042fdefb8f8a8c7267db2304b2`؛ CI على الرأس [#42405345735](https://github.com/HVA09/lumen-learning-platform/actions/runs/42405345735) نجح 4/4؛ Backend 481 passed و21 warnings و90% coverage؛ Frontend 199 passed عبر 29 ملفًا وتغطية 72.46% statements، 65.82% branches، 64.56% functions، 73.15% lines.
