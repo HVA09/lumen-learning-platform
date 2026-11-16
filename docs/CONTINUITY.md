@@ -376,3 +376,16 @@ https://github.com/HVA09/lumen-learning-platform
 - شرط same-origin بين lineitem URL وOAuth token endpoint ما زال يحتاج إثباتًا على Moodle وCanvas.
 - لا تتوفر Moodle Sandbox أو Canvas Sandbox أو staging عام HTTPS مع API وCelery Worker/Beat. لم تنفذ اختبارات LMS الخارجية ولم تُخمن credentials/tenants. يلزم لكل منصة اختبار registration وOIDC launch وresource mapping وOAuth وGradebook passback وre-grade وretry/timeouts وduplicate/uncertain delivery والحالات السلبية.
 - PR #154 بقي **Open + Draft + Unmerged**؛ لا دمج ولا Ready for review قبل إغلاق المخاطر المطلوبة ونجاح اختبارات Moodle وCanvas المنفصلة. لم يتغير `main` أو الإنتاج أو قواعد البيانات المنشورة أو hosting أو secrets أو مفاتيح LMS أو بيانات الطلاب.
+
+---
+
+## أحدث تحقق بعد hardening HTTPS وRuff — PR #154 — 2026-11-16
+
+- HEAD `2df63d20180666eb6b15c3c97d0503a5e6ccdcc1` على `feat/lti-ags-rebased-20261115` اجتاز [CI #43779194721](https://github.com/HVA09/lumen-learning-platform/actions/runs/43779194721) **4/4 Success**: Backend، Frontend tests/production build، Browser E2E، Full-history secret scan.
+- Backend: **521 passed، 12 warnings، 90% coverage** على Python 3.12 / PostgreSQL 16. Ruff report-only انخفض من 6 إلى **0 diagnostics** بعد حذف imports والمتغير غير المستخدم في `backend/tests/test_lti_ags_protocol.py`. Regression الجديد `test_login_rejects_loopback_http_target_in_production` اجتاز؛ ويثبت رفض `http://localhost` كـLTI target في production.
+- إصلاح أمني في `_start_lti_login()`: HTTP loopback مسموح فقط عند `ENVIRONMENT` development/test/testing؛ خارج ذلك يلزم HTTPS حتى لو كان العنوان localhost/127.0.0.1/::1. هذا يمنع قبول callback URI غير مشفر في إعداد production خاطئ.
+- المقارنة مع `main` عند `5a065c00ff739c21cad06d551c7e3aa51a3d604b`: **45 commits ahead / 0 behind**؛ 31 ملفًا متغيرًا. PR #154 ما زال **Open + Draft + Unmerged**.
+- يؤكد CI السابق على HEAD `1a2a72dec3d994d875ca8e3b9cbf6ac3adf3d51c` (run [#43773295383](https://github.com/HVA09/lumen-learning-platform/actions/runs/43773295383)) نجاح إصلاحات retry cap/re-grade lock/JWKS total deadline: Backend 520 passed، 12 warnings، 89% coverage؛ والاختبارات تضمنت crash recovery مع admin one-shot retry، وسباق retry مقابل re-grade غير ملتزم على PostgreSQL، وJWKS slow-stream deadline.
+- الدلالة ما زالت **at-least-once**؛ لا exactly-once إذا قبل LMS الدرجة ثم فُقد الرد. لم يُختبر clock skew/NTP بين workers. `lti_subject` الخام ما زال محفوظًا في event/session/submission دون قرار retention/deletion أو field-level encryption. شرط same-origin بين lineitem وOAuth token endpoint ما زال يحتاج إثباتًا خارجيًا.
+- لا تتوفر Moodle Sandbox أو Canvas Sandbox أو staging HTTPS عام مع API وCelery Worker/Beat. لم تنفذ اختبارات LMS الخارجية ولم تُخمن credentials/tenants. يجب تنفيذ registration وOIDC/resource mapping وOAuth وGradebook passback وre-grade وretry/timeout وuncertain duplicate وnegative cases لكل منصة منفصلة.
+- لا تعديل على `main` أو الإنتاج أو قواعد بيانات الإنتاج أو hosting/secrets/مفاتيح LMS/بيانات الطلاب؛ لا merge ولا Ready for review.
