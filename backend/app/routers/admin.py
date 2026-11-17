@@ -180,13 +180,20 @@ def update_user(
     roster_change_requested = "role" in data or "is_active" in data
     active_admin_ids = None
     if roster_change_requested:
+        admin_id = admin.id
         active_admin_ids = lock_active_admin_ids(db)
-        db.refresh(admin)
-        if admin.role != UserRole.admin or not admin.is_active:
+        fresh_admin = (
+            db.query(User)
+            .filter(User.id == admin_id)
+            .with_for_update()
+            .first()
+        )
+        if fresh_admin is None or fresh_admin.role != UserRole.admin or not fresh_admin.is_active:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="لم تعد تملك صلاحية إدارة المستخدمين.",
             )
+        admin = fresh_admin
         user = (
             db.query(User)
             .filter(User.id == user_id)
@@ -253,13 +260,20 @@ def delete_user(
         )
     # Lock before loading the target. A user record can be promoted while
     # this request is in flight; the post-lock read must observe that state.
+    admin_id = admin.id
     active_admin_ids = lock_active_admin_ids(db)
-    db.refresh(admin)
-    if admin.role != UserRole.admin or not admin.is_active:
+    fresh_admin = (
+        db.query(User)
+        .filter(User.id == admin_id)
+        .with_for_update()
+        .first()
+    )
+    if fresh_admin is None or fresh_admin.role != UserRole.admin or not fresh_admin.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="لم تعد تملك صلاحية إدارة المستخدمين.",
         )
+    admin = fresh_admin
 
     user = (
         db.query(User)
