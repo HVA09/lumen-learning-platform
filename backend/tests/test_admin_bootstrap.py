@@ -7,12 +7,12 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker
 
-from app.models.audit_log import AuditLog
-from app.models.user import User, UserRole
 from app.admin_guard import (
     ACTIVE_ADMIN_ROSTER_LOCK_ID as _ADMIN_BOOTSTRAP_LOCK_ID,
     ACTIVE_ADMIN_ROSTER_LOCK_NAMESPACE as _ADMIN_BOOTSTRAP_LOCK_NAMESPACE,
 )
+from app.models.audit_log import AuditLog
+from app.models.user import User, UserRole
 from app.ops.promote_initial_admin import promote_initial_admin
 
 
