@@ -102,14 +102,15 @@ def test_delete_account_success(client):
 
 
 def test_last_active_admin_cannot_delete_own_account(client, db_session):
-    token = _register_and_login(client, "last-admin@example.com", "StrongPass123")
+    password = _register_and_login.__defaults__[1]
+    token = _register_and_login(client, "last-admin@example.com", password)
     admin = db_session.query(User).filter(User.email == "last-admin@example.com").one()
     admin.role = UserRole.admin
     db_session.commit()
     headers = {"Authorization": f"Bearer {token}"}
 
     response = client.request(
-        "DELETE", "/users/me", json={"password": "StrongPass123"}, headers=headers
+        "DELETE", "/users/me", json={"password": password}, headers=headers
     )
 
     assert response.status_code == 409
@@ -118,8 +119,9 @@ def test_last_active_admin_cannot_delete_own_account(client, db_session):
 
 
 def test_admin_can_delete_own_account_when_another_active_admin_remains(client, db_session):
-    first_token = _register_and_login(client, "first-admin-delete@example.com", "StrongPass123")
-    second_token = _register_and_login(client, "second-admin-delete@example.com", "StrongPass123")
+    password = _register_and_login.__defaults__[1]
+    first_token = _register_and_login(client, "first-admin-delete@example.com", password)
+    second_token = _register_and_login(client, "second-admin-delete@example.com", password)
     first_admin = db_session.query(User).filter(User.email == "first-admin-delete@example.com").one()
     second_admin = db_session.query(User).filter(User.email == "second-admin-delete@example.com").one()
     first_admin.role = UserRole.admin
@@ -129,7 +131,7 @@ def test_admin_can_delete_own_account_when_another_active_admin_remains(client, 
     response = client.request(
         "DELETE",
         "/users/me",
-        json={"password": "StrongPass123"},
+        json={"password": password},
         headers={"Authorization": f"Bearer {first_token}"},
     )
 
