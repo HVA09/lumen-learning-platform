@@ -318,4 +318,7 @@ def test_only_students_can_submit_class_assignments(client, db_session):
     )
     assert final_submissions.status_code == 200
     assert len(final_submissions.json()) == 1
-    assert final_submissions.json()[0]["student_name"] == "assignment-role-student@example.com"
+    assert (
+        final_submissions.json()[0]["student_name"]
+        == "assignment-role-student@example.com"
+    )
