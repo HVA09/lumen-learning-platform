@@ -186,6 +186,7 @@ def update_user(
             db.query(User)
             .filter(User.id == admin_id)
             .with_for_update()
+            .populate_existing()
             .first()
         )
         if fresh_admin is None or fresh_admin.role != UserRole.admin or not fresh_admin.is_active:
@@ -198,6 +199,7 @@ def update_user(
             db.query(User)
             .filter(User.id == user_id)
             .with_for_update()
+            .populate_existing()
             .first()
         )
     else:
