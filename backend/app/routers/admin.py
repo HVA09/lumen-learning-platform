@@ -168,15 +168,37 @@ def update_user(
     admin: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    user = db.get(User, user_id)
-    if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="المستخدم غير موجود")
-
     data = {
         key: value
         for key, value in payload.model_dump(exclude_unset=True).items()
         if value is not None
     }
+
+    # Any role/availability mutation participates in the same roster lock,
+    # including promotions. Acquire it before reading the target so a stale
+    # non-admin snapshot cannot bypass the last-admin guard.
+    roster_change_requested = "role" in data or "is_active" in data
+    active_admin_ids = None
+    if roster_change_requested:
+        active_admin_ids = lock_active_admin_ids(db)
+        db.refresh(admin)
+        if admin.role != UserRole.admin or not admin.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="لم تعد تملك صلاحية إدارة المستخدمين.",
+            )
+        user = (
+            db.query(User)
+            .filter(User.id == user_id)
+            .with_for_update()
+            .first()
+        )
+    else:
+        user = db.get(User, user_id)
+
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="المستخدم غير موجود")
+
     # منع الـ admin من تغيير دور حسابه أو تعطيله بنفسه — يقفل على نفسه ويخلّي النظام بدون admin
     if user.id == admin.id and (
         ("role" in data and data["role"] != user.role) or data.get("is_active") is False
@@ -185,18 +207,22 @@ def update_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="ما تقدر تغيّر دور حسابك أو تعطّله بنفسك",
         )
-    # Serialize changes to the active-admin roster with self-deletion and bootstrap.
-    # The shared lock also protects the invariant when concurrent requests target
-    # different administrator accounts.
-    if user.role == UserRole.admin and user.is_active and (
-        ("role" in data and data["role"] != UserRole.admin) or data.get("is_active") is False
+
+    # Re-evaluate the refreshed target against the active roster observed
+    # under the lock. Do not decide based on a pre-lock ORM identity.
+    if (
+        active_admin_ids is not None
+        and user.id in active_admin_ids
+        and (
+            ("role" in data and data["role"] != UserRole.admin)
+            or data.get("is_active") is False
+        )
+        and len(active_admin_ids) <= 1
     ):
-        active_admin_ids = lock_active_admin_ids(db)
-        if user.id in active_admin_ids and len(active_admin_ids) <= 1:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="لا يمكن إزالة آخر مدير نشط أو تعطيله.",
-            )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="لا يمكن إزالة آخر مدير نشط أو تعطيله.",
+        )
 
     # Revoke both access and refresh tokens whenever account availability changes.
     # This prevents old tokens from becoming valid again if the account is re-enabled.
@@ -225,17 +251,30 @@ def delete_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="ما تقدر تحذف حسابك من هنا — استخدم حذف الحساب من صفحتك الشخصية",
         )
-    user = db.get(User, user_id)
+    # Lock before loading the target. A user record can be promoted while
+    # this request is in flight; the post-lock read must observe that state.
+    active_admin_ids = lock_active_admin_ids(db)
+    db.refresh(admin)
+    if admin.role != UserRole.admin or not admin.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="لم تعد تملك صلاحية إدارة المستخدمين.",
+        )
+
+    user = (
+        db.query(User)
+        .filter(User.id == user_id)
+        .with_for_update()
+        .first()
+    )
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="المستخدم غير موجود")
 
-    if user.role == UserRole.admin and user.is_active:
-        active_admin_ids = lock_active_admin_ids(db)
-        if user.id in active_admin_ids and len(active_admin_ids) <= 1:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="لا يمكن حذف آخر مدير نشط.",
-            )
+    if user.id in active_admin_ids and len(active_admin_ids) <= 1:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="لا يمكن حذف آخر مدير نشط.",
+        )
 
     log_event(db, "admin_user_deleted", f"admin {admin.email} حذف المستخدم {user.email}", admin.id)
     db.delete(user)
