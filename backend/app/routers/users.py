@@ -12,7 +12,8 @@ from app.audit import log_event
 from app.config import settings
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models.user import User
+from app.admin_guard import lock_active_admin_ids
+from app.models.user import User, UserRole
 from app.schemas.user import ChangePasswordRequest, DeleteAccountRequest, ProfileUpdate, UserOut
 
 router = APIRouter(prefix="/users", tags=["Users"])
@@ -64,6 +65,17 @@ def delete_account(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="كلمة المرور غير صحيحة"
         )
+
+    # Serialize administrator-roster changes and preserve one active admin.
+    # Without this guard, profile deletion could remove the final administrator.
+    if current_user.role == UserRole.admin:
+        active_admin_ids = lock_active_admin_ids(db)
+        if current_user.id in active_admin_ids and len(active_admin_ids) <= 1:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="لا يمكن حذف آخر مدير نشط. امنح حسابًا موثوقًا آخر دور المدير وتحقق من قدرته على الدخول أولًا.",
+            )
+
     log_event(db, "account_deleted", f"حذف حساب: {current_user.email}", current_user.id)
 
     # الحذف بالـ DB (cascade) يشيل صفوف الملفات، لكن ما يحذف الملفات الفعلية من القرص
