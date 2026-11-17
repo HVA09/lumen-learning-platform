@@ -15,11 +15,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import SessionLocal, engine
 from app.models.audit_log import AuditLog
-from app.admin_guard import (
-    ACTIVE_ADMIN_ROSTER_LOCK_ID as _ADMIN_BOOTSTRAP_LOCK_ID,
-    ACTIVE_ADMIN_ROSTER_LOCK_NAMESPACE as _ADMIN_BOOTSTRAP_LOCK_NAMESPACE,
-    lock_active_admin_ids,
-)
+from app.admin_guard import lock_active_admin_ids
 from app.models.user import User, UserRole
 
 logger = logging.getLogger(__name__)
