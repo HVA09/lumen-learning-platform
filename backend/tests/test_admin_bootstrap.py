@@ -99,6 +99,24 @@ def test_bootstrap_rejects_when_an_admin_already_exists(db_session):
     assert target.role == UserRole.user
 
 
+def test_bootstrap_recovers_when_existing_admin_accounts_are_inactive(db_session):
+    _add_user(
+        db_session,
+        "inactive-old-admin@example.com",
+        role=UserRole.admin,
+        active=False,
+    )
+    target = _add_user(db_session, "recovery-admin@example.com")
+
+    promote_initial_admin(
+        db_session,
+        "recovery-admin@example.com",
+        "recovery-admin@example.com",
+    )
+
+    assert target.role == UserRole.admin
+
+
 def test_bootstrap_requires_exact_email_confirmation(db_session):
     user = _add_user(db_session, "first-admin-confirm@example.com")
 
