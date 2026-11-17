@@ -7,13 +7,13 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker
 
+from app.admin_guard import (
+    ACTIVE_ADMIN_ROSTER_LOCK_ID as _ADMIN_BOOTSTRAP_LOCK_ID,
+    ACTIVE_ADMIN_ROSTER_LOCK_NAMESPACE as _ADMIN_BOOTSTRAP_LOCK_NAMESPACE,
+)
 from app.models.audit_log import AuditLog
 from app.models.user import User, UserRole
-from app.ops.promote_initial_admin import (
-    _ADMIN_BOOTSTRAP_LOCK_ID,
-    _ADMIN_BOOTSTRAP_LOCK_NAMESPACE,
-    promote_initial_admin,
-)
+from app.ops.promote_initial_admin import promote_initial_admin
 
 
 def _add_user(db_session, email, *, verified=True, active=True, role=UserRole.user):
@@ -97,6 +97,24 @@ def test_bootstrap_rejects_when_an_admin_already_exists(db_session):
         )
 
     assert target.role == UserRole.user
+
+
+def test_bootstrap_recovers_when_existing_admin_accounts_are_inactive(db_session):
+    _add_user(
+        db_session,
+        "inactive-old-admin@example.com",
+        role=UserRole.admin,
+        active=False,
+    )
+    target = _add_user(db_session, "recovery-admin@example.com")
+
+    promote_initial_admin(
+        db_session,
+        "recovery-admin@example.com",
+        "recovery-admin@example.com",
+    )
+
+    assert target.role == UserRole.admin
 
 
 def test_bootstrap_requires_exact_email_confirmation(db_session):

@@ -10,6 +10,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.admin_guard import lock_active_admin_ids
 from app.audit import log_event
 from app.cache import cache_delete, cache_get, cache_set
 from app.config import settings as app_settings
@@ -167,15 +168,46 @@ def update_user(
     admin: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    user = db.get(User, user_id)
-    if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="المستخدم غير موجود")
-
     data = {
         key: value
         for key, value in payload.model_dump(exclude_unset=True).items()
         if value is not None
     }
+
+    # Any role/availability mutation participates in the same roster lock,
+    # including promotions. Acquire it before reading the target so a stale
+    # non-admin snapshot cannot bypass the last-admin guard.
+    roster_change_requested = "role" in data or "is_active" in data
+    active_admin_ids = None
+    if roster_change_requested:
+        admin_id = admin.id
+        active_admin_ids = lock_active_admin_ids(db)
+        fresh_admin = (
+            db.query(User)
+            .filter(User.id == admin_id)
+            .with_for_update()
+            .populate_existing()
+            .first()
+        )
+        if fresh_admin is None or fresh_admin.role != UserRole.admin or not fresh_admin.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="لم تعد تملك صلاحية إدارة المستخدمين.",
+            )
+        admin = fresh_admin
+        user = (
+            db.query(User)
+            .filter(User.id == user_id)
+            .with_for_update()
+            .populate_existing()
+            .first()
+        )
+    else:
+        user = db.get(User, user_id)
+
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="المستخدم غير موجود")
+
     # منع الـ admin من تغيير دور حسابه أو تعطيله بنفسه — يقفل على نفسه ويخلّي النظام بدون admin
     if user.id == admin.id and (
         ("role" in data and data["role"] != user.role) or data.get("is_active") is False
@@ -184,6 +216,23 @@ def update_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="ما تقدر تغيّر دور حسابك أو تعطّله بنفسك",
         )
+
+    # Re-evaluate the refreshed target against the active roster observed
+    # under the lock. Do not decide based on a pre-lock ORM identity.
+    if (
+        active_admin_ids is not None
+        and user.id in active_admin_ids
+        and (
+            ("role" in data and data["role"] != UserRole.admin)
+            or data.get("is_active") is False
+        )
+        and len(active_admin_ids) <= 1
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="لا يمكن إزالة آخر مدير نشط أو تعطيله.",
+        )
+
     # Revoke both access and refresh tokens whenever account availability changes.
     # This prevents old tokens from becoming valid again if the account is re-enabled.
     if "is_active" in data and bool(data["is_active"]) != user.is_active:
@@ -211,9 +260,39 @@ def delete_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="ما تقدر تحذف حسابك من هنا — استخدم حذف الحساب من صفحتك الشخصية",
         )
-    user = db.get(User, user_id)
+    # Lock before loading the target. A user record can be promoted while
+    # this request is in flight; the post-lock read must observe that state.
+    admin_id = admin.id
+    active_admin_ids = lock_active_admin_ids(db)
+    fresh_admin = (
+        db.query(User)
+        .filter(User.id == admin_id)
+        .with_for_update()
+        .populate_existing()
+        .first()
+    )
+    if fresh_admin is None or fresh_admin.role != UserRole.admin or not fresh_admin.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="لم تعد تملك صلاحية إدارة المستخدمين.",
+        )
+    admin = fresh_admin
+
+    user = (
+        db.query(User)
+        .filter(User.id == user_id)
+        .with_for_update()
+        .populate_existing()
+        .first()
+    )
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="المستخدم غير موجود")
+
+    if user.id in active_admin_ids and len(active_admin_ids) <= 1:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="لا يمكن حذف آخر مدير نشط.",
+        )
 
     log_event(db, "admin_user_deleted", f"admin {admin.email} حذف المستخدم {user.email}", admin.id)
     db.delete(user)
