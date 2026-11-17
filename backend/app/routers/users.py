@@ -61,26 +61,39 @@ def delete_account(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if not verify_password(payload.password, current_user.hashed_password):
+    # Serialize account deletion with all administrator-role changes. Re-read
+    # the account after taking the roster lock so a concurrent promotion or
+    # deactivation cannot be hidden by the authenticated ORM snapshot.
+    active_admin_ids = lock_active_admin_ids(db)
+    fresh_user = (
+        db.query(User)
+        .filter(User.id == current_user.id)
+        .with_for_update()
+        .first()
+    )
+    if not fresh_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="الحساب غير موجود")
+    if not fresh_user.is_active or fresh_user.token_version != current_user.token_version:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="انتهت صلاحية الجلسة؛ سجّل الدخول من جديد.",
+        )
+    if not verify_password(payload.password, fresh_user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="كلمة المرور غير صحيحة"
         )
 
-    # Serialize administrator-roster changes and preserve one active admin.
-    # Without this guard, profile deletion could remove the final administrator.
-    if current_user.role == UserRole.admin:
-        active_admin_ids = lock_active_admin_ids(db)
-        if current_user.id in active_admin_ids and len(active_admin_ids) <= 1:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="لا يمكن حذف آخر مدير نشط. امنح حسابًا موثوقًا آخر دور المدير وتحقق من قدرته على الدخول أولًا.",
-            )
+    if fresh_user.id in active_admin_ids and len(active_admin_ids) <= 1:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="لا يمكن حذف آخر مدير نشط. امنح حسابًا موثوقًا آخر دور المدير وتحقق من قدرته على الدخول أولًا.",
+        )
 
-    log_event(db, "account_deleted", f"حذف حساب: {current_user.email}", current_user.id)
+    log_event(db, "account_deleted", f"حذف حساب: {fresh_user.email}", fresh_user.id)
 
     # الحذف بالـ DB (cascade) يشيل صفوف الملفات، لكن ما يحذف الملفات الفعلية من القرص
-    user_upload_dir = Path(settings.UPLOAD_DIR) / str(current_user.id)
+    user_upload_dir = Path(settings.UPLOAD_DIR) / str(fresh_user.id)
     shutil.rmtree(user_upload_dir, ignore_errors=True)
 
-    db.delete(current_user)  # cascade بقاعدة البيانات يحذف تقدّمه وبطاقاته وتسليماته تلقائيًا
+    db.delete(fresh_user)  # cascade بقاعدة البيانات يحذف تقدّمه وبطاقاته وتسليماته تلقائيًا
     db.commit()
