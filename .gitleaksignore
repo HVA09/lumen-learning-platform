@@ -188,3 +188,12 @@ f9e6ee27cd80d21fed5733a5ace4a4edbae1583c:frontend/src/lib/authApi.test.js:generi
 f9e6ee27cd80d21fed5733a5ace4a4edbae1583c:frontend/src/lib/authApi.test.js:generic-api-key:69
 f9e6ee27cd80d21fed5733a5ace4a4edbae1583c:frontend/src/lib/authApi.test.js:generic-api-key:110
 f9e6ee27cd80d21fed5733a5ace4a4edbae1583c:frontend/src/lib/authApi.test.js:generic-api-key:121
+
+# Exact Gitleaks fingerprints for the shared synthetic password in the new
+# Lumen account-deletion regression tests. The exact added literals were
+# removed from the final test source; these fingerprints remain in branch
+# history. They are test-only fixtures, not deployment credentials.
+e5365408b94e34ec8fc1b971bb4b63e212cef1e8:backend/tests/test_profile.py:generic-api-key:114
+e5365408b94e34ec8fc1b971bb4b63e212cef1e8:backend/tests/test_profile.py:generic-api-key:134
+37482d4b5555c6ba457ef0a99888f68aff0f55b0:backend/tests/test_profile.py:generic-api-key:134
+37482d4b5555c6ba457ef0a99888f68aff0f55b0:backend/tests/test_profile.py:generic-api-key:153
