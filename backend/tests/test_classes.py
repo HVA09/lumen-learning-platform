@@ -400,3 +400,37 @@ def test_join_fails_closed_when_shared_rate_limiter_is_unavailable(client, monke
 
     assert response.status_code == 503
     assert response.headers["Retry-After"] == "30"
+
+
+def test_only_student_role_can_join_class(client, db_session):
+    teacher = make_teacher(client, db_session, "teacher-role-join@example.com")
+    admin = register_and_login(client, "admin-role-join@example.com")
+    set_role(db_session, "admin-role-join@example.com", UserRole.admin)
+    student = make_student(client, "student-role-join@example.com")
+    created = _create_class(client, teacher)
+
+    teacher_join = _join(client, teacher, created["invite_code"])
+    admin_join = _join(client, admin, created["invite_code"])
+
+    assert teacher_join.status_code == 403
+    assert admin_join.status_code == 403
+
+    # Rejected teacher/admin attempts must not create student-enrollment rows.
+    detail_before_student_join = client.get(
+        f"/classes/{created['id']}", headers=auth(teacher)
+    )
+    assert detail_before_student_join.status_code == 200
+    assert detail_before_student_join.json()["student_count"] == 0
+    assert detail_before_student_join.json()["students"] == []
+
+    student_join = _join(client, student, created["invite_code"])
+    assert student_join.status_code == 200
+    detail_after_student_join = client.get(
+        f"/classes/{created['id']}", headers=auth(teacher)
+    )
+    assert detail_after_student_join.status_code == 200
+    assert detail_after_student_join.json()["student_count"] == 1
+    assert (
+        detail_after_student_join.json()["students"][0]["email"]
+        == "student-role-join@example.com"
+    )
