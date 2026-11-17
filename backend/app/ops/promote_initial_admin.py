@@ -20,6 +20,7 @@ from app.models.user import User, UserRole
 
 logger = logging.getLogger(__name__)
 
+
 def _build_confirmation_phrase(email: str, environment: str, database_url: URL) -> str:
     """Identify the target without exposing DB username, password, or query."""
     host = database_url.host or "<no-host>"
