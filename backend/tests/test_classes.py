@@ -430,4 +430,7 @@ def test_only_student_role_can_join_class(client, db_session):
     )
     assert detail_after_student_join.status_code == 200
     assert detail_after_student_join.json()["student_count"] == 1
-    assert detail_after_student_join.json()["students"][0]["email"] == "student-role-join@example.com"
+    assert (
+        detail_after_student_join.json()["students"][0]["email"]
+        == "student-role-join@example.com"
+    )
