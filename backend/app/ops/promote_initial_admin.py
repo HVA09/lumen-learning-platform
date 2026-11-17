@@ -12,19 +12,13 @@ import sys
 from sqlalchemy.engine import URL
 from sqlalchemy.orm import Session
 
+from app.admin_guard import lock_active_admin_ids
 from app.config import settings
 from app.database import SessionLocal, engine
 from app.models.audit_log import AuditLog
-from app.admin_guard import lock_active_admin_ids
 from app.models.user import User, UserRole
 
 logger = logging.getLogger(__name__)
-
-# A namespaced, transaction-scoped PostgreSQL advisory lock. Both values fit
-# signed int32 and are reserved for the Lumen first-admin bootstrap operation.
-_ADMIN_BOOTSTRAP_LOCK_NAMESPACE = 0x4C554D45  # "LUME"
-_ADMIN_BOOTSTRAP_LOCK_ID = 0x41444D49  # "ADMI"
-
 
 def _build_confirmation_phrase(email: str, environment: str, database_url: URL) -> str:
     """Identify the target without exposing DB username, password, or query."""
