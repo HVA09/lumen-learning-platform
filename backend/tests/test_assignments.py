@@ -278,3 +278,47 @@ def test_get_my_submission_returns_null_before_submitting(client, db_session):
 def test_submit_to_unknown_assignment_404(client):
     student = make_student(client, "lost@example.com")
     assert _submit(client, student, 999999).status_code == 404
+
+
+def test_only_students_can_submit_class_assignments(client, db_session):
+    teacher = make_teacher(client, db_session, "assignment-role-teacher@example.com")
+    admin = register_and_login(client, "assignment-role-admin@example.com")
+    set_role(db_session, "assignment-role-admin@example.com", UserRole.admin)
+    student = make_student(client, "assignment-role-student@example.com")
+
+    created_class = client.post(
+        "/classes", json={"name": "فصل اختبار تسليم الواجب"}, headers=auth(teacher)
+    )
+    assert created_class.status_code == 201, created_class.text
+    class_id = created_class.json()["id"]
+    joined = client.post(
+        "/classes/join",
+        json={"invite_code": created_class.json()["invite_code"]},
+        headers=auth(student),
+    )
+    assert joined.status_code == 200
+
+    assignment = _create_assignment(client, teacher, class_section_id=class_id)
+
+    # The assignment owner/admin bypass class membership for management/read
+    # operations, but they must never create student submission records.
+    assert _submit(client, teacher, assignment["id"]).status_code == 403
+    assert _submit(client, admin, assignment["id"]).status_code == 403
+    no_submissions = client.get(
+        f"/assignments/{assignment['id']}/submissions", headers=auth(teacher)
+    )
+    assert no_submissions.status_code == 200
+    assert no_submissions.json() == []
+
+    student_submit = _submit(client, student, assignment["id"])
+    assert student_submit.status_code == 200, student_submit.text
+    assert student_submit.json()["student_user_id"] is not None
+    final_submissions = client.get(
+        f"/assignments/{assignment['id']}/submissions", headers=auth(teacher)
+    )
+    assert final_submissions.status_code == 200
+    assert len(final_submissions.json()) == 1
+    assert (
+        final_submissions.json()[0]["student_name"]
+        == "assignment-role-student@example.com"
+    )
