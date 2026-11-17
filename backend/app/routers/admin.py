@@ -15,6 +15,7 @@ from app.cache import cache_delete, cache_get, cache_set
 from app.config import settings as app_settings
 from app.database import get_db
 from app.dependencies import require_admin
+from app.admin_guard import lock_active_admin_ids
 from app.models.assignment import Assignment, AssignmentSubmission
 from app.models.audit_log import AuditLog
 from app.models.file_attachment import FileAttachment
@@ -184,6 +185,19 @@ def update_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="ما تقدر تغيّر دور حسابك أو تعطّله بنفسك",
         )
+    # Serialize changes to the active-admin roster with self-deletion and bootstrap.
+    # The shared lock also protects the invariant when concurrent requests target
+    # different administrator accounts.
+    if user.role == UserRole.admin and user.is_active and (
+        ("role" in data and data["role"] != UserRole.admin) or data.get("is_active") is False
+    ):
+        active_admin_ids = lock_active_admin_ids(db)
+        if user.id in active_admin_ids and len(active_admin_ids) <= 1:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="لا يمكن إزالة آخر مدير نشط أو تعطيله.",
+            )
+
     # Revoke both access and refresh tokens whenever account availability changes.
     # This prevents old tokens from becoming valid again if the account is re-enabled.
     if "is_active" in data and bool(data["is_active"]) != user.is_active:
@@ -214,6 +228,14 @@ def delete_user(
     user = db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="المستخدم غير موجود")
+
+    if user.role == UserRole.admin and user.is_active:
+        active_admin_ids = lock_active_admin_ids(db)
+        if user.id in active_admin_ids and len(active_admin_ids) <= 1:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="لا يمكن حذف آخر مدير نشط.",
+            )
 
     log_event(db, "admin_user_deleted", f"admin {admin.email} حذف المستخدم {user.email}", admin.id)
     db.delete(user)
