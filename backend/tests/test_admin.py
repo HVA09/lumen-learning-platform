@@ -1,7 +1,8 @@
 """
 اختبارات المرحلة السابعة: لوحة الإدارة
 """
-from app.models.user import UserRole
+from app.models.user import User, UserRole
+from app.routers import admin as admin_router
 from tests.quiz_helpers import set_role, take_quiz, topic_id_by_slug
 
 
@@ -115,6 +116,60 @@ def test_admin_cannot_delete_own_account_via_admin_route(client, db_session):
 
     response = client.delete(f"/admin/users/{me['id']}", headers=admin_headers)
     assert response.status_code == 400
+
+
+def _simulate_concurrent_last_admin_change(db, original_lock, admin_id, target_id):
+    # Model another authorized request completing a promotion/demotion after
+    # this request authenticated but before it acquires the shared roster lock.
+    db.query(User).filter(User.id == admin_id).update(
+        {User.role: UserRole.user}, synchronize_session=False
+    )
+    db.query(User).filter(User.id == target_id).update(
+        {User.role: UserRole.admin}, synchronize_session=False
+    )
+    db.commit()
+    return original_lock(db)
+
+
+def test_admin_delete_rechecks_actor_after_roster_lock(client, db_session, monkeypatch):
+    admin_token = _register_admin(client, db_session, "racing_delete_admin@example.com")
+    admin = db_session.query(User).filter(User.email == "racing_delete_admin@example.com").one()
+    target_token = _register_and_login(client, "racing_delete_target@example.com")
+    target = db_session.query(User).filter(User.email == "racing_delete_target@example.com").one()
+    original_lock = admin_router.lock_active_admin_ids
+
+    def concurrent_change(db):
+        return _simulate_concurrent_last_admin_change(db, original_lock, admin.id, target.id)
+
+    monkeypatch.setattr(admin_router, "lock_active_admin_ids", concurrent_change)
+    response = client.delete(f"/admin/users/{target.id}", headers={"Authorization": f"Bearer {admin_token}"})
+
+    assert response.status_code == 403
+    assert db_session.query(User).filter(User.id == admin.id).one().role == UserRole.user
+    assert db_session.query(User).filter(User.id == target.id).one().role == UserRole.admin
+
+
+def test_admin_update_rechecks_actor_before_changing_promoted_target(client, db_session, monkeypatch):
+    admin_token = _register_admin(client, db_session, "racing_update_admin@example.com")
+    admin = db_session.query(User).filter(User.email == "racing_update_admin@example.com").one()
+    _register_and_login(client, "racing_update_target@example.com")
+    target = db_session.query(User).filter(User.email == "racing_update_target@example.com").one()
+    original_lock = admin_router.lock_active_admin_ids
+
+    def concurrent_change(db):
+        return _simulate_concurrent_last_admin_change(db, original_lock, admin.id, target.id)
+
+    monkeypatch.setattr(admin_router, "lock_active_admin_ids", concurrent_change)
+    response = client.patch(
+        f"/admin/users/{target.id}",
+        json={"is_active": False},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+
+    assert response.status_code == 403
+    refreshed_target = db_session.query(User).filter(User.id == target.id).one()
+    assert refreshed_target.role == UserRole.admin
+    assert refreshed_target.is_active is True
 
 
 def test_admin_can_delete_other_user(client, db_session):
