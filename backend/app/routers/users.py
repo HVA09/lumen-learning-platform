@@ -7,12 +7,12 @@ import shutil
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.admin_guard import lock_active_admin_ids
 from app.auth.security import hash_password, verify_password
 from app.audit import log_event
 from app.config import settings
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.admin_guard import lock_active_admin_ids
 from app.models.user import User, UserRole
 from app.schemas.user import ChangePasswordRequest, DeleteAccountRequest, ProfileUpdate, UserOut
 
