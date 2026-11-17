@@ -142,6 +142,45 @@ def test_admin_can_delete_own_account_when_another_active_admin_remains(client, 
     ).status_code == 200
 
 
+def test_last_active_admin_cannot_delete_own_account(client, db_session):
+    token = _register_and_login(client, "last-admin@example.com", "StrongPass123")
+    admin = db_session.query(User).filter(User.email == "last-admin@example.com").one()
+    admin.role = UserRole.admin
+    db_session.commit()
+    headers = {"Authorization": f"Bearer {token}"}
+
+    response = client.request(
+        "DELETE", "/users/me", json={"password": "StrongPass123"}, headers=headers
+    )
+
+    assert response.status_code == 409
+    assert db_session.query(User.id).filter(User.id == admin.id).one()[0] == admin.id
+    assert client.get("/admin/stats", headers=headers).status_code == 200
+
+
+def test_admin_can_delete_own_account_when_another_active_admin_remains(client, db_session):
+    first_token = _register_and_login(client, "first-admin-delete@example.com", "StrongPass123")
+    second_token = _register_and_login(client, "second-admin-delete@example.com", "StrongPass123")
+    first_admin = db_session.query(User).filter(User.email == "first-admin-delete@example.com").one()
+    second_admin = db_session.query(User).filter(User.email == "second-admin-delete@example.com").one()
+    first_admin.role = UserRole.admin
+    second_admin.role = UserRole.admin
+    db_session.commit()
+
+    response = client.request(
+        "DELETE",
+        "/users/me",
+        json={"password": "StrongPass123"},
+        headers={"Authorization": f"Bearer {first_token}"},
+    )
+
+    assert response.status_code == 204
+    assert db_session.query(User.id).filter(User.id == first_admin.id).count() == 0
+    assert client.get(
+        "/admin/stats", headers={"Authorization": f"Bearer {second_token}"}
+    ).status_code == 200
+
+
 def test_profile_endpoints_require_authentication(client):
     assert client.patch("/users/me", json={"full_name": "x"}).status_code == 401
     assert (
