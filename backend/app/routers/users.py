@@ -64,16 +64,19 @@ def delete_account(
     # Serialize account deletion with all administrator-role changes. Re-read
     # the account after taking the roster lock so a concurrent promotion or
     # deactivation cannot be hidden by the authenticated ORM snapshot.
+    authenticated_user_id = current_user.id
+    authenticated_token_version = current_user.token_version
     active_admin_ids = lock_active_admin_ids(db)
     fresh_user = (
         db.query(User)
-        .filter(User.id == current_user.id)
+        .filter(User.id == authenticated_user_id)
         .with_for_update()
+        .populate_existing()
         .first()
     )
     if not fresh_user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="الحساب غير موجود")
-    if not fresh_user.is_active or fresh_user.token_version != current_user.token_version:
+    if not fresh_user.is_active or fresh_user.token_version != authenticated_token_version:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="انتهت صلاحية الجلسة؛ سجّل الدخول من جديد.",
