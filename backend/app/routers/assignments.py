@@ -230,6 +230,14 @@ def submit_assignment(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    # AssignmentSubmission represents a student's submitted work. Do not let
+    # teacher/admin accounts create records that impersonate student activity.
+    if current_user.role != UserRole.user:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="تسليم الواجب متاح لحسابات الطلاب فقط",
+        )
+
     assignment = _get_assignment_or_404(assignment_id, db)
     if (
         assignment.class_section_id is not None
