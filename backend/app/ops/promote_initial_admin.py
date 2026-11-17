@@ -1,4 +1,4 @@
-"""Secure, one-time bootstrap for the first Lumen administrator.
+"""Secure bootstrap and recovery for a Lumen administrator.
 
 Run only from an authorized interactive server/runtime shell after creating
 and verifying the target account. There is intentionally no public API route.
