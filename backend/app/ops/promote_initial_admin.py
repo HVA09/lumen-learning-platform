@@ -9,13 +9,17 @@ import argparse
 import logging
 import sys
 
-from sqlalchemy import text
 from sqlalchemy.engine import URL
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import SessionLocal, engine
 from app.models.audit_log import AuditLog
+from app.admin_guard import (
+    ACTIVE_ADMIN_ROSTER_LOCK_ID as _ADMIN_BOOTSTRAP_LOCK_ID,
+    ACTIVE_ADMIN_ROSTER_LOCK_NAMESPACE as _ADMIN_BOOTSTRAP_LOCK_NAMESPACE,
+    lock_active_admin_ids,
+)
 from app.models.user import User, UserRole
 
 logger = logging.getLogger(__name__)
@@ -36,7 +40,7 @@ def _build_confirmation_phrase(email: str, environment: str, database_url: URL) 
 
 
 def promote_initial_admin(db: Session, email: str, confirmation: str) -> None:
-    """Promote one existing verified account if and only if no admin exists.
+    """Promote one existing verified account if and only if no active admin exists.
 
     The caller owns the transaction. The advisory lock serializes concurrent
     invocations; the target row is also locked before its role is changed.
@@ -48,17 +52,11 @@ def promote_initial_admin(db: Session, email: str, confirmation: str) -> None:
     if db.get_bind().dialect.name != "postgresql":
         raise RuntimeError("أمر تهيئة المدير يتطلب PostgreSQL؛ لم يتم إجراء أي تغيير.")
 
-    db.execute(
-        text("SELECT pg_advisory_xact_lock(:namespace, :lock_id)"),
-        {
-            "namespace": _ADMIN_BOOTSTRAP_LOCK_NAMESPACE,
-            "lock_id": _ADMIN_BOOTSTRAP_LOCK_ID,
-        },
-    )
-
-    existing_admin = db.query(User.id).filter(User.role == UserRole.admin).first()
-    if existing_admin is not None:
-        raise ValueError("يوجد مدير بالفعل؛ لم يتم إجراء أي تغيير.")
+    # The same transaction-scoped lock protects bootstrap/recovery and every
+    # application path that can remove an active administrator.
+    active_admin_ids = lock_active_admin_ids(db)
+    if active_admin_ids:
+        raise ValueError("يوجد مدير نشط بالفعل؛ لم يتم إجراء أي تغيير.")
 
     user = (
         db.query(User)
@@ -78,7 +76,7 @@ def promote_initial_admin(db: Session, email: str, confirmation: str) -> None:
         AuditLog(
             user_id=user.id,
             event_type="first_admin_bootstrap",
-            description="First administrator provisioned through the authorized server-side bootstrap command.",
+            description="Administrator provisioned through the authorized server-side bootstrap/recovery command.",
         )
     )
     db.flush()
@@ -86,7 +84,7 @@ def promote_initial_admin(db: Session, email: str, confirmation: str) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Securely provision the first Lumen administrator."
+        description="Securely provision or recover a Lumen administrator when none is active."
     )
     parser.add_argument(
         "--email",
