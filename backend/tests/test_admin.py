@@ -133,7 +133,6 @@ def _simulate_concurrent_last_admin_change(db, original_lock, admin_id, target_i
 
 def test_admin_update_reloads_promoted_target_under_roster_lock(client, db_session, monkeypatch):
     admin_token = _register_admin(client, db_session, "reload_admin_update@example.com")
-    target_id = None
     _register_and_login(client, "reload_target_update@example.com")
     admin = db_session.query(User).filter(User.email == "reload_admin_update@example.com").one()
     target = db_session.query(User).filter(User.email == "reload_target_update@example.com").one()
