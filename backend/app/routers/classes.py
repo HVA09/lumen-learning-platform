@@ -235,6 +235,14 @@ def join_class(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    # ClassEnrollment is a student-membership record; teacher/admin accounts
+    # must not be allowed to create student enrollments by calling this route.
+    if current_user.role != UserRole.user:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="الانضمام إلى الفصل متاح لحساب الطالب فقط",
+        )
+
     # Reserve atomically before looking up a code. Invalid/archived codes keep
     # the reservation; a valid code releases it after enrollment is confirmed.
     try:
