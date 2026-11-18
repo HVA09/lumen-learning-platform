@@ -139,7 +139,7 @@ Teacher class-scoped access continues to be restricted by class ownership. Do no
 
 ## 6. Historical data policy
 
-- Existing `QuizAttempt` rows receive NULL for the new field.
+- Existing `QuizAttempt` rows receive NULL for the new class/role provenance and question-definition snapshot fields. Do not infer or backfill them from current state.
 - No backfill based on current class membership, assignment topic, teacher, or timestamps.
 - Teachers cannot see historical NULL-provenance attempts in class analytics.
 - Historical attempts have unknown attempt-time role and are excluded from all student analytics, including admin global aggregates. Do not infer historical role from the account's current role or backfill it.
@@ -175,7 +175,7 @@ Rollback:
 
 - Stop new scoped-attempt writes before rollback.
 - Take/verify a backup under the existing backup policy.
-- Drop the index, foreign key, and every column introduced by this revision, including `class_section_id`, `user_role_at_creation`, and every question-result snapshot column. Verify the downgrade leaves no added schema objects behind.
+- Drop the index, foreign key, and every column introduced by this revision, including `class_section_id`, `user_role_at_creation`, `question_definition_snapshots`, and every question-result snapshot/version column. Verify the downgrade leaves no added schema objects behind.
 - Recognize that dropping the column discards newly captured provenance; do not run a downgrade casually after production data has been written.
 
 No migration should be merged until the schema, Alembic revision chain, PostgreSQL/SQLite behavior, deployment ordering, and rollback have been independently reviewed.
@@ -191,7 +191,8 @@ No migration should be merged until the schema, Alembic revision chain, PostgreS
 - Student in multiple classes can explicitly choose one.
 - Teacher/admin cannot attribute their own attempts to a student's class.
 - Resuming an attempt preserves the original class ID and cannot change it.
-- Submission and `QuestionResult` creation preserve the parent attempt association and immutable question/choice interpretation snapshot.
+- The first presentation of an attempt captures an immutable question-definition snapshot; resume returns that same snapshot and submission grades against it.
+- Submission and `QuestionResult` creation preserve the parent attempt association and copy the exact attempt-time definition snapshot and version.
 - Student and staff role changes after attempt creation do not alter `user_role_at_creation` or analytics eligibility.
 - Legacy attempts without role snapshots are excluded from student analytics.
 
@@ -328,7 +329,7 @@ These clarifications close the remaining design ambiguities and supersede any sh
 **Role snapshot migration compatibility**
 - The database column is nullable to preserve the unknown state of pre-migration attempts. Application-level creation logic requires and writes a non-null role snapshot atomically for every new attempt.
 - No database default may infer a role for legacy records. No current-role backfill is permitted.
-- Migration tests must prove existing rows remain NULL and new attempt writes cannot omit the snapshot.
+- Migration tests must prove existing rows remain NULL and new attempt writes cannot omit the role or presentation snapshot.
 
 **Complementary suppression output completeness**
 - If any answer bucket has 1–4 learners, set `correct` and `success_rate` to NULL and `correctness_suppressed=true`.
