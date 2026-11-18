@@ -173,7 +173,7 @@ Migration:
 
 Rollback:
 
-- Stop new scoped-attempt writes before rollback.
+- Stop new scoped-attempt writes and attempt-snapshot writes before rollback.
 - Take/verify a backup under the existing backup policy.
 - Drop the index, foreign key, and every column introduced by this revision, including `class_section_id`, `user_role_at_creation`, `question_definition_snapshots`, and every question-result snapshot/version column. Verify the downgrade leaves no added schema objects behind.
 - Recognize that dropping the column discards newly captured provenance; do not run a downgrade casually after production data has been written.
@@ -216,7 +216,7 @@ No migration should be merged until the schema, Alembic revision chain, PostgreS
 - Cohort below 5 distinct learners sets `suppressed=true` and nulls counts, rates, and wrong-answer details.
 - Cohort at/above 5 returns only question-level aggregates, based on one latest answer per learner/question-definition-version. Treat blanks as a separate hidden bucket for complementary suppression: if any non-blank answer bucket, blank bucket, or numeric incorrect bucket has 1–4 distinct learners, complementary suppression must null `correct` and `success_rate` and all correctness-derived/bucket fields so the hidden category cannot be reconstructed by subtraction.
 - Wrong-answer buckets below 5 distinct learners are suppressed independently for `mcq` and `true_false`; do not fall back to exposing the next-smallest bucket. If any such bucket is 1–4, suppress correctness metrics as well. Numeric questions expose no wrong-answer bucket in this phase; suppress correctness metrics when 1–4 learners are incorrect.
-- Multiple attempts by one learner count as one contribution per question in class scope; in admin global scope, a learner appearing in multiple classes contributes once per question using the latest submitted answer across all class contexts.
+- Multiple attempts by one learner count as one contribution per question-definition-version in class scope; in admin global scope, a learner appearing in multiple classes contributes once per question-definition-version using the latest submitted answer within that version across all class contexts.
 - The frontend labels the denominator as distinct learners/respondents, not non-empty answers.
 - Exclude teacher/admin-owned attempts from student analytics.
 - Admin institution-wide analytics requests require a supported purpose code and a successful audit write before data is returned; admin class-scoped requests are rejected by this endpoint.
@@ -323,7 +323,7 @@ These clarifications close the remaining design ambiguities and supersede any sh
 - Admin institution-wide requests must provide the enumerated purpose as the `purpose` query parameter shown in the endpoint contract: `institutional_reporting`, `quality_review`, `support_case`, or `compliance`.
 - Missing or unsupported `purpose` on an admin request is rejected before aggregation. Teacher requests remain class-scoped and do not use admin purpose codes.
 - Admin class-scoped requests are rejected by this endpoint; allowing global and class-specific releases together would enable differencing attacks against small residual cohorts.
-- The purpose is a constrained enum, not arbitrary text. The audit record stores the accepted code and the explicit global/class scope; it never stores free-form student data.
+- The purpose is a constrained enum, not arbitrary text. The audit record stores the accepted code and explicit global scope; it never stores free-form student data.
 - Tests must cover each supported purpose, missing purpose, unsupported purpose, and audit-write failure. A failed audit write must return generic 503 without returning analytics data.
 
 **Role snapshot migration compatibility**
