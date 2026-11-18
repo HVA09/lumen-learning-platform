@@ -98,6 +98,13 @@ describe("LeaderboardPanel", () => {
     expect(screen.queryByRole("button", { name: "إنجازاتي" })).not.toBeInTheDocument();
   });
 
+  it("shows an explicit error when the student's achievements request fails", async () => {
+    getMyAchievements.mockRejectedValue(new Error("achievements unavailable"));
+    render(<LeaderboardPanel onClose={vi.fn()} isTeacher={false} />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("تعذر تحميل الإنجازات");
+  });
+
   it("keeps achievements visible when the student's stats request fails", async () => {
     getMyStats.mockRejectedValue(new Error("stats unavailable"));
     getMyAchievements.mockResolvedValue([
