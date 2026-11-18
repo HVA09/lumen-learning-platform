@@ -12,24 +12,27 @@ export default function LeaderboardPanel({ onClose, isTeacher = true, isAdmin = 
   const [achievements, setAchievements] = useState([]);
   const [myStats, setMyStats] = useState(null);
   const [loadingBoard, setLoadingBoard] = useState(true);
-  const [loadingAchievements, setLoadingAchievements] = useState(true);
+  const [loadingAchievements, setLoadingAchievements] = useState(!isTeacher);
+  const [achievementsError, setAchievementsError] = useState("");
   const [loadingStats, setLoadingStats] = useState(true);
   const [loadingClasses, setLoadingClasses] = useState(isTeacher);
   const [classesLoadFailed, setClassesLoadFailed] = useState(false);
-  const [error, setError] = useState("");
+  const [boardError, setBoardError] = useState("");
 
   useEffect(() => {
-    getMyAchievements()
-      .then(setAchievements)
-      .catch(() => setError("تعذر تحميل الإنجازات"))
-      .finally(() => setLoadingAchievements(false));
+    if (!isTeacher) {
+      getMyAchievements()
+        .then(setAchievements)
+        .catch(() => setAchievementsError("تعذر تحميل الإنجازات"))
+        .finally(() => setLoadingAchievements(false));
+    }
 
     if (isTeacher) {
       listClasses()
         .then(setClasses)
         .catch(() => {
           setClassesLoadFailed(true);
-          setError("تعذر تحميل الفصول");
+          setBoardError("تعذر تحميل الفصول");
         })
         .finally(() => setLoadingClasses(false));
     } else {
@@ -58,12 +61,12 @@ export default function LeaderboardPanel({ onClose, isTeacher = true, isAdmin = 
     }
 
     setLoadingBoard(true);
-    setError("");
+    setBoardError("");
     getLeaderboard(classId)
       .then(setLeaderboard)
       .catch((err) => {
         setLeaderboard([]);
-        setError(err.response?.data?.detail || "تعذر تحميل لوحة المتصدرين");
+        setBoardError(err.response?.data?.detail || "تعذر تحميل لوحة المتصدرين");
       })
       .finally(() => setLoadingBoard(false));
   }, [isTeacher, isAdmin, selectedScope]);
@@ -89,16 +92,15 @@ export default function LeaderboardPanel({ onClose, isTeacher = true, isAdmin = 
             >
               لوحة المتصدرين
             </button>
-            <button
-              onClick={() => setTab("achievements")}
-              className={`flex-1 rounded-xl border px-3 py-1.5 text-sm ${tab === "achievements" ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200"}`}
-            >
-              إنجازاتي
-            </button>
           </div>
         )}
 
-        {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
+        {isTeacher && boardError && tab === "leaderboard" && (
+          <p role="alert" className="mb-3 text-sm text-red-600">{boardError}</p>
+        )}
+        {!isTeacher && achievementsError && (
+          <p role="alert" className="mb-3 text-sm text-red-600">{achievementsError}</p>
+        )}
 
         {!isTeacher && (
           <section className="mb-4 rounded-2xl border border-slate-200 p-4" aria-label="إحصائياتي الشخصية">
@@ -171,9 +173,9 @@ export default function LeaderboardPanel({ onClose, isTeacher = true, isAdmin = 
               </div>
             )}
           </>
-        ) : loadingAchievements ? (
+        ) : !isTeacher && loadingAchievements ? (
           <p className="text-sm text-slate-400">...</p>
-        ) : (
+        ) : !isTeacher ? (
           <div className="space-y-2">
             {achievements.map((a) => (
               <div
