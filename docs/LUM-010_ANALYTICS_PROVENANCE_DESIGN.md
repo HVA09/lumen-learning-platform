@@ -72,7 +72,7 @@ Teacher/admin-created practice attempts must not be attributed to a student's cl
 
 Change the endpoint to:
 
-`GET /content/topics/{topic_id}/analytics?class_id={id}`
+`GET /content/topics/{topic_id}/analytics?class_id={id}&purpose={purpose_code}` (the `purpose` parameter is required only for admin requests; teacher requests must not send or depend on it).
 
 Authorization:
 
@@ -164,7 +164,7 @@ Teacher analytics UI must require a class selection from classes owned by that t
 Migration:
 
 1. Add nullable `quiz_attempts.class_section_id`.
-2. Add non-null immutable `quiz_attempts.user_role_at_creation` for new attempts. Legacy rows remain unknown and are excluded; do not backfill by current role.
+2. Add nullable `quiz_attempts.user_role_at_creation` so existing rows can remain NULL/unknown without fabricated defaults. Enforce a non-null immutable role snapshot in the application transaction for every newly created attempt; reject any new attempt write that lacks it. Legacy NULL rows remain excluded from student analytics. Do not backfill by current role.
 3. Add immutable submission-time question interpretation fields to `question_results` (at minimum question type and choices snapshot for choice questions, plus the grading/correct-answer snapshot needed to preserve correctness). Use the project's cross-database JSON type/serialization conventions; define exact shape and nullability in the implementation PR.
 4. Add foreign key to `class_sections.id` with `ON DELETE SET NULL`.
 5. Add an index.
@@ -174,7 +174,7 @@ Rollback:
 
 - Stop new scoped-attempt writes before rollback.
 - Take/verify a backup under the existing backup policy.
-- Drop the index, foreign key, and column in the downgrade.
+- Drop the index, foreign key, and every column introduced by this revision, including `class_section_id`, `user_role_at_creation`, and every question-result snapshot column. Verify the downgrade leaves no added schema objects behind.
 - Recognize that dropping the column discards newly captured provenance; do not run a downgrade casually after production data has been written.
 
 No migration should be merged until the schema, Alembic revision chain, PostgreSQL/SQLite behavior, deployment ordering, and rollback have been independently reviewed.
@@ -300,3 +300,35 @@ The earlier statement that admin global analytics may include legacy NULL-proven
 - Verify a cohort of five with a 4/1 answer split hides correctness metrics and does not expose the minority bucket.
 - Verify numeric cohorts with one to four incorrect learners hide correct and success_rate.
 - Verify primary and complementary suppression responses pass the nullable Pydantic response schema.
+
+### 11.7 Question-definition versioning, audit transport, and migration nullability
+
+These clarifications close the remaining design ambiguities and supersede any shorter wording above.
+
+**Question-definition versioning**
+- A submission-time snapshot must preserve the exact analytics-relevant question definition shown to the learner, not just its current database ID or choice list.
+- At minimum, persist immutable `question_prompt_at_submission`, `question_type_at_submission`, `question_difficulty_at_submission`, `choices_at_submission` (for choice questions), and the grading/correct-answer interpretation actually used by the submit handler.
+- Persist a stable `question_definition_version` (or an equivalent deterministic snapshot identity) with each `QuestionResult`. A change to prompt, question type, difficulty, choices, or grading interpretation creates a new definition version for analytics purposes.
+- Analytics must group and return separate rows per `(question_id, question_definition_version)`; never combine historical answers to materially different question definitions under the current prompt.
+- Snapshot fields are write-once. Editing a question after submission must not rewrite previous `QuestionResult` snapshots.
+- Legacy results without a trustworthy definition snapshot are excluded from version-specific choice buckets and must not be attributed to the current definition by inference. The implementation PR must define the exact JSON shape, version-generation rule, nullability for numeric/free-form questions, and deterministic handling of grading changes.
+
+**Admin audit-purpose transport**
+- Admin requests must provide the enumerated purpose as the `purpose` query parameter shown in the endpoint contract: `institutional_reporting`, `quality_review`, `support_case`, or `compliance`.
+- Missing or unsupported `purpose` on an admin request is rejected before aggregation. Teacher requests remain class-scoped and do not use admin purpose codes.
+- The purpose is a constrained enum, not arbitrary text. The audit record stores the accepted code and the explicit global/class scope; it never stores free-form student data.
+- Tests must cover each supported purpose, missing purpose, unsupported purpose, and audit-write failure. A failed audit write must return generic 503 without returning analytics data.
+
+**Role snapshot migration compatibility**
+- The database column is nullable to preserve the unknown state of pre-migration attempts. Application-level creation logic requires and writes a non-null role snapshot atomically for every new attempt.
+- No database default may infer a role for legacy records. No current-role backfill is permitted.
+- Migration tests must prove existing rows remain NULL and new attempt writes cannot omit the snapshot.
+
+**Complementary suppression output completeness**
+- If any answer bucket has 1–4 learners, set `correct` and `success_rate` to NULL and `correctness_suppressed=true`.
+- Also set `top_wrong_answer` and `top_wrong_count` to NULL and suppress any correctness-derived `flag` or label. Do not expose a top bucket, even if that top bucket itself has five or more learners, when a complementary bucket is small and could be derived from the displayed denominator.
+- `answered` may remain visible only as the distinct respondent count; it must not be paired with any visible correctness or bucket metric that enables subtraction. For numeric questions with 1–4 incorrect learners, apply the same rule.
+- The API response schema and UI must treat these nullable fields as intentional suppression, not as zero or as a missing-data error.
+
+**Rollback completeness**
+- The downgrade must explicitly remove every schema object introduced by the migration revision: all new columns, indexes, and foreign keys across both `quiz_attempts` and `question_results`. Add a migration test that upgrades, downgrades, and confirms the schema exactly matches the pre-upgrade shape.
