@@ -31,7 +31,7 @@ export default function LeaderboardPanel({ onClose, isTeacher = true, isAdmin = 
     } else {
       getMyStats()
         .then(setMyStats)
-        .catch(() => {})
+        .catch(() => undefined)
         .finally(() => setLoadingStats(false));
     }
   }, [isTeacher]);
