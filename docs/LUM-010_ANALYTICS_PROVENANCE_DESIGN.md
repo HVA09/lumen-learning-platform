@@ -58,9 +58,15 @@ When omitted, the attempt is personal/unscoped and `class_section_id` remains NU
 
 ### Resume behavior
 
-An unfinished attempt retains its original class context. Resuming an attempt must not overwrite or backfill its `class_section_id`. If a resume request supplies a different class context, reject it with a conflict or return the existing context explicitly; do not silently move the attempt between classes.
+The current resume lookup selects the latest open attempt by `user_id + topic_id + mode`; it does not currently distinguish class context. Preserve that behavior deliberately, but make the context contract explicit:
 
-Teacher/admin-created practice attempts must not be attributed to a student's class. If staff are permitted to use quiz routes, their attempts remain unscoped.
+- Add `class_section_id` to `QuizAttemptOut` so the client can display the stored context when an attempt resumes.
+- If `class_section_id` is omitted from a resume request, resume the open attempt with its stored context and return that context; do not reinterpret omission as a request to move it to personal scope.
+- If the request explicitly supplies a class ID or explicit `null` and it differs from the stored value, return `409 Conflict`. Do not mutate the attempt.
+- Use Pydantic's supplied-fields tracking (or an equivalent explicit sentinel) to distinguish an omitted field from an explicitly supplied `null`.
+- A newly created attempt with omitted or explicit `null` context is personal/unscoped.
+
+Teacher/admin-created practice attempts must not be attributed to a student's class. If staff are permitted to use quiz routes, their attempts remain unscoped, and any supplied non-null class ID is rejected.
 
 ## 4. Analytics authorization and query contract
 
@@ -81,6 +87,8 @@ Query scope:
 - Admin class queries include only the requested class.
 - Do not join through current class enrollment to infer historical membership. The captured attempt context is the source of truth.
 - Do not infer class from the student's current enrollment, assignment topic, teacher ownership of content, or the date of the attempt.
+- A class's `ClassEnrollment` row is physically deleted when a student is removed. At attempt creation, validate that this row exists and that `ClassSection.is_archived == false`. The captured `QuizAttempt.class_section_id` remains the historical provenance after the student is later removed; do not re-check current enrollment when submitting or analyzing that already-created attempt.
+- A deleted class will set `QuizAttempt.class_section_id` to NULL via `ON DELETE SET NULL`. Such attempts remain personal/unscoped for teacher queries and must not be reassigned to another class.
 
 ## 5. Small-cohort and inference protections
 
@@ -88,11 +96,18 @@ A class-scoped aggregate can still expose individual behavior when very few stud
 
 **Recommended initial threshold: 5 distinct student accounts with at least one submitted answer to that question in the requested scope.**
 
+To prevent a learner with many retries from dominating the aggregate, define the metric as follows:
+
+- For each `(class_section_id, topic_id, question_id, student_user_id)`, select only that student's latest submitted `QuestionResult` by the parent `QuizAttempt.submitted_at` (with attempt ID as a deterministic tie-breaker).
+- Calculate `answered`, `correct`, and `success_rate` from these one-per-student latest answers. In this contract, `answered` is the distinct learner count, not the number of attempts.
+- Calculate wrong-answer buckets from the same selected latest answer per learner; repeated retries must not increase a learner's contribution.
+- Apply the same per-student latest-answer rule to admin global aggregates so class and global metrics have consistent semantics.
+
 For rows below the threshold:
 
 - Return a suppression state, not the exact respondent count.
 - Do not return success rate, correct count, or most-common wrong answer.
-- Do not reveal small wrong-answer buckets; suppress the top wrong answer unless its count also meets the threshold.
+- Do not reveal a wrong-answer bucket unless that bucket independently contains at least 5 distinct learners. If the top bucket is below threshold, return no top wrong answer/count rather than exposing the next bucket as a potentially identifying residual.
 - Keep the threshold centralized and documented, not duplicated across route/UI code.
 
 Further protections:
@@ -103,6 +118,19 @@ Further protections:
 - Treat the threshold as a baseline suppression control, not a guarantee of anonymization. Reassess it if filters, exports, or additional analytics dimensions are introduced.
 
 Admin access is governed by role and audit policy; admin-level aggregate visibility does not authorize exposing student-level details through this endpoint.
+
+### Admin audit contract
+
+The existing `AuditLog` model and `log_event(db, event_type, description, user_id)` helper can record this without adding a new audit table in this phase. Every successful admin analytics read (global or class-scoped) must write one event before returning the analytics response:
+
+- `event_type`: `student_analytics_access`.
+- `user_id`: the authenticated admin's user ID (actor).
+- `description`: include the topic ID, explicit scope (`global` or class ID), endpoint/action, and that the response was aggregate-only. Do not include student IDs, names, raw answers, or result rows.
+- Failed authorization attempts need not create a successful-access event; they may be logged separately under the existing security logging policy.
+- Audit persistence is fail-closed: if the audit insert/commit fails, do not return the analytics payload. Let the request fail and ensure the DB session is rolled back/closed by the request lifecycle.
+- The audit event is committed before the response is returned. This makes the audit trail a prerequisite for admin data access, not a best-effort side effect.
+
+Teacher class-scoped access continues to be restricted by class ownership. Do not expand this endpoint to student-level detail or add export functionality as part of this change.
 
 ## 6. Historical data policy
 
@@ -169,9 +197,10 @@ No migration should be merged until the schema, Alembic revision chain, PostgreS
 
 ### Suppression and privacy
 
-- Cohort below 5 suppresses counts, rates, and wrong-answer details.
-- Cohort at/above 5 returns only question-level aggregates.
-- Small top-wrong-answer buckets are suppressed independently.
+- Cohort below 5 distinct learners suppresses counts, rates, and wrong-answer details.
+- Cohort at/above 5 returns only question-level aggregates, based on one latest answer per learner/question.
+- Wrong-answer buckets below 5 distinct learners are suppressed independently; do not fall back to exposing the next-smallest bucket.
+- Multiple attempts by one learner count as one contribution per question in the selected scope.
 - No student identity fields appear in the response.
 - Existing analytics ordering and classification logic remains correct after scoping.
 
