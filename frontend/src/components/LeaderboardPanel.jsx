@@ -191,7 +191,7 @@ export default function LeaderboardPanel({ onClose, isTeacher = true, isAdmin = 
               </div>
             ))}
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );
