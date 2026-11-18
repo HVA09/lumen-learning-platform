@@ -72,19 +72,19 @@ Teacher/admin-created practice attempts must not be attributed to a student's cl
 
 Change the endpoint to:
 
-`GET /content/topics/{topic_id}/analytics?class_id={id}&purpose={purpose_code}` (the `purpose` parameter is required only for admin requests; teacher requests must not send or depend on it).
+`GET /content/topics/{topic_id}/analytics?class_id={id}&purpose={purpose_code}`. Teachers must provide `class_id`; admins must omit `class_id` and receive institution-wide aggregates only. The `purpose` parameter is required only for admin requests; teacher requests must not send or depend on it.
 
 Authorization:
 
 - **Teacher:** `class_id` is required; the class must exist and `ClassSection.teacher_user_id == current_user.id`. Otherwise return 403 (or 404 for a nonexistent class, consistent with existing class APIs).
-- **Admin:** may omit `class_id` for institution-wide analytics, or provide a class ID for class-specific inspection.
+- **Admin:** must omit `class_id`; this endpoint provides institution-wide aggregates only. Reject admin requests containing `class_id`. Admin class-level releases are deferred until a separately reviewed cross-scope disclosure-control design exists.
 - **Student/other roles:** denied by the existing teacher dependency.
 
 Query scope:
 
 - Teacher queries include only attempts with the requested `class_section_id`.
-- Admin global queries include only attempts whose immutable `user_role_at_creation == UserRole.user`; attempts with unknown legacy role provenance are excluded. For this global scope, deduplicate once per learner/question across all class contexts; do not count one learner once per class.
-- Admin class queries include only student-owned attempts with the requested class ID.
+- Admin global queries include only attempts whose immutable `user_role_at_creation == UserRole.user`; attempts with unknown legacy role provenance are excluded. Deduplicate once per learner/question/question-definition-version across all class and unscoped contexts; do not count one learner once per class.
+- Admin class-scoped queries are not supported by this endpoint. This avoids differencing a global aggregate against a class aggregate to reconstruct a small residual cohort.
 - Do not join through current class enrollment to infer historical membership. The captured attempt context is the source of truth.
 - Do not infer class from the student's current enrollment, assignment topic, teacher ownership of content, or the date of the attempt.
 - A class's `ClassEnrollment` row is physically deleted when a student is removed. At attempt creation, validate that this row exists and that `ClassSection.is_archived == false`. The captured `QuizAttempt.class_section_id` remains the historical provenance after the student is later removed; do not re-check current enrollment when submitting or analyzing that already-created attempt.
@@ -98,10 +98,10 @@ A class-scoped aggregate can still expose individual behavior when very few stud
 
 To prevent a learner with many retries from dominating the aggregate, define the metric as follows:
 
-- For teacher/class-scoped analytics, partition by `(class_section_id, topic_id, question_id, student_user_id)` and select only that student's latest submitted `QuestionResult` within the requested class by parent `QuizAttempt.submitted_at` (with attempt ID as a deterministic tie-breaker).
-- For admin global analytics, partition by `(topic_id, question_id, student_user_id)` across **all** class and unscoped attempts; deliberately omit `class_section_id` from the partition. Select one latest result per learner/question globally so a learner active in multiple classes contributes only once to institution-wide totals.
+- For teacher/class-scoped analytics, partition by `(class_section_id, topic_id, question_id, question_definition_version, student_user_id)` and select only that student's latest submitted `QuestionResult` within the requested class and definition version by parent `QuizAttempt.submitted_at` (with attempt ID as a deterministic tie-breaker).
+- For admin global analytics, partition by `(topic_id, question_id, question_definition_version, student_user_id)` across **all** class and unscoped attempts; deliberately omit `class_section_id` from the partition. Select one latest result per learner/question/definition-version globally so a learner active in multiple classes contributes only once to each institution-wide definition-version total.
 - In both scopes, calculate `answered`, `correct`, and `success_rate` from the selected one-per-learner answers. `answered` is the distinct learner count, not the number of attempts. Because blank answers remain in this denominator, the UI must label this value as learners/respondents (for example, «عدد الطلاب») rather than implying it is a count of non-empty answers.
-- Calculate wrong-answer buckets from the same selected latest answer per learner; repeated retries must not increase a learner's contribution.
+- Calculate wrong-answer buckets from the same selected latest answer per learner and definition version; repeated retries must not increase a learner's contribution. For complementary-suppression analysis, count blank/omitted answers as a separate hidden answer category even though blanks are never emitted as wrong-answer text buckets.
 - Preserve the current question-type boundary: wrong-answer text buckets are supported only for `mcq` and `true_false` questions. For an unsuppressed `numeric` row, keep `top_wrong_answer` NULL and `top_wrong_count` zero in this phase; do not aggregate or expose arbitrary numeric/free-form answer values. If the respondent cohort is suppressed, `top_wrong_count` remains NULL under the general suppression rule.
 - Include only attempts with immutable `user_role_at_creation == UserRole.user`. Exclude `teacher`, `admin`, and legacy attempts whose attempt-time role is unknown from both class and global student analytics. Never use the account's current role to infer the historical role.
 - The current submit handler creates a `QuestionResult` row for every question in the submitted attempt, even when the learner omitted an answer (`given_answer == null`). Therefore the denominator represents distinct learners who submitted an attempt containing that question, not only learners who entered a non-empty answer. Treat a blank as not correct for the success-rate denominator, but never include blanks in wrong-answer buckets.
@@ -117,7 +117,7 @@ For rows below the threshold, use an explicit response contract:
 Further protections:
 
 - Teachers can query only whole classes they own; no arbitrary student lists or custom sub-cohorts.
-- Do not add filters that allow repeated differencing of nearly identical populations.
+- Do not add filters that allow repeated differencing of nearly identical populations. Admins receive only the institution-wide scope from this endpoint; do not expose a simultaneous class-level aggregate that can be subtracted from the global row. Any future admin class-level reporting requires a separately reviewed release-control design that prevents differencing across all permitted scopes.
 - Do not expose student IDs, names, per-student scores, or attempt histories through this endpoint.
 - Treat the threshold as a baseline suppression control, not a guarantee of anonymization. Reassess it if filters, exports, or additional analytics dimensions are introduced.
 
@@ -125,12 +125,12 @@ Admin access is governed by role and audit policy; admin-level aggregate visibil
 
 ### Admin audit contract
 
-The existing `AuditLog` model and `log_event(db, event_type, description, user_id)` helper can record this without adding a new audit table in this phase. Every successful admin analytics read (global or class-scoped) must write one event before returning the analytics response:
+The existing `AuditLog` model and `log_event(db, event_type, description, user_id)` helper can record this without adding a new audit table in this phase. Every successful admin institution-wide analytics read must write one event before returning the analytics response:
 
 - `event_type`: `student_analytics_access`.
 - `user_id`: the authenticated admin's user ID (actor).
 - Require an enumerated `purpose` for admin reads (for example: `institutional_reporting`, `quality_review`, `support_case`, or `compliance`); do not accept free-form text that could accidentally store student personal data.
-- `description`: include the topic ID, explicit scope (`global` or class ID), endpoint/action, purpose code, and that the response was aggregate-only. Do not include student IDs, names, raw answers, or result rows.
+- `description`: include the topic ID, explicit `global` scope, endpoint/action, purpose code, and that the response was aggregate-only. Do not include student IDs, names, raw answers, or result rows.
 - Failed authorization attempts need not create a successful-access event; they may be logged separately under the existing security logging policy.
 - Audit persistence is fail-closed: if the audit insert/commit fails, do not return the analytics payload. Roll back the session and return a generic service error (503); do not leak analytics data or raw DB errors.
 - The audit event is committed before the response is returned. This makes the audit trail a prerequisite for admin data access, not a best-effort side effect.
@@ -157,7 +157,7 @@ At quiz start, students may optionally select the class context for the activity
 - If a student chooses no class, the attempt remains personal and is not included in teacher class analytics.
 - Resume UI must preserve and display the original attempt context rather than offering to change it.
 
-Teacher analytics UI must require a class selection from classes owned by that teacher. Admin UI may offer institution-wide or class-specific scope.
+Teacher analytics UI must require a class selection from classes owned by that teacher. Admin UI offers institution-wide aggregate scope only; do not provide class selection on this endpoint.
 
 ## 8. Migration and rollback plan
 
@@ -165,9 +165,10 @@ Migration:
 
 1. Add nullable `quiz_attempts.class_section_id`.
 2. Add nullable `quiz_attempts.user_role_at_creation` so existing rows can remain NULL/unknown without fabricated defaults. Enforce a non-null immutable role snapshot in the application transaction for every newly created attempt; reject any new attempt write that lacks it. Legacy NULL rows remain excluded from student analytics. Do not backfill by current role.
-3. Add immutable submission-time question interpretation fields to `question_results` (at minimum question type and choices snapshot for choice questions, plus the grading/correct-answer snapshot needed to preserve correctness). Use the project's cross-database JSON type/serialization conventions; define exact shape and nullability in the implementation PR.
-4. Add foreign key to `class_sections.id` with `ON DELETE SET NULL`.
-5. Add an index.
+3. Add nullable `quiz_attempts.question_definition_snapshots` JSON for immutable per-question definitions captured when the attempt's question set is first presented. Legacy attempts remain NULL and must not be silently snapshotted from current mutable questions.
+4. Add immutable attempt-presentation snapshot fields to `question_results`, including `question_definition_version`, prompt, type, difficulty, choices, and grading/correct-answer interpretation copied from the parent attempt snapshot at submission. Use the project's cross-database JSON conventions.
+5. Add foreign key to `class_sections.id` with `ON DELETE SET NULL`.
+6. Add indexes for the new version/provenance query paths.
 6. Do not update existing rows; legacy role and choice provenance remains unknown.
 
 Rollback:
@@ -200,11 +201,11 @@ No migration should be merged until the schema, Alembic revision chain, PostgreS
 - Teacher can query a class they own.
 - Teacher cannot query another teacher's class.
 - Teacher cannot omit `class_id` for global analytics.
-- Admin can query institution-wide analytics and a selected class.
+- Admin can query institution-wide analytics only; a request containing `class_id` is rejected.
 - Teacher results exclude NULL-provenance historical attempts.
 - Class-scoped results exclude attempts from every other class.
 - Deleted class references become NULL without deleting attempts.
-- Admin global analytics count a student at most once per topic/question across multiple class and unscoped attempts, selecting that student's latest submitted result across all class contexts.
+- Admin global analytics count a student at most once per topic/question/definition-version across multiple class and unscoped attempts, selecting that student's latest submitted result for that definition version across all class contexts.
 - Admin global analytics exclude all legacy attempts without trustworthy attempt-time role provenance, regardless of the account's current role.
 - Class-scoped and global student analytics exclude staff-owned attempts.
 - A blank `given_answer == null` contributes to the distinct-learner denominator and is treated as not-correct, but never appears in a wrong-answer bucket.
@@ -212,16 +213,16 @@ No migration should be merged until the schema, Alembic revision chain, PostgreS
 ### Suppression and privacy
 
 - Cohort below 5 distinct learners sets `suppressed=true` and nulls counts, rates, and wrong-answer details.
-- Cohort at/above 5 returns only question-level aggregates, based on one latest answer per learner/question. If any answer bucket has 1–4 distinct learners, complementary suppression must also null `correct` and `success_rate` so the hidden bucket cannot be reconstructed by subtraction; apply the same rule to numeric questions with 1–4 incorrect learners.
+- Cohort at/above 5 returns only question-level aggregates, based on one latest answer per learner/question-definition-version. Treat blanks as a separate hidden bucket for complementary suppression: if any non-blank answer bucket, blank bucket, or numeric incorrect bucket has 1–4 distinct learners, complementary suppression must null `correct` and `success_rate` and all correctness-derived/bucket fields so the hidden category cannot be reconstructed by subtraction.
 - Wrong-answer buckets below 5 distinct learners are suppressed independently for `mcq` and `true_false`; do not fall back to exposing the next-smallest bucket. If any such bucket is 1–4, suppress correctness metrics as well. Numeric questions expose no wrong-answer bucket in this phase; suppress correctness metrics when 1–4 learners are incorrect.
 - Multiple attempts by one learner count as one contribution per question in class scope; in admin global scope, a learner appearing in multiple classes contributes once per question using the latest submitted answer across all class contexts.
 - The frontend labels the denominator as distinct learners/respondents, not non-empty answers.
 - Exclude teacher/admin-owned attempts from student analytics.
-- Admin analytics requests require a supported purpose code and a successful audit write before data is returned.
+- Admin institution-wide analytics requests require a supported purpose code and a successful audit write before data is returned; admin class-scoped requests are rejected by this endpoint.
 - Missing/unsupported admin purpose is rejected; audit insert/commit failure returns a generic 503 and never returns analytics data.
 - No student identity fields appear in the response.
 - Existing analytics ordering and classification logic remains correct after scoping.
-- Editing/reordering question choices after submission does not change historical answer interpretation; legacy results without snapshots are excluded from choice-text buckets.
+- Editing/reordering question definitions after an attempt starts does not change the definition shown or grading used for that attempt; legacy attempts/results without trustworthy presentation snapshots are not reinterpreted using current question data.
 - Primary and complementary suppression payloads validate against nullable response schemas.
 
 ## 10. Delivery sequence
@@ -249,16 +250,20 @@ Add an immutable, non-null role snapshot for every newly created QuizAttempt, fo
 - Staff attempts remain staff attempts even if the account is later demoted; student attempts remain student attempts if later promoted.
 - Existing attempts have no trustworthy attempt-time role snapshot. Treat their role provenance as unknown and exclude them from student analytics, including admin global aggregates. Do not infer historical role from the current account role or fabricate a snapshot. If a separate immutable, auditable historical role record is later proven complete, that can be a separately reviewed migration proposal.
 
-### 11.2 Immutable question/choice snapshot
+### 11.2 Immutable question-definition snapshot at presentation time
 
-At submission, persist the question interpretation needed to analyze the submitted answer, rather than resolving old answer indices against mutable current question data.
+A submission-time snapshot alone is too late: the current quiz flow can reload a mutable question after the attempt starts or resumes. A question may be edited between presentation and submission, causing the learner's answer to be graded or labelled against a definition they never saw.
 
-- Extend QuestionResult with an immutable snapshot sufficient to interpret the answer at submission, at minimum question_type_at_submission and choices_at_submission for choice-based questions. Store the correct-answer interpretation used for grading as well if it is not already recoverable immutably from the stored result.
-- For MCQ/true-false wrong-answer buckets, interpret given_answer only against choices_at_submission, never the current Question.choices.
-- Editing/reordering choices after submission must not change historical bucket labels or correctness.
-- Legacy QuestionResult rows without a trustworthy snapshot must not be bucketed using current mutable question choices. Exclude them from choice-text bucket output; do not guess.
-- The implementation design must define JSON shape, nullability for numeric/free-form types, and how question edits are versioned or snapshotted. Snapshot fields are write-once.
+- When a quiz attempt's question set is first assembled and presented, capture an immutable question_definition_snapshots object on that QuizAttempt, keyed by stable question ID. Each entry preserves the exact prompt, type, difficulty, choices, and grading/correct-answer interpretation presented to the learner.
+- Compute a stable question_definition_version for each entry from a canonical representation of those analytics-relevant fields (for example, a SHA-256 fingerprint). Any change to prompt, type, difficulty, choices, or grading interpretation produces a different version.
+- The attempt snapshot is write-once. Resume responses must return the stored snapshot and render it; they must not reload current mutable question definitions for an already-started attempt.
+- Submission must grade against the attempt's stored snapshot, not the current Question row. Copy the same snapshot fields and question_definition_version into each resulting QuestionResult so analytics can group and label the exact definition the learner saw.
+- A question edit after attempt creation affects only newly created attempts. It must not rewrite an open attempt's snapshot or historical QuestionResult records.
+- Legacy open attempts without a trustworthy presentation snapshot cannot be safely resumed against current mutable questions. Close/expire them through an explicit compatibility path and ask the learner to start a new attempt; do not silently attach the current definition.
+- Legacy submitted results without a trustworthy snapshot/version are excluded from definition-version-specific analytics and choice-text buckets. Do not infer the definition from current question data.
+- The implementation PR must define the exact JSON schema, canonicalization rules for the version fingerprint, nullability for numeric/free-form questions, and transaction boundaries for snapshot creation, resume, and submission.
 
+QuestionResult remains the analytics fact row, but its immutable interpretation is inherited from the attempt-time presentation snapshot rather than reconstructed at submission.
 ### 11.3 Complementary suppression for correctness metrics
 
 Primary cohort suppression alone is insufficient. A visible answered and correct pair can reveal a wrong-answer bucket by subtraction even when that bucket is hidden.
@@ -305,17 +310,18 @@ The earlier statement that admin global analytics may include legacy NULL-proven
 
 These clarifications close the remaining design ambiguities and supersede any shorter wording above.
 
-**Question-definition versioning**
-- A submission-time snapshot must preserve the exact analytics-relevant question definition shown to the learner, not just its current database ID or choice list.
-- At minimum, persist immutable `question_prompt_at_submission`, `question_type_at_submission`, `question_difficulty_at_submission`, `choices_at_submission` (for choice questions), and the grading/correct-answer interpretation actually used by the submit handler.
-- Persist a stable `question_definition_version` (or an equivalent deterministic snapshot identity) with each `QuestionResult`. A change to prompt, question type, difficulty, choices, or grading interpretation creates a new definition version for analytics purposes.
-- Analytics must group and return separate rows per `(question_id, question_definition_version)`; never combine historical answers to materially different question definitions under the current prompt.
-- Snapshot fields are write-once. Editing a question after submission must not rewrite previous `QuestionResult` snapshots.
-- Legacy results without a trustworthy definition snapshot are excluded from version-specific choice buckets and must not be attributed to the current definition by inference. The implementation PR must define the exact JSON shape, version-generation rule, nullability for numeric/free-form questions, and deterministic handling of grading changes.
-
+**Question-definition versioning and response identity**
+- Capture the full question definition when the attempt is first presented, as specified in section 11.2, and preserve it on the attempt across resume and submission.
+- Persist a stable question_definition_version with each QuestionResult; this value identifies the exact prompt/type/difficulty/choices/grading definition shown to the learner.
+- Include question_definition_version in every QuestionAnalyticsOut row. Clients must use (question_id, question_definition_version) as the stable row identity/key; two aggregates for different definitions must never be merged or displayed as if they represented the same question version.
+- Deduplicate retries independently within each definition version. The teacher partition key is (class_section_id, topic_id, question_id, question_definition_version, student_user_id); the admin global partition key is (topic_id, question_id, question_definition_version, student_user_id).
+- A later retry under definition B does not replace that learner's earlier contribution under definition A. Each definition-version aggregate uses that learner's latest submitted answer within that same version.
+- A question edit after attempt start does not change the definition shown or grading used by that attempt. New attempts capture the updated definition and therefore a different version fingerprint.
+- Legacy attempts/results without a trustworthy presentation snapshot/version are excluded from version-specific analytics. The implementation PR must define the exact JSON shape and canonical fingerprint algorithm; snapshot fields are write-once.
 **Admin audit-purpose transport**
-- Admin requests must provide the enumerated purpose as the `purpose` query parameter shown in the endpoint contract: `institutional_reporting`, `quality_review`, `support_case`, or `compliance`.
+- Admin institution-wide requests must provide the enumerated purpose as the `purpose` query parameter shown in the endpoint contract: `institutional_reporting`, `quality_review`, `support_case`, or `compliance`.
 - Missing or unsupported `purpose` on an admin request is rejected before aggregation. Teacher requests remain class-scoped and do not use admin purpose codes.
+- Admin class-scoped requests are rejected by this endpoint; allowing global and class-specific releases together would enable differencing attacks against small residual cohorts.
 - The purpose is a constrained enum, not arbitrary text. The audit record stores the accepted code and the explicit global/class scope; it never stores free-form student data.
 - Tests must cover each supported purpose, missing purpose, unsupported purpose, and audit-write failure. A failed audit write must return generic 503 without returning analytics data.
 
@@ -332,3 +338,36 @@ These clarifications close the remaining design ambiguities and supersede any sh
 
 **Rollback completeness**
 - The downgrade must explicitly remove every schema object introduced by the migration revision: all new columns, indexes, and foreign keys across both `quiz_attempts` and `question_results`. Add a migration test that upgrades, downgrades, and confirms the schema exactly matches the pre-upgrade shape.
+### 11.8 Final exact-head review clarifications
+
+These controls address the remaining review findings on the current design head and are mandatory for implementation.
+
+**Blank-answer complementary suppression**
+- Treat omitted/blank answers as a distinct internal answer category when evaluating every answer-bucket size for complementary suppression.
+- A blank category is never returned as a wrong-answer label or count. However, if 1–4 distinct learners are blank, set correct and success_rate to NULL, set correctness_suppressed=true, and null top_wrong_answer, top_wrong_count, and any correctness-derived flag/label.
+- This applies even when all non-blank answer buckets contain at least five learners. For example, a six-learner cohort with five correct answers and one blank must not expose answered=6 alongside correct=5.
+- The answered field may remain visible only when all correctness-derived and answer-bucket fields are suppressed; it represents distinct respondents, including blanks.
+
+**Definition snapshot timing and grading**
+- The definition snapshot is captured when the attempt's question set is first presented, not at submission.
+- Resume must display the stored attempt snapshot. Submission must grade against that same stored snapshot.
+- If a question changes after attempt start, the open attempt continues using the original snapshot; only newly created attempts use the new definition.
+- Tests must edit prompt/type/difficulty/choices/grading after attempt creation but before resume/submission and prove that the original displayed definition and grading interpretation remain in force.
+
+**Version-aware retry deduplication and response schema**
+- Include question_definition_version in the retry partition key for both teacher class-scoped and admin global aggregates.
+- A learner's latest answer under version B must not erase their contribution under version A.
+- Add question_definition_version to QuestionAnalyticsOut and require the frontend to key each analytics row by (question_id, question_definition_version).
+- Test retries across two versions, including a case where the learner's version-A contribution remains present after a later version-B submission.
+
+**Admin cross-scope differencing**
+- This endpoint supports teacher-owned class scope and admin institution-wide scope only. Admins must omit class_id; reject admin requests that provide it.
+- Do not expose both global and class-specific aggregate releases from this endpoint. A global total minus a visible class total can reveal a small residual cohort even when each displayed row independently meets the threshold.
+- Admin class-level reporting is deferred until a separate privacy design defines and tests cross-scope release controls against differencing across all permitted cohorts and query combinations. Audit purpose codes alone are not a disclosure-control mechanism.
+
+**Required additional tests**
+- A cohort of six with five correct answers and one blank triggers complementary suppression and does not expose the one-person omission through answered, correct, success_rate, top-wrong fields, or flags.
+- A question edited after attempt start is still rendered and graded using the attempt-time snapshot on resume and submission.
+- A learner with a result under definition A and a later retry under definition B contributes once to each version-specific aggregate; B does not replace A.
+- Every analytics response row includes question_definition_version, and the UI row key includes both question ID and version.
+- Admin global analytics work with a supported purpose; admin requests with class_id are rejected, preventing global/class differencing through this endpoint.
