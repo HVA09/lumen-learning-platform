@@ -25,6 +25,10 @@ class Lesson(Base):
     estimated_minutes: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
     order_index: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     is_published: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # NULL means seeded/legacy shared curriculum managed by admins.
+    created_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     topic = relationship("Topic")
