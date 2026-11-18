@@ -103,3 +103,31 @@ def test_import_csv_accepts_valid_utf8_cards_and_existing_topic(client, db_sessi
     assert len(cards) == 1
     assert cards[0]["front_text"] == "ما هو DNS؟"
     assert cards[0]["topic_id"] == topic.id
+
+
+def test_user_cannot_review_or_delete_another_users_card(client):
+    owner_headers = _register_and_login(client, "srs-card-owner@example.com")
+    created = client.post(
+        "/srs/cards",
+        json={"front_text": "سؤال خاص", "back_text": "إجابة خاصة"},
+        headers=owner_headers,
+    )
+    assert created.status_code == 201, created.text
+    card_id = created.json()["id"]
+
+    other_headers = _register_and_login(client, "srs-card-intruder@example.com")
+    review = client.post(
+        f"/srs/cards/{card_id}/review",
+        json={"grade": "good"},
+        headers=other_headers,
+    )
+    assert review.status_code == 404
+
+    deletion = client.delete(f"/srs/cards/{card_id}", headers=other_headers)
+    assert deletion.status_code == 404
+    assert client.get("/srs/cards", headers=other_headers).json() == []
+
+    # The failed cross-user operations must not change or remove the owner's card.
+    owner_cards = client.get("/srs/cards", headers=owner_headers)
+    assert owner_cards.status_code == 200
+    assert [card["id"] for card in owner_cards.json()] == [card_id]
