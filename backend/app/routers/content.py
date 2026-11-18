@@ -15,7 +15,7 @@ from app.models.lesson import Lesson
 from app.models.question import Question
 from app.models.question_result import QuestionResult
 from app.models.topic import Topic
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.schemas.content import (
     LessonAdminOut,
     LessonCreate,
@@ -54,6 +54,20 @@ def _get_lesson_or_404(lesson_id: int, db: Session) -> Lesson:
     if not lesson:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="الدرس غير موجود")
     return lesson
+
+
+def _require_content_owner_or_admin(created_by_user_id: int | None, teacher: User) -> None:
+    """Shared curriculum is readable by teachers; only its author or an admin may edit it.
+
+    NULL ownership is reserved for seeded/legacy content and is therefore admin-managed.
+    """
+    if teacher.role == UserRole.admin:
+        return
+    if created_by_user_id is None or created_by_user_id != teacher.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="يمكن للمنشئ أو المدير فقط تعديل هذا المحتوى",
+        )
 
 
 # ---------- الأسئلة ----------
@@ -105,6 +119,7 @@ def update_question(
     db: Session = Depends(get_db),
 ):
     question = _get_question_or_404(question_id, db)
+    _require_content_owner_or_admin(question.created_by_user_id, teacher)
     question.kind = payload.kind
     question.prompt_ar = payload.prompt_ar
     question.choices = payload.choices
@@ -126,6 +141,7 @@ def delete_question(
     db: Session = Depends(get_db),
 ):
     question = _get_question_or_404(question_id, db)
+    _require_content_owner_or_admin(question.created_by_user_id, teacher)
     db.delete(question)
     db.commit()
     log_event(db, "question_deleted", f"{teacher.email} حذف السؤال #{question_id}", teacher.id)
@@ -164,6 +180,7 @@ def create_lesson(
         estimated_minutes=payload.estimated_minutes,
         order_index=payload.order_index,
         is_published=payload.is_published,
+        created_by_user_id=teacher.id,
     )
     db.add(lesson)
     db.commit()
@@ -180,6 +197,7 @@ def update_lesson(
     db: Session = Depends(get_db),
 ):
     lesson = _get_lesson_or_404(lesson_id, db)
+    _require_content_owner_or_admin(lesson.created_by_user_id, teacher)
     lesson.title_ar = payload.title_ar
     lesson.body_md = payload.body_md
     lesson.estimated_minutes = payload.estimated_minutes
@@ -198,6 +216,7 @@ def delete_lesson(
     db: Session = Depends(get_db),
 ):
     lesson = _get_lesson_or_404(lesson_id, db)
+    _require_content_owner_or_admin(lesson.created_by_user_id, teacher)
     db.delete(lesson)
     db.commit()
     log_event(db, "lesson_deleted", f"{teacher.email} حذف الدرس #{lesson_id}", teacher.id)
