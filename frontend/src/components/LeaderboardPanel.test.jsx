@@ -130,7 +130,7 @@ describe("LeaderboardPanel", () => {
     listClasses.mockRejectedValue(new Error("network unavailable"));
     render(<LeaderboardPanel onClose={vi.fn()} isTeacher />);
 
-    expect(await screen.findByText("تعذر تحميل قائمة الفصول، حاول مرة أخرى")).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent("تعذر تحميل قائمة الفصول، حاول مرة أخرى");
     expect(screen.queryByText("لا توجد فصول مرتبطة بحسابك لعرض لوحاتها")).not.toBeInTheDocument();
     expect(getLeaderboard).not.toHaveBeenCalled();
   });
