@@ -30,6 +30,8 @@ export default function LeaderboardPanel({ onClose, isTeacher = true, isAdmin = 
       .finally(() => setLoadingOther(false));
   }, [isTeacher]);
 
+  const selectedScope = isAdmin ? scope : (scope || (classes[0]?.id ? String(classes[0].id) : ""));
+
   useEffect(() => {
     if (!isTeacher) {
       setLoadingBoard(false);
@@ -38,7 +40,7 @@ export default function LeaderboardPanel({ onClose, isTeacher = true, isAdmin = 
 
     // Teachers may only request a class they teach. Only admins can request
     // the global leaderboard.
-    const classId = isAdmin ? (scope || null) : (scope || (classes[0]?.id ? String(classes[0].id) : ""));
+    const classId = isAdmin ? (scope || null) : selectedScope;
     if (!isAdmin && !classId) {
       setLeaderboard([]);
       setLoadingBoard(false);
@@ -118,7 +120,7 @@ export default function LeaderboardPanel({ onClose, isTeacher = true, isAdmin = 
             {classes.length > 0 && (
               <select
                 aria-label="اختر الفصل"
-                value={scope}
+                value={selectedScope}
                 onChange={(e) => setScope(e.target.value)}
                 className="mb-3 w-full rounded-xl border border-slate-200 bg-white p-2 text-sm"
               >
