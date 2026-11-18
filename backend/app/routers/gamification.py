@@ -34,12 +34,14 @@ def _ensure_can_view_class_leaderboard(class_id: int, user: User, db: Session) -
     class_section = db.get(ClassSection, class_id)
     if not class_section:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="الفصل غير موجود")
-    if user.role == UserRole.admin or class_section.teacher_user_id == user.id:
+    if user.role == UserRole.admin or (
+        user.role == UserRole.teacher and class_section.teacher_user_id == user.id
+    ):
         return
-    if user.id not in _class_member_ids(db, class_id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="لوحة متصدرين هذا الفصل لطلابه فقط"
-        )
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="لوحة متصدرين الفصل متاحة لمعلّمه أو المدير فقط",
+    )
 
 
 def _ranked_students(db: Session, class_id: int | None = None) -> list[tuple[int, str, int]]:
@@ -71,7 +73,13 @@ def get_leaderboard(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if class_id is not None:
+    if class_id is None:
+        if current_user.role != UserRole.admin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="اللوحة العامة متاحة للمدير فقط؛ اختر فصلًا تدرّسه لعرض لوحته",
+            )
+    else:
         _ensure_can_view_class_leaderboard(class_id, current_user, db)
     ranked = _ranked_students(db, class_id)
     return [
