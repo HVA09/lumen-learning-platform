@@ -375,3 +375,31 @@ def test_lessons_are_shared_read_only_and_managed_by_creator_or_admin(client, db
         headers=headers_admin,
     ).status_code == 200
     assert client.delete(f"/content/lessons/{lesson_id}", headers=headers_admin).status_code == 204
+
+
+def test_seeded_lessons_are_admin_managed(client, db_session):
+    teacher = make_teacher(client, db_session, "seeded-lesson-teacher@example.com")
+    admin = register_and_login(client, "seeded-lesson-admin@example.com")
+    set_role(db_session, "seeded-lesson-admin@example.com", UserRole.admin)
+    lesson = db_session.query(Lesson).first()
+    assert lesson is not None
+    assert lesson.created_by_user_id is None
+    payload = {
+        "title_ar": "محاولة تعديل درس مزروع",
+        "body_md": "نص تجريبي",
+        "estimated_minutes": 5,
+        "order_index": lesson.order_index,
+        "is_published": lesson.is_published,
+    }
+
+    assert client.put(
+        f"/content/lessons/{lesson.id}", json=payload, headers=auth(teacher)
+    ).status_code == 403
+    assert client.delete(
+        f"/content/lessons/{lesson.id}", headers=auth(teacher)
+    ).status_code == 403
+    assert client.put(
+        f"/content/lessons/{lesson.id}",
+        json={**payload, "title_ar": "تعديل المدير للدرس المزروع"},
+        headers=auth(admin),
+    ).status_code == 200
