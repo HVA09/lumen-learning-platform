@@ -12,22 +12,28 @@ export default function LeaderboardPanel({ onClose, isTeacher = true, isAdmin = 
   const [achievements, setAchievements] = useState([]);
   const [myStats, setMyStats] = useState(null);
   const [loadingBoard, setLoadingBoard] = useState(true);
-  const [loadingOther, setLoadingOther] = useState(true);
+  const [loadingAchievements, setLoadingAchievements] = useState(true);
+  const [loadingStats, setLoadingStats] = useState(true);
+  const [loadingClasses, setLoadingClasses] = useState(isTeacher);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const requests = [getMyAchievements()];
-    if (isTeacher) requests.push(listClasses());
-    else requests.push(getMyStats());
+    getMyAchievements()
+      .then(setAchievements)
+      .catch(() => setError("تعذر تحميل الإنجازات"))
+      .finally(() => setLoadingAchievements(false));
 
-    Promise.all(requests)
-      .then(([achievementsData, roleData]) => {
-        setAchievements(achievementsData);
-        if (isTeacher) setClasses(roleData);
-        else setMyStats(roleData);
-      })
-      .catch(() => setError("تعذر تحميل البيانات"))
-      .finally(() => setLoadingOther(false));
+    if (isTeacher) {
+      listClasses()
+        .then(setClasses)
+        .catch(() => setError("تعذر تحميل الفصول"))
+        .finally(() => setLoadingClasses(false));
+    } else {
+      getMyStats()
+        .then(setMyStats)
+        .catch(() => setError("تعذر تحميل تقدمك الشخصي"))
+        .finally(() => setLoadingStats(false));
+    }
   }, [isTeacher]);
 
   const selectedScope = isAdmin ? scope : (scope || (classes[0]?.id ? String(classes[0].id) : ""));
@@ -56,7 +62,7 @@ export default function LeaderboardPanel({ onClose, isTeacher = true, isAdmin = 
         setError(err.response?.data?.detail || "تعذر تحميل لوحة المتصدرين");
       })
       .finally(() => setLoadingBoard(false));
-  }, [isTeacher, isAdmin, scope, classes]);
+  }, [isTeacher, isAdmin, selectedScope]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/30 p-4">
@@ -93,7 +99,7 @@ export default function LeaderboardPanel({ onClose, isTeacher = true, isAdmin = 
         {!isTeacher && (
           <section className="mb-4 rounded-2xl border border-slate-200 p-4" aria-label="إحصائياتي الشخصية">
             <h3 className="mb-3 text-sm font-semibold text-slate-900">تقدّمي الشخصي</h3>
-            {loadingOther ? (
+            {loadingStats ? (
               <p className="text-sm text-slate-400">...</p>
             ) : myStats ? (
               <div className="grid grid-cols-2 gap-3 text-center">
@@ -132,7 +138,9 @@ export default function LeaderboardPanel({ onClose, isTeacher = true, isAdmin = 
                 ))}
               </select>
             )}
-            {!isAdmin && classes.length === 0 ? (
+            {!isAdmin && loadingClasses ? (
+              <p className="text-sm text-slate-400">...</p>
+            ) : !isAdmin && classes.length === 0 ? (
               <p className="text-sm text-slate-500">لا توجد فصول مرتبطة بحسابك لعرض لوحاتها</p>
             ) : loadingBoard ? (
               <p className="text-sm text-slate-400">...</p>
@@ -157,7 +165,7 @@ export default function LeaderboardPanel({ onClose, isTeacher = true, isAdmin = 
               </div>
             )}
           </>
-        ) : loadingOther ? (
+        ) : loadingAchievements ? (
           <p className="text-sm text-slate-400">...</p>
         ) : (
           <div className="space-y-2">
