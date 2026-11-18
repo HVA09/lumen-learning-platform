@@ -126,4 +126,13 @@ describe("LeaderboardPanel", () => {
     expect(getLeaderboard).toHaveBeenCalledWith(null);
   });
 
+  it("distinguishes a failed class-list request from a confirmed empty class list", async () => {
+    listClasses.mockRejectedValue(new Error("network unavailable"));
+    render(<LeaderboardPanel onClose={vi.fn()} isTeacher />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("تعذر تحميل قائمة الفصول، حاول مرة أخرى");
+    expect(screen.queryByText("لا توجد فصول مرتبطة بحسابك لعرض لوحاتها")).not.toBeInTheDocument();
+    expect(getLeaderboard).not.toHaveBeenCalled();
+  });
+
 });

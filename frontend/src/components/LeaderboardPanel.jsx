@@ -15,6 +15,7 @@ export default function LeaderboardPanel({ onClose, isTeacher = true, isAdmin = 
   const [loadingAchievements, setLoadingAchievements] = useState(true);
   const [loadingStats, setLoadingStats] = useState(true);
   const [loadingClasses, setLoadingClasses] = useState(isTeacher);
+  const [classesLoadFailed, setClassesLoadFailed] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -26,7 +27,10 @@ export default function LeaderboardPanel({ onClose, isTeacher = true, isAdmin = 
     if (isTeacher) {
       listClasses()
         .then(setClasses)
-        .catch(() => setError("تعذر تحميل الفصول"))
+        .catch(() => {
+          setClassesLoadFailed(true);
+          setError("تعذر تحميل الفصول");
+        })
         .finally(() => setLoadingClasses(false));
     } else {
       getMyStats()
@@ -140,6 +144,8 @@ export default function LeaderboardPanel({ onClose, isTeacher = true, isAdmin = 
             )}
             {!isAdmin && loadingClasses ? (
               <p className="text-sm text-slate-400">...</p>
+            ) : !isAdmin && classesLoadFailed ? (
+              <p role="alert" className="text-sm text-red-600">تعذر تحميل قائمة الفصول، حاول مرة أخرى</p>
             ) : !isAdmin && classes.length === 0 ? (
               <p className="text-sm text-slate-500">لا توجد فصول مرتبطة بحسابك لعرض لوحاتها</p>
             ) : loadingBoard ? (
