@@ -231,7 +231,7 @@ No migration should be merged until the schema, Alembic revision chain, PostgreS
 1. Approve this data contract and privacy threshold.
 2. Implement model + migration + quiz-start validation + tests.
 3. Implement scoped analytics API + authorization + suppression + tests.
-4. Add student quiz-context selection, teacher-owned class analytics UI, and admin institution-wide analytics UI.
+4. Add student quiz-context selection, teacher-owned class analytics UI, and admin institution-wide aggregate UI only; class-level admin reporting remains out of scope until cross-scope differencing controls are separately designed and tested.
 5. Run full CI, Codex review, migration/restore checks, and post-merge verification.
 6. Keep manual production acceptance and real backup/restore checks under the existing `DEFER-COMPUTER` policy where they require the user's computer.
 
