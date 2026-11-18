@@ -169,14 +169,14 @@ Migration:
 4. Add immutable attempt-presentation snapshot fields to `question_results`, including `question_definition_version`, prompt, type, difficulty, choices, and grading/correct-answer interpretation copied from the parent attempt snapshot at submission. Use the project's cross-database JSON conventions.
 5. Add foreign key to `class_sections.id` with `ON DELETE SET NULL`.
 6. Add indexes for the new version/provenance query paths.
-6. Do not update existing rows; legacy role and choice provenance remains unknown.
+7. Do not update existing rows; legacy role, class, and question-definition provenance remains unknown.
 
 Rollback:
 
 - Stop new scoped-attempt writes and attempt-snapshot writes before rollback.
 - Take/verify a backup under the existing backup policy.
 - Drop the index, foreign key, and every column introduced by this revision, including `class_section_id`, `user_role_at_creation`, `question_definition_snapshots`, and every question-result snapshot/version column. Verify the downgrade leaves no added schema objects behind.
-- Recognize that dropping the column discards newly captured provenance; do not run a downgrade casually after production data has been written.
+- Recognize that dropping these columns discards newly captured provenance; do not run a downgrade casually after production data has been written.
 
 No migration should be merged until the schema, Alembic revision chain, PostgreSQL/SQLite behavior, deployment ordering, and rollback have been independently reviewed.
 
@@ -231,7 +231,7 @@ No migration should be merged until the schema, Alembic revision chain, PostgreS
 1. Approve this data contract and privacy threshold.
 2. Implement model + migration + quiz-start validation + tests.
 3. Implement scoped analytics API + authorization + suppression + tests.
-4. Add student quiz-context selection and teacher/admin analytics scope UI.
+4. Add student quiz-context selection, teacher-owned class analytics UI, and admin institution-wide analytics UI.
 5. Run full CI, Codex review, migration/restore checks, and post-merge verification.
 6. Keep manual production acceptance and real backup/restore checks under the existing `DEFER-COMPUTER` policy where they require the user's computer.
 
