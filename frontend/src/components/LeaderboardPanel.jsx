@@ -32,7 +32,6 @@ export default function LeaderboardPanel({ onClose, isTeacher = true, isAdmin = 
         .then(setClasses)
         .catch(() => {
           setClassesLoadFailed(true);
-          setBoardError("تعذر تحميل الفصول");
         })
         .finally(() => setLoadingClasses(false));
     } else {
