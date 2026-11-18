@@ -100,7 +100,7 @@ describe("LeaderboardPanel", () => {
     ]);
     render(<LeaderboardPanel onClose={vi.fn()} isTeacher={false} />);
 
-    expect(await screen.findAllByText("تعذر تحميل تقدمك الشخصي")).toHaveLength(2);
+    expect(await screen.findByText("تعذر تحميل تقدمك الشخصي")).toBeInTheDocument();
     expect(await screen.findByText(/🏆 إنجاز محفوظ/)).toBeInTheDocument();
   });
 
