@@ -25,38 +25,6 @@ beforeEach(() => {
   getMyAchievements.mockResolvedValue([]);
   getMyStats.mockResolvedValue({ score: 30, rank: 2, streak_days: 4, studied_today: true });
   getLeaderboard.mockResolvedValue(platformBoard);
-  it("keeps achievements visible when the student's stats request fails", async () => {
-    getMyStats.mockRejectedValue(new Error("stats unavailable"));
-    getMyAchievements.mockResolvedValue([
-      { key: "a", title_ar: "إنجاز محفوظ", description_ar: "تم إنجازه", unlocked_at: "2026-11-18T00:00:00Z" },
-    ]);
-    render(<LeaderboardPanel onClose={vi.fn()} isTeacher={false} />);
-
-    expect(await screen.findByText("تعذر تحميل تقدمك الشخصي")).toBeInTheDocument();
-    expect(await screen.findByText(/🏆 إنجاز محفوظ/)).toBeInTheDocument();
-  });
-
-  it("shows a loading state while the teacher's class list is pending", async () => {
-    let resolveClasses;
-    listClasses.mockReturnValue(new Promise((resolve) => { resolveClasses = resolve; }));
-    render(<LeaderboardPanel onClose={vi.fn()} isTeacher />);
-
-    expect(screen.queryByText("لا توجد فصول مرتبطة بحسابك لعرض لوحاتها")).not.toBeInTheDocument();
-    expect(screen.getByText("...")).toBeInTheDocument();
-
-    resolveClasses([{ id: 7, name: "فصلي" }]);
-    expect(await screen.findByRole("combobox", { name: "اختر الفصل" })).toHaveValue("7");
-  });
-
-  it("fetches the admin global leaderboard only once when classes load", async () => {
-    listClasses.mockResolvedValue([{ id: 7, name: "فصل إداري" }]);
-    render(<LeaderboardPanel onClose={vi.fn()} isTeacher isAdmin />);
-
-    expect(await screen.findByText(/🥇 نورة/)).toBeInTheDocument();
-    await waitFor(() => expect(listClasses).toHaveBeenCalledTimes(1));
-    expect(getLeaderboard).toHaveBeenCalledTimes(1);
-    expect(getLeaderboard).toHaveBeenCalledWith(null);
-  });
 
 });
 
@@ -124,4 +92,38 @@ describe("LeaderboardPanel", () => {
     expect(await screen.findByText(/🏆 بداية المعرفة/)).toBeInTheDocument();
     expect(screen.getByText(/🔒 علامة كاملة/)).toBeInTheDocument();
   });
+
+  it("keeps achievements visible when the student's stats request fails", async () => {
+    getMyStats.mockRejectedValue(new Error("stats unavailable"));
+    getMyAchievements.mockResolvedValue([
+      { key: "a", title_ar: "إنجاز محفوظ", description_ar: "تم إنجازه", unlocked_at: "2026-11-18T00:00:00Z" },
+    ]);
+    render(<LeaderboardPanel onClose={vi.fn()} isTeacher={false} />);
+
+    expect(await screen.findByText("تعذر تحميل تقدمك الشخصي")).toBeInTheDocument();
+    expect(await screen.findByText(/🏆 إنجاز محفوظ/)).toBeInTheDocument();
+  });
+
+  it("shows a loading state while the teacher's class list is pending", async () => {
+    let resolveClasses;
+    listClasses.mockReturnValue(new Promise((resolve) => { resolveClasses = resolve; }));
+    render(<LeaderboardPanel onClose={vi.fn()} isTeacher />);
+
+    expect(screen.queryByText("لا توجد فصول مرتبطة بحسابك لعرض لوحاتها")).not.toBeInTheDocument();
+    expect(screen.getByText("...")).toBeInTheDocument();
+
+    resolveClasses([{ id: 7, name: "فصلي" }]);
+    expect(await screen.findByRole("combobox", { name: "اختر الفصل" })).toHaveValue("7");
+  });
+
+  it("fetches the admin global leaderboard only once when classes load", async () => {
+    listClasses.mockResolvedValue([{ id: 7, name: "فصل إداري" }]);
+    render(<LeaderboardPanel onClose={vi.fn()} isTeacher isAdmin />);
+
+    expect(await screen.findByText(/🥇 نورة/)).toBeInTheDocument();
+    await waitFor(() => expect(listClasses).toHaveBeenCalledTimes(1));
+    expect(getLeaderboard).toHaveBeenCalledTimes(1);
+    expect(getLeaderboard).toHaveBeenCalledWith(null);
+  });
+
 });
