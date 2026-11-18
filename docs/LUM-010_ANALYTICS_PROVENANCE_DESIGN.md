@@ -19,7 +19,7 @@ The endpoint currently requires a teacher role but does not scope the aggregatio
 ## 2. Current data lineage
 
 1. `POST /quiz/topics/{topic_id}/start` creates or resumes a `QuizAttempt`.
-2. `POST /quiz/attempts/{attempt_id}/submit` stores the final result on `QuizAttempt` and creates one `QuestionResult` per answered question.
+2. `POST /quiz/attempts/{attempt_id}/submit` stores the final result on `QuizAttempt` and creates one `QuestionResult` per question in the submitted attempt, including questions the learner left blank.
 3. `GET /content/topics/{topic_id}/analytics` aggregates `QuestionResult` by question.
 
 Relevant current fields:
@@ -83,8 +83,8 @@ Authorization:
 Query scope:
 
 - Teacher queries include only attempts with the requested `class_section_id`.
-- Admin global queries may include all attempts, including legacy NULL-provenance attempts, as an aggregate only.
-- Admin class queries include only the requested class.
+- Admin global queries include student-owned attempts only, including legacy NULL-provenance student attempts, as an aggregate only. For this global scope, deduplicate once per learner/question across all class contexts; do not count one learner once per class.
+- Admin class queries include only student-owned attempts with the requested class ID.
 - Do not join through current class enrollment to infer historical membership. The captured attempt context is the source of truth.
 - Do not infer class from the student's current enrollment, assignment topic, teacher ownership of content, or the date of the attempt.
 - A class's `ClassEnrollment` row is physically deleted when a student is removed. At attempt creation, validate that this row exists and that `ClassSection.is_archived == false`. The captured `QuizAttempt.class_section_id` remains the historical provenance after the student is later removed; do not re-check current enrollment when submitting or analyzing that already-created attempt.
@@ -98,10 +98,11 @@ A class-scoped aggregate can still expose individual behavior when very few stud
 
 To prevent a learner with many retries from dominating the aggregate, define the metric as follows:
 
-- For each `(class_section_id, topic_id, question_id, student_user_id)`, select only that student's latest submitted `QuestionResult` by the parent `QuizAttempt.submitted_at` (with attempt ID as a deterministic tie-breaker).
-- Calculate `answered`, `correct`, and `success_rate` from these one-per-student latest answers. In this contract, `answered` is the distinct learner count, not the number of attempts.
+- For teacher/class-scoped analytics, partition by `(class_section_id, topic_id, question_id, student_user_id)` and select only that student's latest submitted `QuestionResult` within the requested class by parent `QuizAttempt.submitted_at` (with attempt ID as a deterministic tie-breaker).
+- For admin global analytics, partition by `(topic_id, question_id, student_user_id)` across **all** class and unscoped attempts; deliberately omit `class_section_id` from the partition. Select one latest result per learner/question globally so a learner active in multiple classes contributes only once to institution-wide totals.
+- In both scopes, calculate `answered`, `correct`, and `success_rate` from the selected one-per-learner answers. `answered` is the distinct learner count, not the number of attempts.
 - Calculate wrong-answer buckets from the same selected latest answer per learner; repeated retries must not increase a learner's contribution.
-- Apply the same per-student latest-answer rule to admin global aggregates so class and global metrics have consistent semantics.
+- Include only attempts belonging to student accounts (`UserRole.user`). Exclude `teacher` and `admin` attempts from both class and global student analytics. Admin global scope may include legacy NULL-provenance attempts only when their owning account is a student; retain them as aggregate-only records without inferring a class.
 - The current submit handler creates a `QuestionResult` row for every question in the submitted attempt, even when the learner omitted an answer (`given_answer == null`). Therefore the denominator represents distinct learners who submitted an attempt containing that question, not only learners who entered a non-empty answer. Treat a blank as not correct for the success-rate denominator, but never include blanks in wrong-answer buckets.
 
 For rows below the threshold, use an explicit response contract:
@@ -140,7 +141,8 @@ Teacher class-scoped access continues to be restricted by class ownership. Do no
 - Existing `QuizAttempt` rows receive NULL for the new field.
 - No backfill based on current class membership, assignment topic, teacher, or timestamps.
 - Teachers cannot see historical NULL-provenance attempts in class analytics.
-- Admins may see historical records only as institution-wide aggregates under the admin policy.
+- Admin global aggregates may include historical NULL-provenance attempts only when `QuizAttempt.user_id` belongs to a student account (`UserRole.user`); deduplicate those attempts once per learner/question across the global population.
+- Exclude historical attempts owned by teacher/admin accounts from student analytics.
 - Do not fabricate class provenance to make historical charts appear complete.
 
 ## 7. Frontend behavior
@@ -203,7 +205,8 @@ No migration should be merged until the schema, Alembic revision chain, PostgreS
 - Cohort below 5 distinct learners sets `suppressed=true` and nulls counts, rates, and wrong-answer details.
 - Cohort at/above 5 returns only question-level aggregates, based on one latest answer per learner/question.
 - Wrong-answer buckets below 5 distinct learners are suppressed independently; do not fall back to exposing the next-smallest bucket.
-- Multiple attempts by one learner count as one contribution per question in the selected scope.
+- Multiple attempts by one learner count as one contribution per question in class scope; in admin global scope, a learner appearing in multiple classes contributes once per question using the latest submitted answer across all class contexts.
+- Exclude teacher/admin-owned attempts from student analytics.
 - Admin analytics requests require a supported purpose code and a successful audit write before data is returned.
 - No student identity fields appear in the response.
 - Existing analytics ordering and classification logic remains correct after scoping.
