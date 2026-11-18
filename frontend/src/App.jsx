@@ -291,7 +291,7 @@ export default function App() {
 
       {showLeaderboard && (
         <Suspense fallback={<ModalLoadingFallback />}>
-          <LeaderboardPanel onClose={() => setShowLeaderboard(false)} />
+          <LeaderboardPanel onClose={() => setShowLeaderboard(false)} isTeacher={isTeacher} isAdmin={isAdmin} />
         </Suspense>
       )}
 
