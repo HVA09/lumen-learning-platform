@@ -88,7 +88,7 @@ def test_leaderboard_ranks_students_by_verified_score(client, db_session):
     entries = response.json()
     assert [e["score"] for e in entries] == [30, 10]  # الطالب بدون نقاط ما يظهر
     assert [e["rank"] for e in entries] == [1, 2]
-    assert entries[0]["is_me"] is True
+    assert entries[0]["is_me"] is False  # admin views the institution-wide board
     assert entries[1]["is_me"] is False
 
 
