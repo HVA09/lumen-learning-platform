@@ -100,8 +100,9 @@ To prevent a learner with many retries from dominating the aggregate, define the
 
 - For teacher/class-scoped analytics, partition by `(class_section_id, topic_id, question_id, student_user_id)` and select only that student's latest submitted `QuestionResult` within the requested class by parent `QuizAttempt.submitted_at` (with attempt ID as a deterministic tie-breaker).
 - For admin global analytics, partition by `(topic_id, question_id, student_user_id)` across **all** class and unscoped attempts; deliberately omit `class_section_id` from the partition. Select one latest result per learner/question globally so a learner active in multiple classes contributes only once to institution-wide totals.
-- In both scopes, calculate `answered`, `correct`, and `success_rate` from the selected one-per-learner answers. `answered` is the distinct learner count, not the number of attempts.
+- In both scopes, calculate `answered`, `correct`, and `success_rate` from the selected one-per-learner answers. `answered` is the distinct learner count, not the number of attempts. Because blank answers remain in this denominator, the UI must label this value as learners/respondents (for example, «عدد الطلاب») rather than implying it is a count of non-empty answers.
 - Calculate wrong-answer buckets from the same selected latest answer per learner; repeated retries must not increase a learner's contribution.
+- Preserve the current question-type boundary: wrong-answer text buckets are supported only for `mcq` and `true_false` questions. For `numeric` questions, keep `top_wrong_answer` NULL and `top_wrong_count` zero in this phase; do not aggregate or expose arbitrary numeric/free-form answer values.
 - Include only attempts belonging to student accounts (`UserRole.user`). Exclude `teacher` and `admin` attempts from both class and global student analytics. Admin global scope may include legacy NULL-provenance attempts only when their owning account is a student; retain them as aggregate-only records without inferring a class.
 - The current submit handler creates a `QuestionResult` row for every question in the submitted attempt, even when the learner omitted an answer (`given_answer == null`). Therefore the denominator represents distinct learners who submitted an attempt containing that question, not only learners who entered a non-empty answer. Treat a blank as not correct for the success-rate denominator, but never include blanks in wrong-answer buckets.
 
@@ -208,8 +209,9 @@ No migration should be merged until the schema, Alembic revision chain, PostgreS
 
 - Cohort below 5 distinct learners sets `suppressed=true` and nulls counts, rates, and wrong-answer details.
 - Cohort at/above 5 returns only question-level aggregates, based on one latest answer per learner/question.
-- Wrong-answer buckets below 5 distinct learners are suppressed independently; do not fall back to exposing the next-smallest bucket.
+- Wrong-answer buckets below 5 distinct learners are suppressed independently for `mcq` and `true_false`; do not fall back to exposing the next-smallest bucket. Numeric questions expose no wrong-answer bucket in this phase.
 - Multiple attempts by one learner count as one contribution per question in class scope; in admin global scope, a learner appearing in multiple classes contributes once per question using the latest submitted answer across all class contexts.
+- The frontend labels the denominator as distinct learners/respondents, not non-empty answers.
 - Exclude teacher/admin-owned attempts from student analytics.
 - Admin analytics requests require a supported purpose code and a successful audit write before data is returned.
 - Missing/unsupported admin purpose is rejected; audit insert/commit failure returns a generic 503 and never returns analytics data.
