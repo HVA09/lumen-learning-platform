@@ -94,7 +94,7 @@ Query scope:
 
 A class-scoped aggregate can still expose individual behavior when very few students answered a question. Apply a minimum cohort threshold per question.
 
-**Recommended initial threshold: 5 distinct student accounts with at least one submitted answer to that question in the requested scope.**
+**Recommended initial threshold: 5 distinct student accounts with a submitted attempt containing that question in the requested scope.** A blank answer still contributes one learner to the denominator because the current submit path persists a `QuestionResult` row for it.
 
 To prevent a learner with many retries from dominating the aggregate, define the metric as follows:
 
@@ -199,6 +199,10 @@ No migration should be merged until the schema, Alembic revision chain, PostgreS
 - Teacher results exclude NULL-provenance historical attempts.
 - Class-scoped results exclude attempts from every other class.
 - Deleted class references become NULL without deleting attempts.
+- Admin global analytics count a student at most once per topic/question across multiple class and unscoped attempts, selecting that student's latest submitted result across all class contexts.
+- Admin global analytics include legacy NULL-provenance attempts owned by students but exclude attempts owned by teachers/admins.
+- Class-scoped and global student analytics exclude staff-owned attempts.
+- A blank `given_answer == null` contributes to the distinct-learner denominator and is treated as not-correct, but never appears in a wrong-answer bucket.
 
 ### Suppression and privacy
 
@@ -208,6 +212,7 @@ No migration should be merged until the schema, Alembic revision chain, PostgreS
 - Multiple attempts by one learner count as one contribution per question in class scope; in admin global scope, a learner appearing in multiple classes contributes once per question using the latest submitted answer across all class contexts.
 - Exclude teacher/admin-owned attempts from student analytics.
 - Admin analytics requests require a supported purpose code and a successful audit write before data is returned.
+- Missing/unsupported admin purpose is rejected; audit insert/commit failure returns a generic 503 and never returns analytics data.
 - No student identity fields appear in the response.
 - Existing analytics ordering and classification logic remains correct after scoping.
 
