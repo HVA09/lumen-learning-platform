@@ -228,3 +228,69 @@ No migration should be merged until the schema, Alembic revision chain, PostgreS
 6. Keep manual production acceptance and real backup/restore checks under the existing `DEFER-COMPUTER` policy where they require the user's computer.
 
 **Non-goals:** no historical backfill, no student-level teacher reports, no assignment-to-quiz inference, no data deletion, and no production cutover in this design phase.
+
+## 11. Mandatory clarifications from final privacy review
+
+This section supersedes any earlier wording in this proposal that conflicts with it. These requirements are part of the design gate, not optional implementation notes.
+
+### 11.1 Attempt-time role provenance
+
+Add an immutable, non-null role snapshot for every newly created QuizAttempt, for example user_role_at_creation using the existing role enum/string contract.
+
+- Capture the authenticated user's role in the same transaction that creates the attempt.
+- Never update this snapshot when an administrator later promotes or demotes the account.
+- Student analytics eligibility is based on user_role_at_creation == UserRole.user, not the account's current role.
+- Staff attempts remain staff attempts even if the account is later demoted; student attempts remain student attempts if later promoted.
+- Existing attempts have no trustworthy attempt-time role snapshot. Treat their role provenance as unknown and exclude them from student analytics, including admin global aggregates. Do not infer historical role from the current account role or fabricate a snapshot. If a separate immutable, auditable historical role record is later proven complete, that can be a separately reviewed migration proposal.
+
+### 11.2 Immutable question/choice snapshot
+
+At submission, persist the question interpretation needed to analyze the submitted answer, rather than resolving old answer indices against mutable current question data.
+
+- Extend QuestionResult with an immutable snapshot sufficient to interpret the answer at submission, at minimum question_type_at_submission and choices_at_submission for choice-based questions. Store the correct-answer interpretation used for grading as well if it is not already recoverable immutably from the stored result.
+- For MCQ/true-false wrong-answer buckets, interpret given_answer only against choices_at_submission, never the current Question.choices.
+- Editing/reordering choices after submission must not change historical bucket labels or correctness.
+- Legacy QuestionResult rows without a trustworthy snapshot must not be bucketed using current mutable question choices. Exclude them from choice-text bucket output; do not guess.
+- The implementation design must define JSON shape, nullability for numeric/free-form types, and how question edits are versioned or snapshotted. Snapshot fields are write-once.
+
+### 11.3 Complementary suppression for correctness metrics
+
+Primary cohort suppression alone is insufficient. A visible answered and correct pair can reveal a wrong-answer bucket by subtraction even when that bucket is hidden.
+
+- Keep the primary cohort gate: fewer than five distinct learners suppresses the entire row and returns no exact respondent count.
+- For an otherwise eligible cohort, calculate the distinct-learner counts for every answer bucket from the one-latest-answer-per-learner set.
+- If any answer bucket has between one and four distinct learners, apply complementary suppression to the correctness metrics: set correct and success_rate to NULL and set correctness_suppressed=true. Do not return another metric from which the hidden count can be derived.
+- Do not reveal a small bucket's label or count. Do not reveal the next-largest bucket as a replacement.
+- If all answer buckets meet the threshold, correct and success_rate may be returned.
+- For numeric questions, where arbitrary answer buckets are not emitted, if the number of incorrect learners is between one and four, suppress correct and success_rate in the same way. This prevents deriving the small incorrect cohort from answered - correct.
+- Define correctness_suppressed: bool in the response contract. When true, correct and success_rate must be nullable and NULL. The primary suppressed flag remains reserved for the entire row being below the cohort threshold.
+- Keep answered only when the primary cohort is unsuppressed; never combine it with a visible correctness count when complementary suppression is active.
+
+### 11.4 Response schema nullability
+
+The implementation must update QuestionAnalyticsOut and any nested response models before returning suppressed values.
+
+- answered: int | null
+- correct: int | null
+- success_rate: float | null
+- top_wrong_count: int | null
+- top_wrong_answer: str | null
+- suppressed: bool
+- correctness_suppressed: bool
+
+For a primary-suppressed row, all count/rate/bucket fields are NULL. For complementary suppression, answered may remain visible but correct and success_rate are NULL. Add response-model tests for both cases so Pydantic validation cannot reject the privacy-preserving response.
+
+### 11.5 Updated legacy eligibility rule
+
+The earlier statement that admin global analytics may include legacy NULL-provenance attempts when the owner's current role is student is superseded. Legacy attempts without attempt-time role provenance are excluded from all student analytics. This avoids role-change history being retroactively reinterpreted. No role or class provenance backfill is allowed by inference.
+
+### 11.6 Additional required tests
+
+- Create a student attempt, promote the account to teacher/admin, and verify the attempt remains student-originated for analytics.
+- Create a teacher/admin attempt, demote the account to student, and verify it remains excluded from student analytics.
+- Verify legacy attempts with unknown attempt-time role are excluded even if the current account role is student.
+- Submit an MCQ/true-false answer, edit/reorder the question choices, and verify the historical bucket uses the stored submission snapshot.
+- Verify legacy results without a choice snapshot do not use current choices to create wrong-answer labels.
+- Verify a cohort of five with a 4/1 answer split hides correctness metrics and does not expose the minority bucket.
+- Verify numeric cohorts with one to four incorrect learners hide correct and success_rate.
+- Verify primary and complementary suppression responses pass the nullable Pydantic response schema.
