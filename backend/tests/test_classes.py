@@ -295,12 +295,19 @@ def test_class_leaderboard_ranks_only_members(client, db_session):
     take_quiz(client, db_session, member, linear_id, mode="practice", correct=True)
     take_quiz(client, db_session, outsider, linear_id, mode="gateway", correct=True)  # نقاط أعلى لكن خارج الفصل
 
-    global_board = client.get("/gamification/leaderboard", headers=auth(member)).json()
-    assert len(global_board) == 2
-    class_board = client.get(f"/gamification/leaderboard?class_id={created['id']}", headers=auth(member))
+    assert client.get("/gamification/leaderboard", headers=auth(member)).status_code == 403
+    assert (
+        client.get(
+            f"/gamification/leaderboard?class_id={created['id']}", headers=auth(member)
+        ).status_code
+        == 403
+    )
+    class_board = client.get(
+        f"/gamification/leaderboard?class_id={created['id']}", headers=auth(teacher)
+    )
     assert class_board.status_code == 200
     assert len(class_board.json()) == 1
-    assert class_board.json()[0]["is_me"] is True
+    assert class_board.json()[0]["is_me"] is False
     assert class_board.json()[0]["rank"] == 1
 
 
@@ -314,8 +321,10 @@ def test_class_leaderboard_access_control(client, db_session):
     _join(client, member, created["invite_code"])
     url = f"/gamification/leaderboard?class_id={created['id']}"
 
+    other_teacher = make_teacher(client, db_session, "lb2-other-teacher@example.com")
     assert client.get(url, headers=auth(outsider)).status_code == 403
-    assert client.get(url, headers=auth(member)).status_code == 200
+    assert client.get(url, headers=auth(member)).status_code == 403
+    assert client.get(url, headers=auth(other_teacher)).status_code == 403
     assert client.get(url, headers=auth(teacher)).status_code == 200
     assert client.get(url, headers=auth(admin)).status_code == 200
     assert client.get("/gamification/leaderboard?class_id=999999", headers=auth(member)).status_code == 404
