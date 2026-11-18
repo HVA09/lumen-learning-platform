@@ -2,6 +2,7 @@
 اختبارات إدارة المحتوى (معلّم/admin): الدروس وبنك الأسئلة — والطالب ممنوع
 """
 from app.models.question import Question
+from app.models.lesson import Lesson
 from app.models.question_result import QuestionResult
 from app.models.user import UserRole
 from tests.quiz_helpers import (
@@ -274,3 +275,103 @@ def test_true_false_top_wrong_answer_is_labelled(client, db_session):
     assert row["top_wrong_answer"] == "صحيح"
     assert row["top_wrong_count"] == 3
     assert row["success_rate"] == 50.0
+
+
+
+def test_questions_are_shared_read_only_and_managed_by_creator_or_admin(client, db_session):
+    owner = make_teacher(client, db_session, "question-owner@example.com")
+    other = make_teacher(client, db_session, "question-other@example.com")
+    admin = register_and_login(client, "question-admin@example.com")
+    set_role(db_session, "question-admin@example.com", UserRole.admin)
+    topic_id = topic_id_by_slug(client, "linear-equations")
+    headers_owner, headers_other, headers_admin = auth(owner), auth(other), auth(admin)
+
+    created = client.post(
+        f"/content/topics/{topic_id}/questions", json=VALID_MCQ, headers=headers_owner
+    )
+    assert created.status_code == 201
+    question_id = created.json()["id"]
+
+    # Other teachers can read the shared curriculum, but cannot mutate another teacher's question.
+    listed = client.get(f"/content/topics/{topic_id}/questions", headers=headers_other)
+    assert listed.status_code == 200
+    assert question_id in {question["id"] for question in listed.json()}
+    payload = {**VALID_MCQ, "prompt_ar": "تعديل غير مصرح"}
+    assert client.put(
+        f"/content/questions/{question_id}", json=payload, headers=headers_other
+    ).status_code == 403
+    assert client.delete(
+        f"/content/questions/{question_id}", headers=headers_other
+    ).status_code == 403
+
+    # The author and an admin may manage the question.
+    assert client.put(
+        f"/content/questions/{question_id}",
+        json={**VALID_MCQ, "prompt_ar": "تعديل المنشئ"},
+        headers=headers_owner,
+    ).status_code == 200
+    assert client.put(
+        f"/content/questions/{question_id}",
+        json={**VALID_MCQ, "prompt_ar": "تعديل المدير"},
+        headers=headers_admin,
+    ).status_code == 200
+    assert client.delete(f"/content/questions/{question_id}", headers=headers_admin).status_code == 204
+
+
+def test_seeded_questions_are_admin_managed(client, db_session):
+    teacher = make_teacher(client, db_session, "seeded-question-teacher@example.com")
+    admin = register_and_login(client, "seeded-question-admin@example.com")
+    set_role(db_session, "seeded-question-admin@example.com", UserRole.admin)
+    question = db_session.query(Question).filter(Question.key == "lin-01").first()
+    assert question is not None
+    payload = {**VALID_MCQ, "prompt_ar": "محاولة تعديل محتوى مزروع"}
+
+    assert client.put(
+        f"/content/questions/{question.id}", json=payload, headers=auth(teacher)
+    ).status_code == 403
+    assert client.delete(
+        f"/content/questions/{question.id}", headers=auth(teacher)
+    ).status_code == 403
+    assert client.put(
+        f"/content/questions/{question.id}",
+        json={**VALID_MCQ, "prompt_ar": "تعديل المدير للمحتوى المزروع"},
+        headers=auth(admin),
+    ).status_code == 200
+
+
+def test_lessons_are_shared_read_only_and_managed_by_creator_or_admin(client, db_session):
+    owner = make_teacher(client, db_session, "lesson-owner@example.com")
+    other = make_teacher(client, db_session, "lesson-other@example.com")
+    admin = register_and_login(client, "lesson-admin@example.com")
+    set_role(db_session, "lesson-admin@example.com", UserRole.admin)
+    topic_id = topic_id_by_slug(client, "linear-equations")
+    url = f"/content/topics/{topic_id}/lessons"
+    headers_owner, headers_other, headers_admin = auth(owner), auth(other), auth(admin)
+    payload = {"title_ar": "درس مشترك", "body_md": "محتوى الدرس", "is_published": True}
+
+    created = client.post(url, json=payload, headers=headers_owner)
+    assert created.status_code == 201
+    lesson_id = created.json()["id"]
+    owner_user_id = db_session.query(Lesson).filter(Lesson.id == lesson_id).one().created_by_user_id
+    assert owner_user_id is not None
+
+    listed = client.get(url, headers=headers_other)
+    assert listed.status_code == 200
+    assert lesson_id in {lesson["id"] for lesson in listed.json()}
+    changed = {**payload, "title_ar": "تعديل غير مصرح"}
+    assert client.put(
+        f"/content/lessons/{lesson_id}", json=changed, headers=headers_other
+    ).status_code == 403
+    assert client.delete(f"/content/lessons/{lesson_id}", headers=headers_other).status_code == 403
+
+    assert client.put(
+        f"/content/lessons/{lesson_id}",
+        json={**payload, "title_ar": "تعديل المنشئ"},
+        headers=headers_owner,
+    ).status_code == 200
+    assert client.put(
+        f"/content/lessons/{lesson_id}",
+        json={**payload, "title_ar": "تعديل المدير"},
+        headers=headers_admin,
+    ).status_code == 200
+    assert client.delete(f"/content/lessons/{lesson_id}", headers=headers_admin).status_code == 204
