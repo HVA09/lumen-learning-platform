@@ -102,6 +102,7 @@ To prevent a learner with many retries from dominating the aggregate, define the
 - Calculate `answered`, `correct`, and `success_rate` from these one-per-student latest answers. In this contract, `answered` is the distinct learner count, not the number of attempts.
 - Calculate wrong-answer buckets from the same selected latest answer per learner; repeated retries must not increase a learner's contribution.
 - Apply the same per-student latest-answer rule to admin global aggregates so class and global metrics have consistent semantics.
+- The current submit handler creates a `QuestionResult` row for every question in the submitted attempt, even when the learner omitted an answer (`given_answer == null`). Therefore the denominator represents distinct learners who submitted an attempt containing that question, not only learners who entered a non-empty answer. Treat a blank as not correct for the success-rate denominator, but never include blanks in wrong-answer buckets.
 
 For rows below the threshold, use an explicit response contract:
 
