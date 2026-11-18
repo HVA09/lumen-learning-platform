@@ -2,14 +2,22 @@
 اختبارات لوحة المتصدرين والإنجازات والإحصائيات الشخصية — كلها مبنية على بيانات يتحقق منها السيرفر
 """
 from app.models.review_card import ReviewCard
-from app.models.user import User
+from app.models.user import User, UserRole
 from tests.quiz_helpers import (
     auth,
     make_student,
     make_teacher,
     take_quiz,
     topic_id_by_slug,
+    register_and_login,
+    set_role,
 )
+
+
+def _make_admin(client, db_session, email="leaderboard-admin@example.com"):
+    token = register_and_login(client, email)
+    set_role(db_session, email, UserRole.admin)
+    return token
 
 
 def test_my_achievements_lists_all_definitions_locked_initially(client):
@@ -73,7 +81,9 @@ def test_leaderboard_ranks_students_by_verified_score(client, db_session):
     take_quiz(client, db_session, top, linear_id, mode="gateway", correct=True)  # بوابة 20 + إتقان 100% = 10
     take_quiz(client, db_session, mid, linear_id, mode="practice", correct=True)  # إتقان 100% = 10 فقط
 
-    response = client.get("/gamification/leaderboard", headers=auth(top))
+    assert client.get("/gamification/leaderboard", headers=auth(top)).status_code == 403
+    admin = _make_admin(client, db_session)
+    response = client.get("/gamification/leaderboard", headers=auth(admin))
     assert response.status_code == 200
     entries = response.json()
     assert [e["score"] for e in entries] == [30, 10]  # الطالب بدون نقاط ما يظهر
@@ -89,7 +99,9 @@ def test_leaderboard_hides_emails_and_excludes_staff(client, db_session):
     take_quiz(client, db_session, student, linear_id, mode="practice", correct=True)
     take_quiz(client, db_session, teacher, linear_id, mode="practice", correct=True)  # المعلّم ما يدخل اللوحة
 
-    entries = client.get("/gamification/leaderboard", headers=auth(student)).json()
+    assert client.get("/gamification/leaderboard", headers=auth(student)).status_code == 403
+    admin = _make_admin(client, db_session, "leaderboard-privacy-admin@example.com")
+    entries = client.get("/gamification/leaderboard", headers=auth(admin)).json()
     assert len(entries) == 1
     assert "@" not in entries[0]["display_name"]
     assert "privatestudent" not in entries[0]["display_name"]
@@ -97,7 +109,7 @@ def test_leaderboard_hides_emails_and_excludes_staff(client, db_session):
     user = db_session.query(User).filter(User.email == "privatestudent@example.com").first()
     user.full_name = "نورة"
     db_session.commit()
-    entries = client.get("/gamification/leaderboard", headers=auth(student)).json()
+    entries = client.get("/gamification/leaderboard", headers=auth(admin)).json()
     assert entries[0]["display_name"] == "نورة"
 
 
@@ -108,7 +120,9 @@ def test_card_points_are_capped_so_spamming_cards_does_not_win(client, db_sessio
         db_session.add(ReviewCard(user_id=user.id, front_text=f"س{i}", back_text="ج", repetitions=1))
     db_session.commit()
 
-    entries = client.get("/gamification/leaderboard", headers=auth(token)).json()
+    assert client.get("/gamification/leaderboard", headers=auth(token)).status_code == 403
+    admin = _make_admin(client, db_session, "leaderboard-cards-admin@example.com")
+    entries = client.get("/gamification/leaderboard", headers=auth(admin)).json()
     assert entries[0]["score"] == 50  # سقف 25 بطاقة × نقطتين
 
 
