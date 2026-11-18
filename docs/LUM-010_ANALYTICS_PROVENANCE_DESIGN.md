@@ -103,11 +103,12 @@ To prevent a learner with many retries from dominating the aggregate, define the
 - Calculate wrong-answer buckets from the same selected latest answer per learner; repeated retries must not increase a learner's contribution.
 - Apply the same per-student latest-answer rule to admin global aggregates so class and global metrics have consistent semantics.
 
-For rows below the threshold:
+For rows below the threshold, use an explicit response contract:
 
-- Return a suppression state, not the exact respondent count.
-- Do not return success rate, correct count, or most-common wrong answer.
-- Do not reveal a wrong-answer bucket unless that bucket independently contains at least 5 distinct learners. If the top bucket is below threshold, return no top wrong answer/count rather than exposing the next bucket as a potentially identifying residual.
+- Add `suppressed: bool` to `QuestionAnalyticsOut`.
+- When `suppressed == true`, set `answered`, `correct`, `success_rate`, and `top_wrong_count` to NULL; set `top_wrong_answer` to NULL; use a neutral `flag` value such as `insufficient_data` with a non-identifying label. Do not return the exact respondent count.
+- When `suppressed == false`, `answered` is the distinct learner count and `correct` is the number of those learners whose latest answer was correct.
+- Do not reveal a wrong-answer bucket unless that bucket independently contains at least 5 distinct learners. If the top bucket is below threshold, return no top wrong answer/count rather than exposing the next bucket as a potentially identifying residual. `top_wrong_count` counts distinct learners, not attempts.
 - Keep the threshold centralized and documented, not duplicated across route/UI code.
 
 Further protections:
@@ -125,9 +126,10 @@ The existing `AuditLog` model and `log_event(db, event_type, description, user_i
 
 - `event_type`: `student_analytics_access`.
 - `user_id`: the authenticated admin's user ID (actor).
-- `description`: include the topic ID, explicit scope (`global` or class ID), endpoint/action, and that the response was aggregate-only. Do not include student IDs, names, raw answers, or result rows.
+- Require an enumerated `purpose` for admin reads (for example: `institutional_reporting`, `quality_review`, `support_case`, or `compliance`); do not accept free-form text that could accidentally store student personal data.
+- `description`: include the topic ID, explicit scope (`global` or class ID), endpoint/action, purpose code, and that the response was aggregate-only. Do not include student IDs, names, raw answers, or result rows.
 - Failed authorization attempts need not create a successful-access event; they may be logged separately under the existing security logging policy.
-- Audit persistence is fail-closed: if the audit insert/commit fails, do not return the analytics payload. Let the request fail and ensure the DB session is rolled back/closed by the request lifecycle.
+- Audit persistence is fail-closed: if the audit insert/commit fails, do not return the analytics payload. Roll back the session and return a generic service error (503); do not leak analytics data or raw DB errors.
 - The audit event is committed before the response is returned. This makes the audit trail a prerequisite for admin data access, not a best-effort side effect.
 
 Teacher class-scoped access continues to be restricted by class ownership. Do not expand this endpoint to student-level detail or add export functionality as part of this change.
@@ -197,10 +199,11 @@ No migration should be merged until the schema, Alembic revision chain, PostgreS
 
 ### Suppression and privacy
 
-- Cohort below 5 distinct learners suppresses counts, rates, and wrong-answer details.
+- Cohort below 5 distinct learners sets `suppressed=true` and nulls counts, rates, and wrong-answer details.
 - Cohort at/above 5 returns only question-level aggregates, based on one latest answer per learner/question.
 - Wrong-answer buckets below 5 distinct learners are suppressed independently; do not fall back to exposing the next-smallest bucket.
 - Multiple attempts by one learner count as one contribution per question in the selected scope.
+- Admin analytics requests require a supported purpose code and a successful audit write before data is returned.
 - No student identity fields appear in the response.
 - Existing analytics ordering and classification logic remains correct after scoping.
 
