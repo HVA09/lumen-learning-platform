@@ -81,16 +81,21 @@ describe("LeaderboardPanel", () => {
     expect(await screen.findByText("لوحة متصدرين هذا الفصل متاحة لمعلّمه أو المدير فقط")).toBeInTheDocument();
   });
 
-  it("تبويب الإنجازات يميّز المفتوح من المقفل", async () => {
+  it("يعرض إنجازات الطالب ويميز المفتوح من المقفل", async () => {
     getMyAchievements.mockResolvedValue([
       { key: "a", title_ar: "بداية المعرفة", description_ar: "أنهيت أول درس", unlocked_at: "2026-09-29T00:00:00Z" },
       { key: "b", title_ar: "علامة كاملة", description_ar: "100% في اختبار", unlocked_at: null },
     ]);
-    const user = userEvent.setup();
-    render(<LeaderboardPanel onClose={vi.fn()} isTeacher isAdmin />);
-    await user.click(await screen.findByRole("button", { name: "إنجازاتي" }));
+    render(<LeaderboardPanel onClose={vi.fn()} isTeacher={false} />);
     expect(await screen.findByText(/🏆 بداية المعرفة/)).toBeInTheDocument();
     expect(screen.getByText(/🔒 علامة كاملة/)).toBeInTheDocument();
+  });
+
+  it("لا يحمّل إنجازات شخصية للمعلم أو المدير ولا يعرض تبويبها", async () => {
+    render(<LeaderboardPanel onClose={vi.fn()} isTeacher isAdmin />);
+    expect(await screen.findByText(/🥇 نورة/)).toBeInTheDocument();
+    expect(getMyAchievements).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "إنجازاتي" })).not.toBeInTheDocument();
   });
 
   it("keeps achievements visible when the student's stats request fails", async () => {
