@@ -30,6 +30,10 @@ from app.services.lti_service import (
     verify_platform_id_token,
     validate_lti_platform_endpoint_url,
 )
+from app.services.lti_ags_service import record_lti_ags_launch_context
+
+LTI_DEPLOYMENT_CLAIM = "https://purl.imsglobal.org/spec/lti/claim/deployment_id"
+LTI_RESOURCE_LINK_CLAIM = "https://purl.imsglobal.org/spec/lti/claim/resource_link"
 
 router = APIRouter(prefix="/lti", tags=["LTI"])
 
@@ -240,6 +244,8 @@ async def lti_launch(
             detail="تعذّر التحقق من تسجيل الدخول عبر منصة التعليم",
         )
 
+    record_lti_ags_launch_context(db, platform, claims)
+
     lti_subject = claims.get("sub")
     if not isinstance(lti_subject, str) or not lti_subject or len(lti_subject) > 255:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="معرّف مستخدم LTI غير صالح")
@@ -279,11 +285,18 @@ async def lti_launch(
         db.add(LTIUserLink(platform_id=platform.id, lti_subject=lti_subject, user_id=user.id))
 
     exchange_code = secrets.token_urlsafe(32)
+    resource_claim = claims.get(LTI_RESOURCE_LINK_CLAIM)
+    resource_link_id = resource_claim.get("id") if isinstance(resource_claim, dict) else None
+    deployment_id = claims.get(LTI_DEPLOYMENT_CLAIM)
     db.add(
         LTIAuthCode(
             code_hash=hash_opaque_token(exchange_code),
             user_id=user.id,
             token_version=user.token_version,
+            lti_platform_id=platform.id,
+            lti_deployment_id=deployment_id if isinstance(deployment_id, str) else None,
+            lti_resource_link_id=resource_link_id if isinstance(resource_link_id, str) else None,
+            lti_subject=lti_subject,
             expires_at=now + timedelta(seconds=LTI_AUTH_CODE_TTL_SECONDS),
         )
     )
@@ -335,7 +348,12 @@ def exchange_lti_code(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="حساب الدخول غير متاح")
 
     auth_code.consumed_at = now
-    access_token, refresh_token, _ = create_browser_session(db, user)
+    access_token, refresh_token, browser_session = create_browser_session(db, user)
+    # Keep the verified LMS context scoped to this browser session only.
+    browser_session.lti_platform_id = auth_code.lti_platform_id
+    browser_session.lti_deployment_id = auth_code.lti_deployment_id
+    browser_session.lti_resource_link_id = auth_code.lti_resource_link_id
+    browser_session.lti_subject = auth_code.lti_subject
     db.commit()
     csrf_token = create_csrf_token()
     set_auth_cookies(response, access_token, refresh_token, csrf_token)
