@@ -176,3 +176,46 @@ The source model comparison confirms that base LTI model classes already exist i
 - `AssignmentSubmission`: `grade_version`, `lti_assignment_link_id`, and `lti_subject`.
 
 The earlier statement that these source-only fields need coordinated model/schema changes remains correct. The newly verified point is that the legacy AGS migration chain extends the shared base LTI tables rather than creating those base tables a second time.
+
+
+## Incremental service/router/task review (20 Nov 2026)
+
+Fetched current-main and legacy-source service, router, task, assignment and test files and compared their public definitions.
+
+### Confirmed source-only AGS capabilities
+
+The legacy source adds these service functions beyond current main's OIDC/JWKS base:
+
+- `validate_lti_ags_lineitem_url`
+- `record_lti_ags_launch_context`
+- `create_lti_ags_grade_event`
+- `build_ags_client_assertion`
+- `request_ags_access_token`
+- `post_lti_ags_score`
+- `dispatch_lti_grade_event`
+
+The source also adds resource discovery, assignment-link administration, grade-event inspection and an admin retry endpoint. Celery Beat schedules an outbox dispatcher every minute; the dispatcher selects at most 100 due pending event IDs, closes its DB session, then enqueues individual tasks. Worker settings observed in source: 45-second HTTP timeout, 8 automatic attempts, 120-second per-learner lease.
+
+### Security regression: source submit route omits current-main student-only guard
+
+The legacy `submit_assignment` implementation allows the assignment owner/manager branch to bypass the enrollment rejection and does not explicitly reject teacher/admin roles before creating/updating a submission. Current main's existing implementation includes an explicit `current_user.role == UserRole.user` requirement. This guard must be retained at the start of the submit handler before any ORM mutation or LTI context binding.
+
+Required tests on the integrated branch:
+- teacher submit attempt => 403, no submission row, no grade event, no study activity/notification side effects;
+- admin submit attempt => same no-side-effect guarantees;
+- student non-LTI submission continues to work;
+- verified LTI student context binds only the exact platform + deployment + resource-link + assignment mapping;
+- mismatched identity/resource/assignment produces no LTI target and no AGS event.
+
+### Service integration cautions
+
+- Keep current-main URL validation, DNS resolution, pinned-IP HTTP, no-redirect behavior and bounded response reads. Source changes extend endpoint resolution to permit a query string only for the validated AGS lineitem request; do not replace the safer current-main implementation wholesale.
+- Preserve the exact launch subject and verified context only when exchanging a one-time LTI code into the browser session. Do not infer LMS subject from local user ID.
+- Keep grade-event creation in the same transaction as the grade update so a committed grade cannot lose its outbox event.
+- Delivery code commits before OAuth/HTTP and uses a per-(assignment-link, subject-hash) lease. Preserve this transaction boundary and test independent workers, lease expiry, stale-owner fencing, newer-grade supersession, retry timestamps and DB pool release.
+- The dispatcher is a periodic scanner with a fixed 100-event selection limit; it is not a claim operation. Multiple Beat instances may enqueue duplicate event tasks, so worker-side row/lease fencing remains mandatory. Monitor backlog/oldest due age before changing cadence or limits.
+- The source tests include dedicated AGS protocol and grade-target-binding suites. These tests are useful porting references but are not proof they pass against current main until actually run on the integrated head.
+
+### Current disposition
+
+No application code has been copied. This review is a porting checklist and a confirmed security regression to guard against. The next safe code change should be a narrow, reviewed model/schema increment plus tests on the integration branch, followed by service functions in bounded units. Do not port the legacy `assignments.py` wholesale.
