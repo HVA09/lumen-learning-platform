@@ -310,7 +310,9 @@ async def dispatch_lti_grade_event(db, event_id: int) -> bool:
         db.rollback()
         return False
     if _as_utc(event.locked_until) and _as_utc(event.locked_until) > now:
-        db.rollback()
+        # No state was changed; commit only to release the row lock. Rolling back
+        # here can roll back a caller-owned outer transaction (e.g. test fixtures).
+        db.commit()
         return False
 
     # Re-grade locks this same submission row before incrementing grade_version and
