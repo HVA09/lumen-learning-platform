@@ -253,3 +253,19 @@ The safe linear integration sequence must preserve main's content-ownership migr
 The source migration file `0028_lti_ags_manual_retry_authorization.py` has a metadata mismatch: its docstring says `0028_lti_ags_manual_retry_authorization`, while its actual revision is `0028_lti_ags_manual_retry`. The integrated migration should use one consistent revision ID and filename.
 
 Migration implementation is not yet applied. Before writing migrations, inspect all existing main/source migration operations, dialect compatibility (especially SQLite batch/foreign-key behavior), and downgrade ordering. Never run migrations against a real or production database as part of this integration step.
+
+
+## Rebased migration files added (2026-11-20)
+
+The six AGS migrations have now been copied to the integration branch as new files, preserving main's existing `0023_content_ownership` revision and forming a single linear chain:
+
+- `0024_lti_ags_grade_passback` → `0023_content_ownership`
+- `0025_lti_resource_discovery` → `0024_lti_ags_grade_passback`
+- `0026_lti_ags_delivery_order` → `0025_lti_resource_discovery`
+- `0027_lti_submission_subject` → `0026_lti_ags_delivery_order`
+- `0028_lti_ags_delivery_lease` → `0027_lti_submission_subject`
+- `0029_lti_ags_manual_retry` → `0028_lti_ags_delivery_lease`
+
+The last migration's docstring Revision ID was corrected to match its actual `revision` value. The original main migration `0023_content_ownership.py` remains untouched.
+
+Important validation boundary: files were added and metadata was checked during creation, but Alembic graph loading, upgrade/downgrade, PostgreSQL populated-data preservation, and full backend tests have not yet been executed. The repository's test fixture defaults to a PostgreSQL test database and uses `Base.metadata.create_all`; this is not a substitute for running Alembic migration tests. No database was contacted or migrated.
