@@ -51,6 +51,8 @@ AGS_SCORE_SCOPE = "https://purl.imsglobal.org/spec/lti-ags/scope/score"
 AGS_MAX_DELIVERY_ATTEMPTS = 8
 # Two bounded 15-second HTTP exchanges (token + score) plus scheduling margin.
 AGS_DELIVERY_LEASE_SECONDS = 120
+# Bound the complete token + score exchange; each HTTP request is capped at 15s.
+AGS_DELIVERY_HTTP_TIMEOUT_SECONDS = 40
 
 
 def validate_lti_ags_lineitem_url(url: str, platform) -> str:
