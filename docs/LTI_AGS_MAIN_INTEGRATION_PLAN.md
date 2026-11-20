@@ -102,3 +102,44 @@ The six source migrations were inspected, not just their headers:
 ### Integration implication
 
 Porting must be treated as one coordinated schema/model/service/API/test change set. In particular, do not expose the AGS event model until all columns and constraints expected by the model exist in the re-chained migrations. Validate both a clean database and a populated database after the graph is re-chained. The proposed revision sequence above remains provisional until full graph inspection confirms all parent references and the repository's expected Alembic head behavior.
+
+
+## Current-main LTI baseline discovered (20 Nov 2026)
+
+A further live inspection corrected the integration scope: current `main` already contains a working LTI 1.3/OIDC foundation. It is not necessary or safe to port the entire legacy LTI implementation over main.
+
+Verified current-main files:
+
+- `backend/app/main.py` imports and mounts `app.routers.lti`.
+- `backend/app/routers/lti.py` already supports platform registration, OIDC login initiation/callback, one-time exchange, and LTI user linking.
+- `backend/app/services/lti_service.py` already contains the base LTI cryptographic/JWKS/token validation helpers.
+- `backend/app/models/lti.py` already contains `LTIPlatform`, `LTIUserLink`, `LTIAuthState`, and `LTIAuthCode`.
+- `backend/app/schemas/lti.py` already contains platform and exchange schemas.
+- `backend/app/config.py` already has LTI tool key/KID and target-link URI settings.
+- `backend/app/tests/test_lti.py` exists and exercises the base LTI flow with a generated test RSA keypair.
+
+Therefore the safe scope is **incremental AGS + resource-link discovery**, not a wholesale LTI 1.3 port. Keep current-main OIDC and login/session behavior as the base and port only the verified deltas.
+
+### Exact incremental deltas confirmed
+
+- Extend `LTIAuthCode` with platform/deployment/resource-link/subject context, and extend `AuthSession` with the same verified launch context needed by submission handling.
+- Add `LTIAssignmentLink`, `LTIResourceLinkDiscovery`, `LTIAGSGradeEvent`, and `LTIAGSDeliveryLease` to the existing LTI model module and model exports.
+- Extend `AssignmentSubmission` with grade version and verified LTI target/subject fields. Preserve current-main's student-only role guard in `submit_assignment`; source branch's LTI additions must be transplanted around that guard, not replace the current function.
+- Extend the existing LTI router with resource discovery, assignment-link administration, grade-event inspection and controlled retry. Preserve current-main OIDC endpoints and security headers/cookie handling.
+- Extend the current LTI service with AGS endpoint validation, discovery persistence, outbox creation, OAuth client assertion/token handling, ordered grade delivery, lease handling and retry behavior.
+- Add the AGS Celery beat/outbox tasks to current-main `tasks.py`; current main currently schedules only weekly digest and due-card reminders.
+- Do not re-port base LTI platform registration, OIDC launch, JWKS validation, or user-linking code unless a concrete diff proves a necessary fix.
+
+### Updated port order
+
+1. Reconcile only the incremental source/main diff for the LTI model, auth-code context, auth-session context, and assignment-submission fields.
+2. Reconcile migrations against current-main's existing LTI tables and its `0023_content_ownership` head. Re-chain the six source migrations, accounting for the already-present base LTI schema; inspect whether any source migration attempts to recreate a table/column that current main already has.
+3. Port service functions in bounded groups: resource discovery; outbox event creation; AGS OAuth/token and HTTP delivery; lease/order/retry.
+4. Port router endpoints while retaining main's current OIDC implementation and admin authorization.
+5. Port assignment submit/grade changes while preserving student-only and assignment visibility/enrollment protections; add teacher/admin 403 no-side-effect tests.
+6. Port Celery scheduling and worker tasks; verify task registration, Beat cadence, bounded dispatch and recovery.
+7. Run model metadata/migration graph checks and full CI on the integration head. Sandbox Moodle/Canvas tests remain separate release gates.
+
+### Critical migration correction
+
+Because main already has base LTI tables, the source migration bodies must be checked for overlap before applying the proposed renumbering. In particular, verify whether `lti_platforms`, `lti_user_links`, `lti_auth_states`, and `lti_auth_codes` are created by existing main migrations and ensure the incremental chain alters/adds only missing AGS context. The previous proposed linear revision numbers are provisional; never blindly apply them if they duplicate existing schema operations.
