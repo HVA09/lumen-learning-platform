@@ -219,3 +219,37 @@ Required tests on the integrated branch:
 ### Current disposition
 
 No application code has been copied. This review is a porting checklist and a confirmed security regression to guard against. The next safe code change should be a narrow, reviewed model/schema increment plus tests on the integration branch, followed by service functions in bounded units. Do not port the legacy `assignments.py` wholesale.
+
+
+## Model integration progress (2026-11-20)
+
+The integration branch now includes the AGS model layer, based on the source branch but applied only to the four model files after verifying the integration branch still matched the expected main blobs:
+
+- `backend/app/models/lti.py`: adds `LTIAssignmentLink`, `LTIResourceLinkDiscovery`, `LTIAGSGradeEvent`, and `LTIAGSDeliveryLease`; extends `LTIAuthCode` with verified platform/deployment/resource-link/subject context.
+- `backend/app/models/assignment.py`: adds `grade_version`, `lti_assignment_link_id`, `lti_subject`, and the mapping relationship while retaining the main assignment/submission fields and unique constraint.
+- `backend/app/models/auth_session.py`: adds the verified LTI launch context while retaining the main session fields and indexes.
+- `backend/app/models/__init__.py`: registers and exports the new model classes.
+
+Commits created on the integration branch:
+- `355e4f09ba7d5a9cce4365e6aa83c41144afe2ca`
+- `259599a2f0b8d8b96ed892bfd19f4959241edc11`
+- `e9a6bfdf41cd9092883ed0f8f7a3b8a66f732498`
+- `48797c33fe5134cd4b08adbdf55f85bfd650d537`
+
+No application tests have been run for these commits yet.
+
+## Migration graph conflict and required rechain
+
+The current main branch already owns revision `0023_content_ownership` (down revision `0022_auth_sessions`). The source AGS branch independently uses revision `0023_lti_ags_grade_passback` with the same down revision. These cannot be combined as-is: the integrated Alembic graph would have two heads.
+
+The safe linear integration sequence must preserve main's content-ownership migration and re-number/re-chain the AGS migrations:
+1. `0024_lti_ags_grade_passback` revises `0023_content_ownership`.
+2. `0025_lti_resource_discovery` revises `0024_lti_ags_grade_passback`.
+3. `0026_lti_ags_delivery_order` revises `0025_lti_resource_discovery`.
+4. `0027_lti_submission_subject` revises `0026_lti_ags_delivery_order`.
+5. `0028_lti_ags_delivery_lease` revises `0027_lti_submission_subject`.
+6. `0029_lti_ags_manual_retry` revises `0028_lti_ags_delivery_lease`.
+
+The source migration file `0028_lti_ags_manual_retry_authorization.py` has a metadata mismatch: its docstring says `0028_lti_ags_manual_retry_authorization`, while its actual revision is `0028_lti_ags_manual_retry`. The integrated migration should use one consistent revision ID and filename.
+
+Migration implementation is not yet applied. Before writing migrations, inspect all existing main/source migration operations, dialect compatibility (especially SQLite batch/foreign-key behavior), and downgrade ordering. Never run migrations against a real or production database as part of this integration step.
