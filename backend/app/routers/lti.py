@@ -1,5 +1,6 @@
 """مسارات تكامل LTI 1.3 مع استخدام state ورمز تبادل أحاديي الاستخدام."""
 import secrets
+from types import SimpleNamespace
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode, urlsplit
 
@@ -233,16 +234,43 @@ async def lti_launch(
     if not platform:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="المنصة غير موجودة")
 
+    # Copy verified inputs and release the DB transaction before remote JWKS I/O.
+    state_id = state_row.id
+    expected_nonce = state_row.nonce
+    expected_target_link_uri = state_row.target_link_uri
+    platform_id = platform.id
+    platform_context = SimpleNamespace(
+        id=platform.id,
+        issuer=platform.issuer,
+        client_id=platform.client_id,
+        deployment_id=platform.deployment_id,
+        jwks_url=platform.jwks_url,
+    )
+    db.commit()
     try:
         claims = await verify_platform_id_token(
-            id_token, platform, state_row.nonce, state_row.target_link_uri
+            id_token, platform_context, expected_nonce, expected_target_link_uri
         )
     except Exception:
-        # لا نعيد تفاصيل التحقق أو معلومات المفاتيح إلى العميل.
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="تعذّر التحقق من تسجيل الدخول عبر منصة التعليم",
         )
+
+    # Reacquire and consume the state atomically after verification; parallel
+    # launches may verify concurrently, but only one can consume this state.
+    state_row = (
+        db.query(LTIAuthState)
+        .filter(LTIAuthState.id == state_id)
+        .with_for_update()
+        .first()
+    )
+    now = datetime.now(timezone.utc)
+    if state_row is None or state_row.consumed_at is not None or state_row.expires_at <= now:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="state غير صالح أو منتهي")
+    platform = db.get(LTIPlatform, platform_id)
+    if platform is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="المنصة غير موجودة")
 
     record_lti_ags_launch_context(db, platform, claims)
 
