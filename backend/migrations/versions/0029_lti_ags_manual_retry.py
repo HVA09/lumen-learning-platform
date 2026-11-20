@@ -1,6 +1,6 @@
 """Add one-shot admin authorization for retrying exhausted AGS grade events.
 
-Revision ID: 0029_lti_ags_manual_retry_authorization
+Revision ID: 0029_lti_ags_manual_retry
 Revises: 0028_lti_ags_delivery_lease
 """
 from typing import Sequence, Union
