@@ -76,3 +76,29 @@ Required regression coverage:
 - Keep PR #154 open and Draft as historical source until the new integration branch is reviewed and tested.
 - Do not claim Moodle/Canvas compatibility from unit tests or CI alone.
 - Do not merge this branch until all code, migration, authorization, CI, independent-review, and sandbox gates are satisfied.
+
+
+## Verified model and migration dependency map (20 Nov 2026)
+
+A source-to-main comparison confirms that `backend/app/models/lti.py` cannot be ported as an isolated file:
+
+- The LTI model defines `LTIAssignmentLink`, `LTIResourceLinkDiscovery`, `LTIAGSGradeEvent`, and `LTIAGSDeliveryLease`, which are not exported by current main's `models/__init__.py`.
+- The source `AssignmentSubmission` adds `grade_version`, `lti_assignment_link_id`, `lti_subject`, and a relationship to `LTIAssignmentLink`; current main's model does not contain these fields.
+- The source `AuthSession` adds `lti_platform_id`, `lti_deployment_id`, `lti_resource_link_id`, and `lti_subject`; current main's model does not contain these fields.
+- The source `LTIAuthCode` adds platform, deployment, resource-link, and subject context fields. These are coupled to the LTI launch/session flow and must be checked against the existing main schema before porting.
+- The source model export list adds the four AGS/resource-discovery classes; importing only the new LTI file without coordinated model and schema changes is incomplete.
+
+### Migration body observations
+
+The six source migrations were inspected, not just their headers:
+
+- The first AGS migration adds `assignment_submissions.grade_version`, creates `lti_assignment_links` and `lti_ags_grade_events`, and includes the initial status constraint `pending/sent/dead`.
+- Resource discovery adds LTI context columns to `lti_auth_codes` and `auth_sessions`, adds `assignment_submissions.lti_assignment_link_id`, and creates `lti_resource_link_discoveries`.
+- Delivery ordering adds/backfills `score_timestamp` from `created_at`, then makes it non-null with a server default, and expands the event status constraint to include `superseded`.
+- Submission subject adds `lti_subject` to auth codes, sessions, and submissions.
+- Delivery lease creates the unique per-assignment-link/subject-hash lease table and its expiry index.
+- Manual retry adds `manual_retry_requested_at`; its filename and docstring say `0028_lti_ags_manual_retry_authorization` while its actual Python `revision` is `0028_lti_ags_manual_retry`.
+
+### Integration implication
+
+Porting must be treated as one coordinated schema/model/service/API/test change set. In particular, do not expose the AGS event model until all columns and constraints expected by the model exist in the re-chained migrations. Validate both a clean database and a populated database after the graph is re-chained. The proposed revision sequence above remains provisional until full graph inspection confirms all parent references and the repository's expected Alembic head behavior.
