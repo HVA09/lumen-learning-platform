@@ -143,3 +143,36 @@ Therefore the safe scope is **incremental AGS + resource-link discovery**, not a
 ### Critical migration correction
 
 Because main already has base LTI tables, the source migration bodies must be checked for overlap before applying the proposed renumbering. In particular, verify whether `lti_platforms`, `lti_user_links`, `lti_auth_states`, and `lti_auth_codes` are created by existing main migrations and ensure the incremental chain alters/adds only missing AGS context. The previous proposed linear revision numbers are provisional; never blindly apply them if they duplicate existing schema operations.
+
+
+## Corrected migration-body verification (20 Nov 2026)
+
+The complete relevant migration bodies were fetched from both current `main` and the legacy LTI source branch. This resolves the earlier open question about whether AGS recreates the base LTI schema:
+
+- Current `main` already has the shared ancestor migrations `0014_lti` and `0018_lti_one_time_auth`. They create `lti_platforms`, `lti_user_links`, `lti_auth_states`, and `lti_auth_codes`.
+- The legacy AGS migration `0023_lti_ags_grade_passback` does **not** recreate those four base tables. It adds `assignment_submissions.grade_version`, creates `lti_assignment_links` and `lti_ags_grade_events`, and adds their constraints/index.
+- Legacy `0024_lti_resource_discovery` alters the already-existing `lti_auth_codes` and `auth_sessions` tables, adds the submission-to-assignment-link FK/index, and creates `lti_resource_link_discoveries`.
+- Legacy `0025_lti_ags_delivery_order` backfills `score_timestamp` from `created_at`, makes it non-null with a server default, and expands the grade-event status check to include `superseded`.
+- Legacy `0026_lti_submission_subject` adds `lti_subject` to auth codes, sessions, and submissions.
+- Legacy `0027_lti_ags_delivery_lease` creates the lease table and expiry index.
+- Legacy `0028_lti_ags_manual_retry_authorization.py` adds `manual_retry_requested_at`; its actual Python revision identifier is `0028_lti_ags_manual_retry`, which differs from its filename and docstring.
+
+The proposed integration graph is therefore structurally viable as a linear chain after current main's ownership migration:
+
+1. `0024_lti_ags_grade_passback` revises `0023_content_ownership`.
+2. `0025_lti_resource_discovery` revises `0024_lti_ags_grade_passback`.
+3. `0026_lti_ags_delivery_order` revises `0025_lti_resource_discovery`.
+4. `0027_lti_submission_subject` revises `0026_lti_ags_delivery_order`.
+5. `0028_lti_ags_delivery_lease` revises `0027_lti_submission_subject`.
+6. `0029_lti_ags_manual_retry` revises `0028_lti_ags_delivery_lease`.
+
+This is a graph-level proposal, not a migration execution result. Before implementation, still inspect current main's complete Alembic graph and ensure every renamed filename, module `revision`, docstring ID, and `down_revision` agrees. Also review downgrade order and PostgreSQL/SQLite compatibility for named FK/check-constraint operations.
+
+### Model-delta correction
+
+The source model comparison confirms that base LTI model classes already exist in main and must be extended, not copied wholesale. The additional source-only model classes are `LTIAssignmentLink`, `LTIResourceLinkDiscovery`, `LTIAGSGradeEvent`, and `LTIAGSDeliveryLease`. Source-only fields include:
+- `LTIAuthCode`: verified platform/deployment/resource-link/subject context.
+- `AuthSession`: verified platform/deployment/resource-link/subject context.
+- `AssignmentSubmission`: `grade_version`, `lti_assignment_link_id`, and `lti_subject`.
+
+The earlier statement that these source-only fields need coordinated model/schema changes remains correct. The newly verified point is that the legacy AGS migration chain extends the shared base LTI tables rather than creating those base tables a second time.
