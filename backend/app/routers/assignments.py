@@ -357,6 +357,7 @@ def grade_submission(
             AssignmentSubmission.id == submission_id,
             AssignmentSubmission.assignment_id == assignment_id,
         )
+        .with_for_update()
         .first()
     )
     if not submission:
