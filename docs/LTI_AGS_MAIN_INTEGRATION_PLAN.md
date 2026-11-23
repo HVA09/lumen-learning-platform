@@ -1,6 +1,6 @@
 # LTI AGS integration plan from current main
 
-Status: integration preparation only; no LTI application code or database migration has been ported yet.
+Status at initial drafting (2026-11-20): integration preparation only. See the dated implementation checkpoint at the end of this document for the current branch state.
 
 ## Starting point
 
@@ -268,4 +268,35 @@ The six AGS migrations have now been copied to the integration branch as new fil
 
 The last migration's docstring Revision ID was corrected to match its actual `revision` value. The original main migration `0023_content_ownership.py` remains untouched.
 
-Important validation boundary: files were added and metadata was checked during creation, but Alembic graph loading, upgrade/downgrade, PostgreSQL populated-data preservation, and full backend tests have not yet been executed. The repository's test fixture defaults to a PostgreSQL test database and uses `Base.metadata.create_all`; this is not a substitute for running Alembic migration tests. No database was contacted or migrated.
+Historical validation boundary at the time these migration files were first added: Alembic graph loading, upgrade/downgrade, PostgreSQL populated-data preservation, and full backend tests had not yet been executed. The later implementation checkpoint below records the subsequent CI evidence. No production database was contacted or migrated.
+
+
+## Implementation checkpoint — 2026-11-23
+
+### Current GitHub state
+
+- Pull request: [#177](https://github.com/HVA09/lumen-learning-platform/pull/177), **Open + Draft + Unmerged**.
+- Branch: `feat/lti-ags-integration-main-20261120`.
+- Base: `main` at `7240b77f706adc6706b14b0163809e244d46a965`.
+- Current head at this checkpoint: `0712886a281f1914830a7b5db71140e296d6ffd7` (before this documentation-only checkpoint is committed).
+- The branch contains the incremental AGS integration across 19 files: models, six migrations (`0024`–`0029`), API routes, outbox/worker service, Celery scheduling, and regression tests.
+- `main` remains protected and unchanged by this work.
+
+### Validation evidence
+
+- GitHub Actions run [#44838928552](https://github.com/HVA09/lumen-learning-platform/actions/runs/44838928552) completed successfully on the exact head above: Backend tests, Frontend tests/production build, Browser E2E, and full Git-history secret scan (4/4).
+- An independent local frontend run on the same checkout passed **207 tests across 29 files**, and `npm run build` completed successfully.
+- The local development container did not include Python `pip`, so no separate local backend rerun was possible; the backend CI check on the exact head succeeded.
+- The six migrations form one linear chain after `0023_content_ownership`. CI is the current evidence for migration preservation; no production migration was executed.
+
+### Remaining acceptance gates
+
+1. Run Moodle Sandbox and Canvas Sandbox verification independently: registration, OIDC launch, resource-link discovery and exact mapping, OAuth client assertion/token, score passback, re-grade ordering, retries/timeouts, duplicate or uncertain delivery, and negative cases. Neither platform has been verified against a live sandbox in this checkpoint.
+2. Decide and document retention/deletion and at-rest protection for the raw external `lti_subject` retained in auth/session/submission/outbox records. Do not silently change identity storage semantics without an explicit privacy decision.
+3. Validate worker clock synchronization/clock-skew assumptions and observe outbox backlog/oldest-due age before production scheduling. Delivery is at-least-once, not exactly-once.
+4. Build and test a frontend LTI administration experience. The current branch exposes admin-only APIs for platform/resource/mapping/event management, but the React admin dashboard does not yet contain an LTI management panel.
+5. Keep the PR Draft and do not merge or deploy until the external LMS, privacy, migration, and operational gates are closed.
+
+### Safety record
+
+No Moodle or Canvas credentials, production database, student data, deployment settings, or production secrets were accessed or changed. No migration was run against production, and no deployment or merge was performed.
