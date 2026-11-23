@@ -285,7 +285,7 @@ Historical validation boundary at the time these migration files were first adde
 ### Validation evidence
 
 - GitHub Actions run [#44838928552](https://github.com/HVA09/lumen-learning-platform/actions/runs/44838928552) completed successfully on the exact head above: Backend tests, Frontend tests/production build, Browser E2E, and full Git-history secret scan (4/4).
-- An independent local frontend run after adding the LTI administration panel passed **213 tests across 30 files**, and `npm run build` completed successfully.
+- An independent local frontend run after adding the LTI administration panel passed **214 tests across 30 files**, and `npm run build` completed successfully.
 - The local development container did not include Python `pip`, so no separate local backend rerun was possible; the backend CI check on the exact head succeeded.
 - The six migrations form one linear chain after `0023_content_ownership`. CI is the current evidence for migration preservation; no production migration was executed.
 

@@ -128,6 +128,17 @@ describe("LTIAdminPanel", () => {
     expect(await screen.findByRole("status")).toHaveTextContent("تم تفويض محاولة إعادة الإرسال مرة واحدة");
   });
 
+  it("explains when a retry is superseded by a newer grade", async () => {
+    ltiApi.retryLtiGradeEvent.mockResolvedValueOnce({ ...event, status: "superseded" });
+    const user = userEvent.setup();
+    render(<LTIAdminPanel />);
+
+    await screen.findByText(/حدث #21/);
+    await user.click(screen.getByRole("button", { name: "تفويض إعادة محاولة واحدة" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent("لم تُرسل الدرجة القديمة لأن هناك إصدارًا أحدث");
+  });
+
   it("shows an actionable error when LTI data cannot be loaded", async () => {
     ltiApi.listLtiPlatforms.mockRejectedValueOnce({
       response: { data: { detail: "LTI API unavailable" } },

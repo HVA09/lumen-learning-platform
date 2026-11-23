@@ -157,8 +157,12 @@ export default function LTIAdminPanel() {
     setError("");
     setNotice("");
     try {
-      await retryLtiGradeEvent(eventId);
-      setNotice("تم تفويض محاولة إعادة الإرسال مرة واحدة. سيعالجها العامل الخلفي عند تشغيله.");
+      const result = await retryLtiGradeEvent(eventId);
+      setNotice(
+        result.status === "superseded"
+          ? "لم تُرسل الدرجة القديمة لأن هناك إصدارًا أحدث؛ سيُعالج الإصدار الأحدث بدلًا منها."
+          : "تم تفويض محاولة إعادة الإرسال مرة واحدة. سيعالجها العامل الخلفي عند تشغيله."
+      );
       await loadData(true);
     } catch (requestError) {
       setError(requestError.response?.data?.detail || "تعذرت إعادة المحاولة. حدّث حالة الحدث أولًا.");
