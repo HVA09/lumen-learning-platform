@@ -278,14 +278,14 @@ Historical validation boundary at the time these migration files were first adde
 - Pull request: [#177](https://github.com/HVA09/lumen-learning-platform/pull/177), **Open + Draft + Unmerged**.
 - Branch: `feat/lti-ags-integration-main-20261120`.
 - Base: `main` at `7240b77f706adc6706b14b0163809e244d46a965`.
-- Current head at this checkpoint: `0712886a281f1914830a7b5db71140e296d6ffd7` (before this documentation-only checkpoint is committed).
+- Previous application-code head: `0712886a281f1914830a7b5db71140e296d6ffd7`; the documentation checkpoint was then committed as `04538d5720ff29e23043f5eb8209c350b44934d0`. The branch has since been extended with the React LTI administration panel and its tests.
 - The branch contains the incremental AGS integration across 19 files: models, six migrations (`0024`–`0029`), API routes, outbox/worker service, Celery scheduling, and regression tests.
 - `main` remains protected and unchanged by this work.
 
 ### Validation evidence
 
 - GitHub Actions run [#44838928552](https://github.com/HVA09/lumen-learning-platform/actions/runs/44838928552) completed successfully on the exact head above: Backend tests, Frontend tests/production build, Browser E2E, and full Git-history secret scan (4/4).
-- An independent local frontend run on the same checkout passed **207 tests across 29 files**, and `npm run build` completed successfully.
+- An independent local frontend run after adding the LTI administration panel passed **213 tests across 30 files**, and `npm run build` completed successfully.
 - The local development container did not include Python `pip`, so no separate local backend rerun was possible; the backend CI check on the exact head succeeded.
 - The six migrations form one linear chain after `0023_content_ownership`. CI is the current evidence for migration preservation; no production migration was executed.
 
@@ -294,8 +294,8 @@ Historical validation boundary at the time these migration files were first adde
 1. Run Moodle Sandbox and Canvas Sandbox verification independently: registration, OIDC launch, resource-link discovery and exact mapping, OAuth client assertion/token, score passback, re-grade ordering, retries/timeouts, duplicate or uncertain delivery, and negative cases. Neither platform has been verified against a live sandbox in this checkpoint.
 2. Decide and document retention/deletion and at-rest protection for the raw external `lti_subject` retained in auth/session/submission/outbox records. Do not silently change identity storage semantics without an explicit privacy decision.
 3. Validate worker clock synchronization/clock-skew assumptions and observe outbox backlog/oldest-due age before production scheduling. Delivery is at-least-once, not exactly-once.
-4. Build and test a frontend LTI administration experience. The current branch exposes admin-only APIs for platform/resource/mapping/event management, but the React admin dashboard does not yet contain an LTI management panel.
-5. Keep the PR Draft and do not merge or deploy until the external LMS, privacy, migration, and operational gates are closed.
+4. Re-run the complete CI suite on the latest UI-inclusive commit and inspect the browser E2E result. The React admin dashboard now includes an LTI panel for platform registration, discovered-resource mapping, and grade-event inspection/retry; it uses the existing admin-only APIs and deliberately does not expose learner subjects, grades, lineitem URLs, or OAuth material.
+5. Keep the PR Draft and do not merge or deploy until Moodle/Canvas sandbox verification, privacy decisions, migration evidence, and operational gates are closed.
 
 ### Safety record
 

@@ -8,6 +8,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import LTIAdminPanel from "./LTIAdminPanel";
 import {
   getAdminStats,
   getDailyAnalytics,
@@ -22,6 +23,7 @@ const TABS = [
   { id: "stats", label: "الإحصائيات" },
   { id: "users", label: "المستخدمون" },
   { id: "logs", label: "السجل" },
+  { id: "lti", label: "تكامل LTI" },
 ];
 
 const ROLE_LABELS = { user: "طالب", teacher: "معلّم", admin: "admin" };
@@ -310,6 +312,7 @@ export default function AdminDashboard({ currentUserId, onClose }) {
           {tab === "stats" && <StatsTab />}
           {tab === "users" && <UsersTab currentUserId={currentUserId} />}
           {tab === "logs" && <LogsTab />}
+          {tab === "lti" && <LTIAdminPanel />}
         </div>
       </div>
     </div>
