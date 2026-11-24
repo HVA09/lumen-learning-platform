@@ -319,12 +319,21 @@ def _exercise_python_sandbox_isolation(browser) -> None:
         )
 
         api_probe_url = f"{API_URL}/health"
+        external_probe_url = "https://example.com/lumen-python-e2e-probe"
+        observed_probe_requests = []
+        page.on(
+            "request",
+            lambda request: observed_probe_requests.append(request.url)
+            if request.url in {api_probe_url, external_probe_url}
+            else None,
+        )
         python_code = f"""import js
-# This fetch runs from the actual Pyodide Blob Worker, not the iframe document.
-# A CORS/network rejection alone is not accepted; the Worker must report an
-# enforced connect-src CSP violation for this exact API origin.
+# Both fetches execute from the actual Pyodide Blob Worker. The API-origin
+# probe and a non-CDN external probe must be denied by enforced connect-src.
 js.fetch({json.dumps(api_probe_url)})
+js.fetch({json.dumps(external_probe_url)})
 print("worker-api-fetch-attempted")
+print("worker-external-fetch-attempted")
 try:
     _ = js.document.documentElement
     print("worker-document:accessible")
@@ -332,9 +341,19 @@ except Exception:
     print("worker-document:blocked")
 try:
     _ = js.localStorage.getItem("lumen_e2e_parent_marker")
-    print("worker-storage:accessible")
+    print("worker-local-storage:accessible")
 except Exception:
-    print("worker-storage:blocked")
+    print("worker-local-storage:blocked")
+try:
+    _ = js.sessionStorage.getItem("lumen_e2e_parent_marker")
+    print("worker-session-storage:accessible")
+except Exception:
+    print("worker-session-storage:blocked")
+try:
+    _ = js.document.cookie
+    print("worker-cookie:accessible")
+except Exception:
+    print("worker-cookie:blocked")
 try:
     _ = js.self.parent.document.documentElement
     print("parent-document:accessible")
@@ -382,8 +401,11 @@ except Exception:
         )
         output = result["output"]
         csp_violations = result["cspViolations"]
-        expected_api_origin = urlsplit(api_probe_url)
-        worker_api_csp_violations = []
+        expected_probe_origins = {
+            (urlsplit(api_probe_url).scheme, urlsplit(api_probe_url).netloc),
+            (urlsplit(external_probe_url).scheme, urlsplit(external_probe_url).netloc),
+        }
+        worker_probe_csp_violations = []
         for violation in csp_violations:
             blocked_uri = violation.get("blockedURI", "")
             blocked_origin = urlsplit(blocked_uri)
@@ -391,22 +413,33 @@ except Exception:
                 violation.get("directive") == "connect-src"
                 and violation.get("disposition") == "enforce"
                 and (blocked_origin.scheme, blocked_origin.netloc)
-                == (expected_api_origin.scheme, expected_api_origin.netloc)
+                in expected_probe_origins
             ):
-                worker_api_csp_violations.append(violation)
+                worker_probe_csp_violations.append(violation)
+        observed_blocked_origins = {
+            (urlsplit(item.get("blockedURI", "")).scheme, urlsplit(item.get("blockedURI", "")).netloc)
+            for item in worker_probe_csp_violations
+        }
 
         assert "worker-api-fetch-attempted" in output, output
-        assert worker_api_csp_violations, (
-            "The Pyodide Worker must report an enforced connect-src CSP violation "
-            f"for {api_probe_url}; observed violations: {csp_violations!r}"
+        assert "worker-external-fetch-attempted" in output, output
+        assert observed_blocked_origins == expected_probe_origins, (
+            "The Pyodide Worker must report enforced connect-src violations for both "
+            f"the API and non-CDN external origins; observed: {csp_violations!r}"
+        )
+        assert not observed_probe_requests, (
+            "Blocked Worker probes must not reach the API or external network: "
+            f"{observed_probe_requests!r}"
         )
         assert "worker-document:blocked" in output, output
-        assert "worker-storage:blocked" in output, output
+        assert "worker-local-storage:blocked" in output, output
+        assert "worker-session-storage:blocked" in output, output
+        assert "worker-cookie:blocked" in output, output
         assert "parent-document:blocked" in output, output
         print(
-            "Python sandbox isolation passed: opaque origin confirmed, Worker DOM/storage "
-            "blocked, parent cookie hidden, and an actual Pyodide Worker API fetch was "
-            "blocked by an enforced connect-src CSP violation."
+            "Python sandbox isolation passed: opaque origin confirmed, Worker DOM, "
+            "local/session storage and cookie access blocked; API and non-CDN external "
+            "fetches were denied by enforced connect-src without reaching either endpoint."
         )
     finally:
         context.close()
