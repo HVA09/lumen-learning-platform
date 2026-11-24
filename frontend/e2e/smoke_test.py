@@ -557,6 +557,7 @@ def run_smoke_test() -> None:
             _exercise_python_sandbox_isolation(browser)
             if os.environ.get("LUMEN_E2E_ONLY_PYTHON_SANDBOX") == "1":
                 print("Python sandbox-only browser check completed.")
+                browser.close()
                 return
             _exercise_session_bootstrap_network_recovery(browser)
             _exercise_notifications_websocket_network_recovery(browser)
