@@ -202,6 +202,27 @@ jobs:
           LUMEN_E2E_API_URL: http://127.0.0.1:8080
           LUMEN_E2E_WS_PROXY_URL: ws://127.0.0.1:8080
         run: python frontend/e2e/smoke_test.py
+      - name: Build frontend with a non-root deployment base path
+        run: npm run build --prefix frontend -- --base=/lumen/
+      - name: Start non-root frontend preview
+        run: |
+          nohup npm run preview --prefix frontend -- --host 127.0.0.1 --port 4174 --strictPort > /tmp/lumen-e2e-nonroot-frontend.log 2>&1 &
+          echo $! > /tmp/lumen-e2e-nonroot-frontend.pid
+          for attempt in $(seq 1 30); do
+            if curl --silent --fail http://127.0.0.1:4174/lumen/ > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/lumen-e2e-nonroot-frontend.log
+          echo "Non-root frontend preview did not become ready in time."
+          exit 1
+      - name: Verify Python sandbox under non-root deployment path
+        env:
+          LUMEN_E2E_BASE_URL: http://127.0.0.1:4174/lumen/
+          LUMEN_E2E_API_URL: http://127.0.0.1:8080
+          LUMEN_E2E_ONLY_PYTHON_SANDBOX: "1"
+        run: python frontend/e2e/smoke_test.py
       - name: Collect Nginx logs on browser E2E failure
         if: failure()
         run: docker logs lumen-e2e-nginx || true
