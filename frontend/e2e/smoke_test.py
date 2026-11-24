@@ -299,7 +299,11 @@ def _exercise_python_sandbox_isolation(browser) -> None:
                 resolve(true);
               };
               window.addEventListener("message", onMessage);
-              frame.src = "/python-sandbox.html?e2e=origin-isolation";
+              // Resolve the sandbox document beneath Vite's configured base path.
+              frame.src = new URL(
+                "python-sandbox.html?e2e=origin-isolation",
+                window.location.href
+              ).toString();
               document.body.appendChild(frame);
             })"""
         )
@@ -551,6 +555,9 @@ def run_smoke_test() -> None:
         browser = playwright.chromium.launch(headless=True)
         try:
             _exercise_python_sandbox_isolation(browser)
+            if os.environ.get("LUMEN_E2E_ONLY_PYTHON_SANDBOX") == "1":
+                print("Python sandbox-only browser check completed.")
+                return
             _exercise_session_bootstrap_network_recovery(browser)
             _exercise_notifications_websocket_network_recovery(browser)
         except Exception:
