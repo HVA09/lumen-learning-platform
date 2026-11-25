@@ -353,6 +353,8 @@ def submit_quiz(
                 question_kind_snapshot=definition["kind"],
                 question_difficulty_snapshot=definition["difficulty"],
                 question_choices_snapshot=definition.get("choices"),
+                question_correct_answer_snapshot=definition["correct_answer"],
+                question_tolerance_snapshot=definition.get("tolerance"),
             )
         )
     db.commit()
