@@ -142,6 +142,24 @@ def delete_question(
 ):
     question = _get_question_or_404(question_id, db)
     _require_content_owner_or_admin(question.created_by_user_id, teacher)
+    historical_results = (
+        db.query(QuestionResult.id)
+        .filter(QuestionResult.question_id == question_id)
+        .first()
+    )
+    if historical_results:
+        # Preserve the question row because question_results.question_id uses
+        # ON DELETE CASCADE; immutable snapshots alone must not be orphaned.
+        question.is_active = False
+        db.commit()
+        log_event(
+            db,
+            "question_archived",
+            f"{teacher.email} عطّل السؤال #{question_id} لوجود نتائج تاريخية",
+            teacher.id,
+        )
+        return
+
     db.delete(question)
     db.commit()
     log_event(db, "question_deleted", f"{teacher.email} حذف السؤال #{question_id}", teacher.id)
