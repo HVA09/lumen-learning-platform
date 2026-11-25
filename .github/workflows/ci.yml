@@ -126,8 +126,8 @@ jobs:
           pip install -r backend/requirements.txt -r frontend/e2e/requirements.txt
       - name: Install locked frontend dependencies
         run: npm ci --prefix frontend --no-audit --no-fund
-      - name: Install Chromium for Playwright
-        run: python -m playwright install --with-deps chromium
+      - name: Install Chromium and Firefox for Playwright
+        run: python -m playwright install --with-deps chromium firefox
       - name: Apply database migrations and seed curriculum
         working-directory: backend
         run: alembic upgrade head
@@ -201,6 +201,13 @@ jobs:
           LUMEN_E2E_BASE_URL: http://127.0.0.1:4173
           LUMEN_E2E_API_URL: http://127.0.0.1:8080
           LUMEN_E2E_WS_PROXY_URL: ws://127.0.0.1:8080
+        run: python frontend/e2e/smoke_test.py
+      - name: Verify Python sandbox isolation in Firefox
+        env:
+          LUMEN_E2E_BASE_URL: http://127.0.0.1:4173
+          LUMEN_E2E_API_URL: http://127.0.0.1:8080
+          LUMEN_E2E_ONLY_PYTHON_SANDBOX: "1"
+          LUMEN_E2E_BROWSER: firefox
         run: python frontend/e2e/smoke_test.py
       - name: Collect Nginx logs on browser E2E failure
         if: failure()
