@@ -372,3 +372,31 @@ These controls address the remaining review findings on the current design head 
 - A learner with a result under definition A and a later retry under definition B contributes once to each version-specific aggregate; B does not replace A.
 - Every analytics response row includes question_definition_version, and the UI row key includes both question ID and version.
 - Admin global analytics work with a supported purpose; admin requests with class_id are rejected, preventing global/class differencing through this endpoint.
+
+
+## 11.11 Quiz attempt persistence implementation contract (2026-11-25)
+
+The implementation branch based on the LTI migration head adds Alembic revision `0030_quiz_attempt_provenance_drafts` after `0029_lti_ags_manual_retry`. This dependency is intentional: do not transplant revision 0030 onto main until the 0024–0029 chain is resolved and the revision is rebased against the resulting main head.
+
+### Attempt-time fields
+
+- `user_role_at_creation`: nullable string column; new attempts capture the authenticated role in the creation transaction. NULL remains the legacy/unknown state.
+- `class_section_id`: nullable FK to `class_sections.id`, `ON DELETE SET NULL`. A supplied non-null value is accepted only for a student with a current enrollment in an active class. Staff cannot attribute an attempt to a student class.
+- `question_definition_snapshots`: write-once JSON object keyed by string question ID. Each entry stores `kind`, `prompt_ar`, `difficulty`, `choices`, `correct_answer`, `tolerance`, `explanation_ar`, and `question_definition_version`.
+- `draft_answers`: nullable JSON map containing learner input only. It is cleared when submission succeeds.
+- `expired_at`: closes legacy or time-expired open attempts without falsely recording a submission.
+
+### Definition fingerprint
+
+The version is SHA-256 over UTF-8 JSON with `ensure_ascii=false`, sorted keys, compact separators, and NaN disallowed. The fingerprint input is exactly `kind`, `prompt_ar`, `difficulty`, `choices`, `correct_answer`, and `tolerance`. Explanation text is stored in the immutable snapshot but does not affect the definition version. Any change to the prompt, kind, difficulty, choices, or grading interpretation creates a new version.
+
+### Draft API and ordering
+
+- `PUT /quiz/attempts/{attempt_id}/answers` is authenticated, owner-scoped, row-locked, and accepts a complete answer map only.
+- Unknown and duplicate question IDs are rejected. The same simple-value and bounded-text validation used by submission applies; nested answer objects are rejected.
+- Submitted or expired attempts cannot be modified. Draft writes do not create QuestionResult rows or update mastery, achievements, or study activity.
+- Resume returns the attempt's saved answers and immutable question snapshot. An omitted class context preserves the stored class; an explicitly supplied different value, including explicit null, returns 409.
+- Submission remains authoritative, validates IDs, grades against the attempt snapshot, copies definition version and presentation fields to QuestionResult, and clears the draft map.
+- Legacy open attempts with no complete snapshot are expired and replaced; their current mutable questions are never attached retroactively.
+
+The implementation remains draft and requires CI, migration upgrade/downgrade verification, independent code review, and the separate PR #177 dependency to be resolved before merge or deployment.
