@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -167,6 +167,24 @@ describe("TopicPanel — الاختبارات", () => {
     renderPanel();
     await user.click(await screen.findByText("🚪 اختبار البوابة"));
     expect(await screen.findByText("راجع الدرس أولًا ثم أعد اختبار البوابة بعد 4 دقيقة")).toBeInTheDocument();
+  });
+
+  it("يعيد إنشاء لوحة الاختبار عند تغيير الموضوع وهي مفتوحة", async () => {
+    const user = userEvent.setup();
+    const props = {
+      onClose: vi.fn(),
+      isTeacher: false,
+      onManageContent: vi.fn(),
+      onAchievements: vi.fn(),
+    };
+    const view = render(<TopicPanel {...props} topicId={1} />);
+    await user.click(await screen.findByText("📝 اختبار تدريبي"));
+    await screen.findByText(/سلّم الإجابات/);
+    expect(startQuiz).toHaveBeenNthCalledWith(1, 1, "practice");
+
+    view.rerender(<TopicPanel {...props} topicId={2} />);
+    await waitFor(() => expect(startQuiz).toHaveBeenNthCalledWith(2, 2, "practice"));
+    expect(startQuiz).toHaveBeenCalledTimes(2);
   });
 });
 
