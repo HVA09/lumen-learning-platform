@@ -384,6 +384,7 @@ The implementation branch based on the LTI migration head adds Alembic revision 
 - `class_section_id`: nullable FK to `class_sections.id`, `ON DELETE SET NULL`. A supplied non-null value is accepted only for a student with a current enrollment in an active class. Staff cannot attribute an attempt to a student class.
 - `question_definition_snapshots`: write-once JSON object keyed by string question ID. Each entry stores `kind`, `prompt_ar`, `difficulty`, `choices`, `correct_answer`, `tolerance`, `explanation_ar`, and `question_definition_version`.
 - `draft_answers`: nullable JSON map containing learner input only. It is cleared when submission succeeds.
+- `question_results` also stores nullable `question_correct_answer_snapshot` and `question_tolerance_snapshot`, preserving the exact grading interpretation for each submitted fact row.
 - `expired_at`: closes legacy or time-expired open attempts without falsely recording a submission.
 
 ### Definition fingerprint
