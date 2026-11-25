@@ -372,3 +372,41 @@ These controls address the remaining review findings on the current design head 
 - A learner with a result under definition A and a later retry under definition B contributes once to each version-specific aggregate; B does not replace A.
 - Every analytics response row includes question_definition_version, and the UI row key includes both question ID and version.
 - Admin global analytics work with a supported purpose; admin requests with class_id are rejected, preventing global/class differencing through this endpoint.
+
+
+## 11.9 Durable draft-answer persistence for resumable attempts
+
+The current quiz UI keeps in-progress answers only in React component state. The backend resumes an open `QuizAttempt` with the same question IDs, but does not persist or return the learner's unsent answers. Therefore a refresh or browser close restores the attempt shell but loses the learner's work. This is a functional gap in the resume contract and must be fixed as part of the attempt lifecycle implementation.
+
+### Storage and API contract
+
+- Add a nullable JSON column `draft_answers` to `quiz_attempts`. Its value is a mapping from question ID (stringified in JSON) to the learner's latest simple answer value. Keep it nullable for legacy attempts; new attempts may initialize it to an empty object.
+- Draft answers contain learner input only. They must never contain correctness, correct-answer values, explanations, score, mastery, or other server grading output.
+- Add `saved_answers` to `QuizAttemptOut`. Return only the authenticated attempt owner's draft answers, and only for an unsubmitted attempt. Do not expose this field in public curriculum/content endpoints or analytics.
+- Add an authenticated save endpoint such as `PUT /quiz/attempts/{attempt_id}/answers`. It replaces the complete draft answer map for that attempt and returns a minimal acknowledgement (for example, saved timestamp and answer count), not question definitions or grading data.
+- Reuse the same answer-value validation contract as `QuizAnswerIn`: null, boolean, integer, float, or bounded string only; enforce the maximum question count and answer length. Reject duplicate question IDs and IDs not belonging to the attempt. Never accept arbitrary nested objects.
+- Lock the attempt row while saving. Verify ownership and `submitted_at IS NULL`; return 404 for another user's/nonexistent attempt and 409 for an already-submitted attempt. The save operation must not update results, mastery, achievements, or study activity.
+- Submission remains authoritative and grades the final answer map against the immutable attempt-time question snapshots. The submit request should include the latest complete answer map; the server must not trust a client-side saved count or score. Once submitted, draft answers are no longer mutable. Retention/clearing of draft data after submission must be explicit and consistent with the platform's educational-record retention policy.
+
+### Frontend behavior and write ordering
+
+- Initialize the answer state from `saved_answers` when the attempt starts or resumes. A resumed attempt must display the persisted values for all matching question IDs.
+- Persist the complete answer map using a short debounce after each answer change. Show a small, accessible save state (saving/saved/error); do not claim an answer is saved until the server acknowledges it.
+- Serialize writes per attempt or use a monotonic client revision/conditional update so an older in-flight request cannot overwrite a newer answer map. If edits occur during an in-flight save, send the newest full map after the earlier request settles.
+- Before final submission, send the current complete answer map and ensure the final submission is not blocked by a stale autosave. The submit endpoint remains the final source of truth.
+- A failed autosave must be visible and retryable. Do not silently discard the learner's current in-memory answers; keep them visible and let the learner retry or submit the current map.
+- Cancel pending debounce work when the component unmounts or the attempt changes. Do not rely on `beforeunload`/page-hide requests as the primary persistence mechanism because browsers do not guarantee their completion.
+- Reset component request guards when `topicId`, `mode`, or the active attempt identity changes. A stale response from a previous topic/mode must not replace the current attempt state.
+
+### Required tests
+
+- Save a valid partial answer map, refresh/resume, and verify the same values are returned and rendered.
+- Verify saving rejects another user's attempt, submitted attempts, unknown question IDs, duplicate IDs, oversized strings, nested values, and excessive answer counts.
+- Verify saving a draft does not create `QuestionResult`, update mastery, award achievements, or record study activity.
+- Verify submit grades the latest submitted map, not an earlier autosave payload, and remains protected against double submission.
+- Simulate two overlapping autosaves and prove an older payload cannot overwrite a newer answer map.
+- Simulate autosave failure and verify the UI retains the learner's local answers and displays a retryable error.
+- Verify unmount/topic/mode changes cannot apply stale attempt responses or save callbacks to a different attempt.
+- Verify legacy attempts with NULL `draft_answers` resume with an empty answer map without inferring or reconstructing answers.
+
+This section supplements the immutable question-definition and provenance requirements above. It does not authorize implementation with a migration until the LTI migration branch ordering is resolved.
