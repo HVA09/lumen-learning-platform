@@ -36,6 +36,10 @@ try:
             "task": "dispatch_lti_grade_outbox_task",
             "schedule": crontab(minute="*"),
         },
+        "cleanup-expired-lti-auth-records": {
+            "task": "cleanup_expired_lti_auth_records_task",
+            "schedule": crontab(hour=3, minute=15),
+        },
     }
 
     @celery_app.task(name="send_email_task")
@@ -84,6 +88,39 @@ try:
                         "عندك بطاقات تكرار متباعد مستحقة اليوم — راجعها قبل ما تنسى المحتوى",
                         "reminder",
                     )
+        finally:
+            db.close()
+
+
+    @celery_app.task(name="cleanup_expired_lti_auth_records_task")
+    def cleanup_expired_lti_auth_records_task() -> dict[str, int]:
+        """Remove only one-time LTI auth records that are already unusable by expiry."""
+        from datetime import datetime, timezone
+
+        from app.database import SessionLocal
+        from app.models.lti import LTIAuthCode, LTIAuthState
+
+        db = SessionLocal()
+        try:
+            now = datetime.now(timezone.utc)
+            deleted_states = (
+                db.query(LTIAuthState)
+                .filter(LTIAuthState.expires_at <= now)
+                .delete(synchronize_session=False)
+            )
+            deleted_codes = (
+                db.query(LTIAuthCode)
+                .filter(LTIAuthCode.expires_at <= now)
+                .delete(synchronize_session=False)
+            )
+            db.commit()
+            return {
+                "auth_states": deleted_states,
+                "auth_codes": deleted_codes,
+            }
+        except Exception:
+            db.rollback()
+            raise
         finally:
             db.close()
 
