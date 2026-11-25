@@ -2,9 +2,13 @@ import React from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../lib/quizApi", () => ({ startQuiz: vi.fn(), submitQuiz: vi.fn() }));
+vi.mock("../lib/quizApi", () => ({
+  startQuiz: vi.fn(),
+  saveDraftAnswers: vi.fn(),
+  submitQuiz: vi.fn(),
+}));
 
-import { startQuiz } from "../lib/quizApi";
+import { saveDraftAnswers, startQuiz, submitQuiz } from "../lib/quizApi";
 import QuizPanel from "./QuizPanel";
 
 const attempt = {
@@ -13,12 +17,15 @@ const attempt = {
   mode: "practice",
   pass_percentage: null,
   resumed: false,
+  saved_answers: {},
   questions: [{ id: 1, kind: "mcq", prompt_ar: "ما مشتقة $x^2$؟", choices: ["$x$", "$2x$"], difficulty: 1 }],
 };
 
 beforeEach(() => {
   vi.clearAllMocks();
   startQuiz.mockResolvedValue(attempt);
+  saveDraftAnswers.mockResolvedValue({ answer_count: 1 });
+  submitQuiz.mockResolvedValue({ score_percentage: 100, correct_count: 1, total: 1, mode: "practice", results: [] });
 });
 
 describe("QuizPanel", () => {
@@ -30,6 +37,26 @@ describe("QuizPanel", () => {
     );
     await screen.findByText(/سلّم الإجابات/);
     expect(startQuiz).toHaveBeenCalledTimes(1);
+  });
+
+  it("يعيد عرض الإجابة المحفوظة عند استئناف المحاولة", async () => {
+    startQuiz.mockResolvedValueOnce({ ...attempt, resumed: true, saved_answers: { "1": 1 } });
+    render(<QuizPanel topicId={1} mode="practice" onClose={vi.fn()} onFinished={vi.fn()} />);
+    const radios = await screen.findAllByRole("radio");
+    expect(radios[1]).toBeChecked();
+    expect(saveDraftAnswers).not.toHaveBeenCalled();
+  });
+
+  it("يحفظ التغييرات تلقائيًا بعد مهلة قصيرة", async () => {
+    const user = userEvent.setup();
+    render(<QuizPanel topicId={1} mode="practice" onClose={vi.fn()} onFinished={vi.fn()} />);
+    await user.click((await screen.findAllByRole("radio"))[1]);
+
+    await waitFor(() => expect(saveDraftAnswers).toHaveBeenCalledTimes(1), { timeout: 2000 });
+    expect(saveDraftAnswers).toHaveBeenCalledWith(3, [
+      { question_id: 1, answer: 1 },
+    ]);
+    expect(await screen.findByText("تم حفظ الإجابات")).toBeInTheDocument();
   });
 
   it("خيارات الاختيار من متعدد تُعرض كمعادلات مصوّرة", async () => {
