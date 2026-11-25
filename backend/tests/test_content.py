@@ -84,6 +84,40 @@ def test_teacher_can_create_update_and_delete_a_question(client, db_session):
     assert client.delete(f"/content/questions/{question['id']}", headers=headers).status_code == 404
 
 
+
+def test_deleting_question_with_historical_results_archives_instead(client, db_session):
+    admin_token = register_and_login(client, "questionhistoryadmin@example.com")
+    set_role(db_session, "questionhistoryadmin@example.com", UserRole.admin)
+    student_token = make_student(client, "questionhistorystudent@example.com")
+    topic_id = topic_id_by_slug(client, "linear-equations")
+
+    submitted = take_quiz(client, db_session, student_token, topic_id, correct=True)
+    historical_result = (
+        db_session.query(QuestionResult)
+        .filter(QuestionResult.quiz_attempt_id == submitted["attempt_id"])
+        .first()
+    )
+    assert historical_result is not None
+    question_id = historical_result.question_id
+
+    response = client.delete(
+        f"/content/questions/{question_id}",
+        headers=auth(admin_token),
+    )
+    assert response.status_code == 204
+
+    db_session.expire_all()
+    question = db_session.get(Question, question_id)
+    preserved_result = (
+        db_session.query(QuestionResult)
+        .filter(QuestionResult.id == historical_result.id)
+        .first()
+    )
+    assert question is not None
+    assert question.is_active is False
+    assert preserved_result is not None
+    assert preserved_result.question_id == question_id
+
 def test_question_validation_rejects_bad_definitions(client, db_session):
     token = make_teacher(client, db_session)
     headers = auth(token)
