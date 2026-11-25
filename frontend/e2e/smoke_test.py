@@ -581,9 +581,25 @@ def run_smoke_test() -> None:
     topic_name = "المعادلات الخطية"
 
     with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(headless=True)
+        browser_name = os.environ.get("LUMEN_E2E_BROWSER", "chromium").lower()
+        browser_types = {
+            "chromium": playwright.chromium,
+            "firefox": playwright.firefox,
+            "webkit": playwright.webkit,
+        }
+        if browser_name not in browser_types:
+            raise ValueError(
+                "LUMEN_E2E_BROWSER must be one of: chromium, firefox, webkit"
+            )
+        browser = browser_types[browser_name].launch(headless=True)
         try:
             _exercise_python_sandbox_isolation(browser)
+            if os.environ.get("LUMEN_E2E_ONLY_PYTHON_SANDBOX") == "1":
+                print(
+                    f"Python sandbox-only browser check completed ({browser_name})."
+                )
+                browser.close()
+                return
             _exercise_session_bootstrap_network_recovery(browser)
             _exercise_notifications_websocket_network_recovery(browser)
         except Exception:
