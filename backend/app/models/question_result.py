@@ -4,7 +4,7 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
@@ -33,4 +33,6 @@ class QuestionResult(Base):
     question_kind_snapshot: Mapped[str | None] = mapped_column(String(20), nullable=True)
     question_difficulty_snapshot: Mapped[int | None] = mapped_column(Integer, nullable=True)
     question_choices_snapshot: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    question_correct_answer_snapshot: Mapped[Any | None] = mapped_column(JSON, nullable=True)
+    question_tolerance_snapshot: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
