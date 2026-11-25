@@ -410,3 +410,28 @@ The current quiz UI keeps in-progress answers only in React component state. The
 - Verify legacy attempts with NULL `draft_answers` resume with an empty answer map without inferring or reconstructing answers.
 
 This section supplements the immutable question-definition and provenance requirements above. It does not authorize implementation with a migration until the LTI migration branch ordering is resolved.
+
+
+## 11.10 Implementation touchpoints and compatibility findings (2026-11-25)
+
+The current implementation was rechecked against the draft-answer proposal. These are concrete integration points for the implementation PR:
+
+- `backend/app/models/quiz_attempt.py`: `QuizAttempt` currently stores `question_ids` and submitted `results`, but has no draft-answer, role-at-creation, class-context, or question-definition snapshot fields.
+- `backend/app/routers/quiz.py`: `POST /topics/{topic_id}/start` resumes by user/topic/mode and returns `_attempt_out`; `POST /attempts/{attempt_id}/submit` already uses `with_for_update()` and owner filtering, but reloads mutable active `Question` rows for grading.
+- `backend/app/schemas/quiz.py`: `QuizAttemptOut` currently has no saved-answer or class-context fields. `QuizAnswerIn.answer` accepts simple scalar values and rejects nested structures; `QuizSubmitRequest.answers` is capped at 50.
+- `frontend/src/lib/quizApi.js`: the adapter currently exposes only start, submit, and history. Add a save-draft adapter and keep the server endpoint as the persistence authority.
+- `frontend/src/components/QuizPanel.jsx`: answers are initialized as an empty local object; no saved answers are hydrated and no save status exists. The one-time `startedRef` is not reset when topic/mode changes, and stale asynchronous start responses are not cancelled or ignored.
+- `frontend/src/components/QuizPanel.test.jsx` and `frontend/src/lib/quizApi.test.js`: current tests cover StrictMode start deduplication, rendering, error display, and existing API adapters; they do not cover autosave, hydration, save races, or prop changes.
+
+### Submission contract hardening
+
+The current submit route builds a dictionary from the submitted answer list. Duplicate question IDs therefore collapse silently (last value wins), and IDs outside the attempt are ignored. The draft-save endpoint must reject unknown IDs and duplicate IDs explicitly. The implementation should also make submission reject duplicate IDs and either reject unknown IDs with a validation error or preserve the existing ignore behavior only if that compatibility choice is documented and tested. Do not let autosave and submit interpret the same payload differently without an explicit contract.
+
+### Existing attempt compatibility
+
+- Legacy attempts have no trustworthy question-definition snapshot. They must not be silently resumed against mutable current questions under the new snapshot contract; use the explicit close/expire-and-restart compatibility path already required in section 11.2.
+- Legacy attempts have no saved answers. A NULL `draft_answers` value means an empty draft, not an inferred answer map.
+- The current attempt start route does not accept `class_section_id`. Add the class context contract from sections 3 and 11.1 deliberately, including teacher-owned class membership validation and the omitted-versus-explicit-null resume distinction.
+- Keep all new fields nullable for legacy rows where unknown provenance is meaningful. New attempt creation must write the required role/context/snapshot values atomically; do not backfill historical values from current user roles or current class membership.
+
+No application code or migration was changed by this compatibility review.
