@@ -264,10 +264,16 @@ def save_quiz_draft_answers(
 ):
     attempt = _validate_attempt_owner(attempt_id, current_user, db)
     answer_map = _answers_by_question(payload.answers, attempt)
+    expected_ids = {int(question_id) for question_id in attempt.question_ids}
+    if set(answer_map) != expected_ids:
+        raise HTTPException(status_code=422, detail="يجب إرسال خريطة الإجابات الكاملة للمحاولة")
     attempt.draft_answers = {str(question_id): answer for question_id, answer in answer_map.items()}
+    answer_count = sum(
+        answer is not None and answer != "" for answer in answer_map.values()
+    )
     saved_at = datetime.now(timezone.utc)
     db.commit()
-    return QuizDraftAnswersOut(saved_at=saved_at, answer_count=len(answer_map))
+    return QuizDraftAnswersOut(saved_at=saved_at, answer_count=answer_count)
 
 
 @router.post("/attempts/{attempt_id}/submit", response_model=QuizResultOut)
