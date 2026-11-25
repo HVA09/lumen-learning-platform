@@ -238,6 +238,7 @@ export default function TopicPanel({ topicId, onClose, isTeacher, onManageConten
       {quizMode && (
         <Suspense fallback={<DeferredPanelFallback />}>
           <QuizPanel
+            key={`${topicId}:${quizMode}`}
             topicId={topicId}
             mode={quizMode}
             onClose={() => setQuizMode(null)}
