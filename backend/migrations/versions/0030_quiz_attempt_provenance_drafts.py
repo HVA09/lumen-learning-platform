@@ -20,14 +20,15 @@ def upgrade() -> None:
     op.add_column("quiz_attempts", sa.Column("question_definition_snapshots", sa.JSON(), nullable=True))
     op.add_column("quiz_attempts", sa.Column("draft_answers", sa.JSON(), nullable=True))
     op.add_column("quiz_attempts", sa.Column("expired_at", sa.DateTime(timezone=True), nullable=True))
-    op.create_foreign_key(
-        "fk_quiz_attempts_class_section_id",
-        "quiz_attempts",
-        "class_sections",
-        ["class_section_id"],
-        ["id"],
-        ondelete="SET NULL",
-    )
+    # Batch mode preserves SQLite compatibility while emitting a normal FK on PostgreSQL.
+    with op.batch_alter_table("quiz_attempts") as batch_op:
+        batch_op.create_foreign_key(
+            "fk_quiz_attempts_class_section_id",
+            "class_sections",
+            ["class_section_id"],
+            ["id"],
+            ondelete="SET NULL",
+        )
     op.create_index("ix_quiz_attempts_class_section_id", "quiz_attempts", ["class_section_id"])
     op.create_index("ix_quiz_attempts_user_role_at_creation", "quiz_attempts", ["user_role_at_creation"])
 
@@ -53,7 +54,8 @@ def downgrade() -> None:
 
     op.drop_index("ix_quiz_attempts_user_role_at_creation", table_name="quiz_attempts")
     op.drop_index("ix_quiz_attempts_class_section_id", table_name="quiz_attempts")
-    op.drop_constraint("fk_quiz_attempts_class_section_id", "quiz_attempts", type_="foreignkey")
+    with op.batch_alter_table("quiz_attempts") as batch_op:
+        batch_op.drop_constraint("fk_quiz_attempts_class_section_id", type_="foreignkey")
     op.drop_column("quiz_attempts", "expired_at")
     op.drop_column("quiz_attempts", "draft_answers")
     op.drop_column("quiz_attempts", "question_definition_snapshots")
