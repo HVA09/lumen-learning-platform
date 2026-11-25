@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../lib/quizApi", () => ({
@@ -48,9 +48,8 @@ describe("QuizPanel", () => {
   });
 
   it("يحفظ التغييرات تلقائيًا بعد مهلة قصيرة", async () => {
-    const user = userEvent.setup();
     render(<QuizPanel topicId={1} mode="practice" onClose={vi.fn()} onFinished={vi.fn()} />);
-    await user.click((await screen.findAllByRole("radio"))[1]);
+    fireEvent.click((await screen.findAllByRole("radio"))[1]);
 
     await waitFor(() => expect(saveDraftAnswers).toHaveBeenCalledTimes(1), { timeout: 2000 });
     expect(saveDraftAnswers).toHaveBeenCalledWith(3, [
