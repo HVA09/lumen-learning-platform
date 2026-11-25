@@ -182,3 +182,55 @@ def test_due_card_reminder_notifies_only_existing_active_users(monkeypatch):
     )
     assert db.closed is True
     assert db.query_result.was_distinct is True
+
+
+def test_lti_auth_cleanup_deletes_only_expired_one_time_records(monkeypatch):
+    from app.models.lti import LTIAuthCode, LTIAuthState
+
+    class CleanupQuery:
+        def __init__(self, model, db):
+            self.model = model
+            self.db = db
+            self.conditions = []
+
+        def filter(self, *conditions):
+            self.conditions.extend(conditions)
+            return self
+
+        def delete(self, synchronize_session=False):
+            assert synchronize_session is False
+            self.db.deleted_models.append(self.model)
+            return 2 if self.model is LTIAuthState else 3
+
+    class CleanupDatabase:
+        def __init__(self):
+            self.queried_models = []
+            self.deleted_models = []
+            self.committed = False
+            self.rolled_back = False
+            self.closed = False
+
+        def query(self, model):
+            self.queried_models.append(model)
+            return CleanupQuery(model, self)
+
+        def commit(self):
+            self.committed = True
+
+        def rollback(self):
+            self.rolled_back = True
+
+        def close(self):
+            self.closed = True
+
+    db = CleanupDatabase()
+    monkeypatch.setattr(database, "SessionLocal", lambda: db)
+
+    result = tasks.cleanup_expired_lti_auth_records_task.run()
+
+    assert result == {"auth_states": 2, "auth_codes": 3}
+    assert db.queried_models == [LTIAuthState, LTIAuthCode]
+    assert db.deleted_models == [LTIAuthState, LTIAuthCode]
+    assert db.committed is True
+    assert db.rolled_back is False
+    assert db.closed is True
