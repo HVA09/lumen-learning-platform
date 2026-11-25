@@ -1,6 +1,6 @@
 """Capture immutable quiz attempt provenance, question definitions, and draft answers.
 
-Revision ID: 0030_quiz_attempt_provenance_drafts
+Revision ID: 0030_quiz_drafts
 Revises: 0029_lti_ags_manual_retry
 """
 from typing import Sequence, Union
@@ -8,7 +8,7 @@ from typing import Sequence, Union
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "0030_quiz_attempt_provenance_drafts"
+revision: str = "0030_quiz_drafts"
 down_revision: Union[str, None] = "0029_lti_ags_manual_retry"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
