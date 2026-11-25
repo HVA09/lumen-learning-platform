@@ -264,6 +264,16 @@ describe("ContentManager", () => {
     });
   });
 
+  it("clearly labels inactive questions as excluded from quizzes", async () => {
+    contentApi.listTopicQuestions.mockResolvedValueOnce([{ ...question, is_active: false }]);
+    const user = userEvent.setup();
+    render(<ContentManager onClose={vi.fn()} />);
+    await screen.findByRole("combobox");
+    await user.click(screen.getByRole("button", { name: "الأسئلة" }));
+
+    expect(await screen.findByText(/غير نشط — مستبعد من الاختبارات/)).toBeInTheDocument();
+  });
+
   it("calls onClose when the content manager is closed", async () => {
     const onClose = vi.fn();
     const user = userEvent.setup();
