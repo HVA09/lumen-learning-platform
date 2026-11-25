@@ -37,6 +37,8 @@ def upgrade() -> None:
     op.add_column("question_results", sa.Column("question_kind_snapshot", sa.String(length=20), nullable=True))
     op.add_column("question_results", sa.Column("question_difficulty_snapshot", sa.Integer(), nullable=True))
     op.add_column("question_results", sa.Column("question_choices_snapshot", sa.JSON(), nullable=True))
+    op.add_column("question_results", sa.Column("question_correct_answer_snapshot", sa.JSON(), nullable=True))
+    op.add_column("question_results", sa.Column("question_tolerance_snapshot", sa.Float(), nullable=True))
     op.create_index(
         "ix_question_results_definition_version",
         "question_results",
@@ -47,6 +49,8 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_index("ix_question_results_definition_version", table_name="question_results")
     with op.batch_alter_table("question_results") as batch_op:
+        batch_op.drop_column("question_tolerance_snapshot")
+        batch_op.drop_column("question_correct_answer_snapshot")
         batch_op.drop_column("question_choices_snapshot")
         batch_op.drop_column("question_difficulty_snapshot")
         batch_op.drop_column("question_kind_snapshot")
