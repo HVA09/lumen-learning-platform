@@ -2,6 +2,7 @@
 اختبارات الاختبارات (Quiz): التصحيح والإتقان يصيرون بالسيرفر فقط، وقفل المواضيع بالمتطلّبات
 """
 from app.models.question import Question
+from app.models.class_section import ClassEnrollment, ClassSection
 from app.models.subject import Subject
 from app.models.topic import Topic
 from app.models.user import UserRole
@@ -9,6 +10,7 @@ from tests.quiz_helpers import (
     auth,
     correct_answer_payload,
     make_student,
+    make_teacher,
     register_and_login,
     take_quiz,
     topic_id_by_slug,
@@ -444,3 +446,68 @@ def test_attempt_snapshot_is_used_for_resume_and_grading_after_question_edit(cli
     graded = next(item for item in submitted.json()["results"] if item["question_id"] == first["id"])
     assert graded["prompt_ar"] == original_prompt
     assert graded["correct"] is True
+
+
+
+def test_class_context_is_validated_and_preserved_when_resuming(client, db_session):
+    teacher = make_teacher(client, db_session, "quiz-context-teacher@example.com")
+    student = make_student(client, "quiz-context-student@example.com")
+    created = client.post("/classes", json={"name": "فصل سياق الاختبار"}, headers=auth(teacher))
+    assert created.status_code == 201
+    section = created.json()
+    joined = client.post(
+        "/classes/join", json={"invite_code": section["invite_code"]}, headers=auth(student)
+    )
+    assert joined.status_code == 200
+    topic_id = topic_id_by_slug(client, "linear-equations")
+
+    first = client.post(
+        f"/quiz/topics/{topic_id}/start",
+        json={"mode": "practice", "class_section_id": section["id"]},
+        headers=auth(student),
+    )
+    assert first.status_code == 200, first.text
+    assert first.json()["class_section_id"] == section["id"]
+
+    resumed_without_context = _start(client, student, topic_id)
+    assert resumed_without_context.status_code == 200
+    assert resumed_without_context.json()["resumed"] is True
+    assert resumed_without_context.json()["class_section_id"] == section["id"]
+
+    explicit_personal = client.post(
+        f"/quiz/topics/{topic_id}/start",
+        json={"mode": "practice", "class_section_id": None},
+        headers=auth(student),
+    )
+    assert explicit_personal.status_code == 409
+
+
+def test_class_context_rejects_non_members_and_staff(client, db_session):
+    teacher = make_teacher(client, db_session, "quiz-context-owner@example.com")
+    student = make_student(client, "quiz-context-outsider@example.com")
+    created = client.post("/classes", json={"name": "فصل خاص"}, headers=auth(teacher)).json()
+    topic_id = topic_id_by_slug(client, "linear-equations")
+
+    outsider = client.post(
+        f"/quiz/topics/{topic_id}/start",
+        json={"mode": "practice", "class_section_id": created["id"]},
+        headers=auth(student),
+    )
+    assert outsider.status_code == 403
+
+    staff = client.post(
+        f"/quiz/topics/{topic_id}/start",
+        json={"mode": "practice", "class_section_id": created["id"]},
+        headers=auth(teacher),
+    )
+    assert staff.status_code == 403
+
+
+def test_new_attempt_captures_role_provenance(client, db_session):
+    token = make_student(client, "roleprovenance@example.com")
+    topic_id = topic_id_by_slug(client, "linear-equations")
+    attempt = _start(client, token, topic_id).json()
+    row = db_session.get(__import__("app.models.quiz_attempt", fromlist=["QuizAttempt"]).QuizAttempt, attempt["attempt_id"])
+    assert row.user_role_at_creation == UserRole.user.value
+    assert row.question_definition_snapshots
+    assert row.draft_answers == {}
