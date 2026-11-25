@@ -3,6 +3,7 @@
 """
 from app.models.question import Question
 from app.models.quiz_attempt import QuizAttempt
+from app.models.question_result import QuestionResult
 from app.models.subject import Subject
 from app.models.topic import Topic
 from app.models.user import UserRole
@@ -446,6 +447,17 @@ def test_attempt_snapshot_is_used_for_resume_and_grading_after_question_edit(cli
     graded = next(item for item in submitted.json()["results"] if item["question_id"] == first["id"])
     assert graded["prompt_ar"] == original_prompt
     assert graded["correct"] is True
+    stored_result = (
+        db_session.query(QuestionResult)
+        .filter(
+            QuestionResult.quiz_attempt_id == attempt["attempt_id"],
+            QuestionResult.question_id == first["id"],
+        )
+        .one()
+    )
+    assert stored_result.question_prompt_snapshot == original_prompt
+    assert stored_result.question_definition_version
+    assert stored_result.question_correct_answer_snapshot == original_answer
 
 
 
