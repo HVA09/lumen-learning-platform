@@ -3,11 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const api = vi.hoisted(() => ({
   get: vi.fn(),
   post: vi.fn(),
+  put: vi.fn(),
 }));
 
 vi.mock("./api", () => ({ default: api }));
 
-import { getQuizHistory, startQuiz, submitQuiz } from "./quizApi";
+import { getQuizHistory, saveDraftAnswers, startQuiz, submitQuiz } from "./quizApi";
 
 describe("quiz API adapters", () => {
   beforeEach(() => {
@@ -27,6 +28,15 @@ describe("quiz API adapters", () => {
 
     await startQuiz(9, "gateway");
     expect(api.post).toHaveBeenCalledWith("/quiz/topics/9/start", { mode: "gateway" });
+  });
+
+  it("saves a complete draft answer map for the selected attempt", async () => {
+    const acknowledgement = { answer_count: 1 };
+    const answers = [{ question_id: 2, answer: 1 }];
+    api.put.mockResolvedValueOnce({ data: acknowledgement });
+
+    await expect(saveDraftAnswers(41, answers)).resolves.toEqual(acknowledgement);
+    expect(api.put).toHaveBeenCalledWith("/quiz/attempts/41/answers", { answers });
   });
 
   it("submits answers for the selected attempt", async () => {
