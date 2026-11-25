@@ -428,7 +428,7 @@ def test_attempt_snapshot_is_used_for_resume_and_grading_after_question_edit(cli
     original_choices = question.choices
 
     question.prompt_ar = "تعريف جديد لا يجب أن يظهر في المحاولة المفتوحة"
-    question.correct_answer = False if question.kind == "true_false" else "__changed_definition__"
+    question.correct_answer = (not bool(original_answer)) if question.kind == "true_false" else "__changed_definition__"
     question.choices = ["خيار جديد", "خيار آخر"] if question.kind == "mcq" else original_choices
     db_session.commit()
 
