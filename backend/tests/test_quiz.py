@@ -306,7 +306,7 @@ def test_answer_must_be_a_simple_value(client):
     assert response.status_code == 422
 
 
-def test_answers_for_questions_outside_the_attempt_are_ignored(client, db_session):
+def test_answers_for_questions_outside_the_attempt_are_rejected(client):
     token = make_student(client, "outsider@example.com")
     topic_id = topic_id_by_slug(client, "linear-equations")
     attempt = _start(client, token, topic_id).json()
@@ -316,6 +316,131 @@ def test_answers_for_questions_outside_the_attempt_are_ignored(client, db_sessio
         json={"answers": [{"question_id": 999999, "answer": 1}]},
         headers=auth(token),
     )
-    assert response.status_code == 200
-    assert response.json()["total"] == 5
-    assert response.json()["score_percentage"] == 0.0
+    assert response.status_code == 422
+
+
+def test_duplicate_question_answers_are_rejected(client):
+    token = make_student(client, "duplicateanswers@example.com")
+    topic_id = topic_id_by_slug(client, "linear-equations")
+    attempt = _start(client, token, topic_id).json()
+    question_id = attempt["questions"][0]["id"]
+
+    response = client.post(
+        f"/quiz/attempts/{attempt['attempt_id']}/submit",
+        json={"answers": [
+            {"question_id": question_id, "answer": 1},
+            {"question_id": question_id, "answer": 2},
+        ]},
+        headers=auth(token),
+    )
+    assert response.status_code == 422
+
+
+def test_partial_answers_are_saved_and_restored_on_resume(client):
+    token = make_student(client, "draftresume@example.com")
+    topic_id = topic_id_by_slug(client, "linear-equations")
+    attempt = _start(client, token, topic_id).json()
+    answers = [
+        {"question_id": question["id"], "answer": 1 if index == 0 else None}
+        for index, question in enumerate(attempt["questions"])
+    ]
+
+    saved = client.put(
+        f"/quiz/attempts/{attempt['attempt_id']}/answers",
+        json={"answers": answers},
+        headers=auth(token),
+    )
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["answer_count"] == 1
+
+    resumed = _start(client, token, topic_id)
+    assert resumed.status_code == 200
+    assert resumed.json()["resumed"] is True
+    assert resumed.json()["saved_answers"][str(attempt["questions"][0]["id"])] == 1
+    assert all(
+        resumed.json()["saved_answers"][str(question["id"])] is None
+        for question in attempt["questions"][1:]
+    )
+
+
+def test_draft_save_rejects_unknown_duplicate_and_incomplete_maps(client):
+    token = make_student(client, "draftvalidation@example.com")
+    topic_id = topic_id_by_slug(client, "linear-equations")
+    attempt = _start(client, token, topic_id).json()
+    url = f"/quiz/attempts/{attempt['attempt_id']}/answers"
+    headers = auth(token)
+    first_id = attempt["questions"][0]["id"]
+
+    unknown = [{"question_id": 999999, "answer": 1}] + [
+        {"question_id": question["id"], "answer": None}
+        for question in attempt["questions"][1:]
+    ]
+    assert client.put(url, json={"answers": unknown}, headers=headers).status_code == 422
+
+    duplicate = [
+        {"question_id": first_id, "answer": 1},
+        {"question_id": first_id, "answer": 2},
+    ] + [
+        {"question_id": question["id"], "answer": None}
+        for question in attempt["questions"][1:]
+    ]
+    assert client.put(url, json={"answers": duplicate}, headers=headers).status_code == 422
+    assert client.put(
+        url, json={"answers": [{"question_id": first_id, "answer": 1}]}, headers=headers
+    ).status_code == 422
+
+
+def test_draft_save_rejects_another_users_attempt(client):
+    owner = make_student(client, "draftowner@example.com")
+    intruder = make_student(client, "draftintruder@example.com")
+    topic_id = topic_id_by_slug(client, "linear-equations")
+    attempt = _start(client, owner, topic_id).json()
+    answers = [{"question_id": question["id"], "answer": None} for question in attempt["questions"]]
+
+    response = client.put(
+        f"/quiz/attempts/{attempt['attempt_id']}/answers",
+        json={"answers": answers},
+        headers=auth(intruder),
+    )
+    assert response.status_code == 404
+
+
+def test_submitted_attempt_rejects_later_draft_saves(client):
+    token = make_student(client, "draftsubmitted@example.com")
+    topic_id = topic_id_by_slug(client, "linear-equations")
+    attempt = _start(client, token, topic_id).json()
+    url = f"/quiz/attempts/{attempt['attempt_id']}"
+    assert client.post(f"{url}/submit", json={"answers": []}, headers=auth(token)).status_code == 200
+    answers = [{"question_id": question["id"], "answer": None} for question in attempt["questions"]]
+    assert client.put(f"{url}/answers", json={"answers": answers}, headers=auth(token)).status_code == 409
+
+
+def test_attempt_snapshot_is_used_for_resume_and_grading_after_question_edit(client, db_session):
+    token = make_student(client, "snapshotimmutable@example.com")
+    topic_id = topic_id_by_slug(client, "linear-equations")
+    attempt = _start(client, token, topic_id).json()
+    first = attempt["questions"][0]
+    question = db_session.get(Question, first["id"])
+    original_prompt = question.prompt_ar
+    original_answer = correct_answer_payload(question)
+    original_choices = question.choices
+
+    question.prompt_ar = "تعريف جديد لا يجب أن يظهر في المحاولة المفتوحة"
+    question.correct_answer = False if question.kind == "true_false" else "__changed_definition__"
+    question.choices = ["خيار جديد", "خيار آخر"] if question.kind == "mcq" else original_choices
+    db_session.commit()
+
+    resumed = _start(client, token, topic_id).json()
+    restored = next(item for item in resumed["questions"] if item["id"] == first["id"])
+    assert restored["prompt_ar"] == original_prompt
+    assert restored["choices"] == first["choices"]
+
+    submitted = client.post(
+        f"/quiz/attempts/{attempt['attempt_id']}/submit",
+        json={"answers": [{"question_id": first["id"], "answer": original_answer}]},
+        headers=auth(token),
+    )
+    assert submitted.status_code == 200, submitted.text
+    graded = next(item for item in submitted.json()["results"] if item["question_id"] == first["id"])
+    assert graded["prompt_ar"] == original_prompt
+    assert graded["correct"] is True
