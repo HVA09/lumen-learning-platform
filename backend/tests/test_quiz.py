@@ -2,7 +2,7 @@
 اختبارات الاختبارات (Quiz): التصحيح والإتقان يصيرون بالسيرفر فقط، وقفل المواضيع بالمتطلّبات
 """
 from app.models.question import Question
-from app.models.class_section import ClassEnrollment, ClassSection
+from app.models.quiz_attempt import QuizAttempt
 from app.models.subject import Subject
 from app.models.topic import Topic
 from app.models.user import UserRole
@@ -507,7 +507,7 @@ def test_new_attempt_captures_role_provenance(client, db_session):
     token = make_student(client, "roleprovenance@example.com")
     topic_id = topic_id_by_slug(client, "linear-equations")
     attempt = _start(client, token, topic_id).json()
-    row = db_session.get(__import__("app.models.quiz_attempt", fromlist=["QuizAttempt"]).QuizAttempt, attempt["attempt_id"])
+    row = db_session.get(QuizAttempt, attempt["attempt_id"])
     assert row.user_role_at_creation == UserRole.user.value
     assert row.question_definition_snapshots
     assert row.draft_answers == {}
