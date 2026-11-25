@@ -10,6 +10,7 @@ vi.mock("../lib/curriculumApi", () => ({
 }));
 vi.mock("../lib/quizApi", () => ({
   startQuiz: vi.fn(),
+  saveDraftAnswers: vi.fn(),
   submitQuiz: vi.fn(),
   getQuizHistory: vi.fn(),
 }));
