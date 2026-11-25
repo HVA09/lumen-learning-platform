@@ -544,7 +544,7 @@ function QuestionsTab({ topicId }) {
             </div>
             <p className="mt-1 text-xs text-slate-400">
               {KIND_LABELS[question.kind]} · صعوبة {question.difficulty}
-              {!question.is_active && " · غير نشط"}
+              {!question.is_active && " · غير نشط — مستبعد من الاختبارات"}
             </p>
           </div>
         )

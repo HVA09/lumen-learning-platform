@@ -6,14 +6,17 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from app.schemas.curriculum import UnlockedAchievementOut
 
 MAX_ANSWER_TEXT_LENGTH = 500
+MAX_QUIZ_QUESTIONS = 50
 
 
 class QuizStartRequest(BaseModel):
     mode: Literal["practice", "gateway"] = "practice"
+    # model_fields_set distinguishes omission (resume existing context) from explicit null.
+    class_section_id: int | None = None
 
 
 class QuizQuestionOut(BaseModel):
-    """السؤال كما يُعرض للطالب — بدون الإجابة الصحيحة أو الشرح"""
+    """السؤال كما يُعرض للطالب — بدون الإجابة الصحيحة أو الشرح."""
     id: int
     kind: str
     prompt_ar: str
@@ -25,8 +28,10 @@ class QuizAttemptOut(BaseModel):
     attempt_id: int
     topic_id: int
     mode: str
-    pass_percentage: float | None  # لاختبار البوابة فقط
-    resumed: bool  # True لو هذي محاولة سابقة غير مسلَّمة أُعيدت للطالب
+    class_section_id: int | None = None
+    pass_percentage: float | None
+    resumed: bool
+    saved_answers: dict[str, Any] = Field(default_factory=dict)
     questions: list[QuizQuestionOut]
 
 
@@ -47,7 +52,16 @@ class QuizAnswerIn(BaseModel):
 
 
 class QuizSubmitRequest(BaseModel):
-    answers: list[QuizAnswerIn] = Field(default_factory=list, max_length=50)
+    answers: list[QuizAnswerIn] = Field(default_factory=list, max_length=MAX_QUIZ_QUESTIONS)
+
+
+class QuizDraftAnswersRequest(BaseModel):
+    answers: list[QuizAnswerIn] = Field(default_factory=list, max_length=MAX_QUIZ_QUESTIONS)
+
+
+class QuizDraftAnswersOut(BaseModel):
+    saved_at: datetime
+    answer_count: int
 
 
 class QuizQuestionResultOut(BaseModel):
@@ -68,7 +82,7 @@ class QuizResultOut(BaseModel):
     score_percentage: float
     correct_count: int
     total: int
-    passed: bool | None  # لاختبار البوابة فقط
+    passed: bool | None
     mastery_percentage: float
     gateway_quiz_passed: bool
     new_achievements: list[UnlockedAchievementOut]

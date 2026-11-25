@@ -1,7 +1,14 @@
 import api from "./api";
 
-export async function startQuiz(topicId, mode = "practice") {
-  const { data } = await api.post(`/quiz/topics/${topicId}/start`, { mode });
+export async function startQuiz(topicId, mode = "practice", classSectionId) {
+  const payload = { mode };
+  if (classSectionId !== undefined) payload.class_section_id = classSectionId;
+  const { data } = await api.post(`/quiz/topics/${topicId}/start`, payload);
+  return data;
+}
+
+export async function saveDraftAnswers(attemptId, answers) {
+  const { data } = await api.put(`/quiz/attempts/${attemptId}/answers`, { answers });
   return data;
 }
 

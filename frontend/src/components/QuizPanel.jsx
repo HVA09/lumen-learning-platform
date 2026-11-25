@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { startQuiz, submitQuiz } from "../lib/quizApi";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { saveDraftAnswers, startQuiz, submitQuiz } from "../lib/quizApi";
 import MathText from "./MathText";
 
 function QuestionInput({ question, value, onChange }) {
@@ -32,7 +32,7 @@ function QuestionInput({ question, value, onChange }) {
 
   return (
     <input
-      type={question.kind === "numeric" ? "text" : "text"}
+      type="text"
       inputMode={question.kind === "numeric" ? "decimal" : "text"}
       value={value ?? ""}
       onChange={(e) => onChange(e.target.value)}
@@ -112,37 +112,113 @@ export default function QuizPanel({ topicId, mode, onClose, onFinished }) {
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
+  const [saveStatus, setSaveStatus] = useState("idle");
   const startedRef = useRef(false);
+  const saveTimerRef = useRef(null);
+  const saveChainRef = useRef(Promise.resolve());
+  const latestAnswersRef = useRef({});
+  const revisionRef = useRef(0);
+  const dirtyRef = useRef(false);
+  const submittingRef = useRef(false);
 
   useEffect(() => {
-    // StrictMode يشغّل الـ effect مرتين بالتطوير — بدون هذا الحارس ينشأ طلبان وتُنشأ محاولتان
     if (startedRef.current) return;
     startedRef.current = true;
     startQuiz(topicId, mode)
-      .then(setAttempt)
+      .then((data) => {
+        setAttempt(data);
+        const restored = data.saved_answers ?? {};
+        latestAnswersRef.current = restored;
+        setAnswers(restored);
+      })
       .catch((err) => setError(err.response?.data?.detail || "تعذر بدء الاختبار"))
       .finally(() => setLoading(false));
   }, [topicId, mode]);
 
-  const handleSubmit = async () => {
-    setSubmitting(true);
+  const persistDraft = useCallback(async () => {
+    if (!attempt || submittingRef.current || !dirtyRef.current) return true;
+    const revision = revisionRef.current;
+    const payload = attempt.questions.map((question) => ({
+      question_id: question.id,
+      answer: latestAnswersRef.current[question.id] ?? null,
+    }));
+    setSaveStatus("saving");
+    const request = saveChainRef.current
+      .catch(() => undefined)
+      .then(() => saveDraftAnswers(attempt.attempt_id, payload));
+    saveChainRef.current = request;
     try {
-      const answersPayload = attempt.questions.map((q) => ({
-        question_id: q.id,
-        answer: answers[q.id] ?? null,
+      await request;
+      if (revision === revisionRef.current) {
+        dirtyRef.current = false;
+        setSaveStatus("saved");
+      }
+      return true;
+    } catch {
+      setSaveStatus("error");
+      return false;
+    }
+  }, [attempt]);
+
+  useEffect(() => {
+    if (!attempt || !dirtyRef.current || submitting || result) return undefined;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      persistDraft();
+    }, 450);
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, [attempt, answers, persistDraft, submitting, result]);
+
+  const updateAnswer = (questionId, value) => {
+    const next = { ...latestAnswersRef.current, [questionId]: value };
+    latestAnswersRef.current = next;
+    revisionRef.current += 1;
+    dirtyRef.current = true;
+    setSaveStatus("idle");
+    setAnswers(next);
+  };
+
+  const handleClose = async () => {
+    if (dirtyRef.current) {
+      const saved = await persistDraft();
+      if (!saved) {
+        setError("تعذر حفظ آخر التغييرات. أعد المحاولة قبل إغلاق الاختبار.");
+        return;
+      }
+    }
+    onClose();
+  };
+
+  const handleSubmit = async () => {
+    if (!attempt || submittingRef.current) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    submittingRef.current = true;
+    setSubmitting(true);
+    setError("");
+    try {
+      // The complete current map in the submit request is authoritative, even if autosave is pending.
+      const answersPayload = attempt.questions.map((question) => ({
+        question_id: question.id,
+        answer: latestAnswersRef.current[question.id] ?? null,
       }));
       const data = await submitQuiz(attempt.attempt_id, answersPayload);
+      dirtyRef.current = false;
+      setSaveStatus("idle");
       setResult(data);
       onFinished(data);
     } catch {
+      submittingRef.current = false;
       setError("تعذر تسليم الاختبار");
     } finally {
       setSubmitting(false);
     }
   };
 
-  // الإجابة الفارغة (كتب ثم مسح) ما تُحسب مُجابة
-  const answeredCount = Object.values(answers).filter((v) => v !== "" && v !== null && v !== undefined).length;
+  const answeredCount = Object.values(answers).filter(
+    (value) => value !== "" && value !== null && value !== undefined
+  ).length;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto bg-black/40 p-4">
@@ -152,7 +228,7 @@ export default function QuizPanel({ topicId, mode, onClose, onFinished }) {
             {mode === "gateway" ? "اختبار البوابة" : "اختبار تدريبي"}
           </h2>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="rounded-lg px-2 py-1 text-slate-400 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-400"
           >
             ✕
@@ -161,7 +237,7 @@ export default function QuizPanel({ topicId, mode, onClose, onFinished }) {
 
         {loading ? (
           <p className="text-sm text-slate-400">...</p>
-        ) : error ? (
+        ) : error && !attempt ? (
           <p className="text-sm text-red-600">{error}</p>
         ) : result ? (
           <ResultsView result={result} onClose={onClose} />
@@ -169,7 +245,7 @@ export default function QuizPanel({ topicId, mode, onClose, onFinished }) {
           <>
             {attempt.resumed && (
               <p className="mb-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
-                استكملت محاولة سابقة لم تُسلَّم
+                استكملت محاولة سابقة غير مسلّمة
               </p>
             )}
             <div className="space-y-4">
@@ -181,20 +257,31 @@ export default function QuizPanel({ topicId, mode, onClose, onFinished }) {
                   <QuestionInput
                     question={question}
                     value={answers[question.id]}
-                    onChange={(v) => setAnswers((prev) => ({ ...prev, [question.id]: v }))}
+                    onChange={(value) => updateAnswer(question.id, value)}
                   />
                 </div>
               ))}
             </div>
 
+            <div className="mt-3 flex min-h-6 items-center justify-between text-xs" aria-live="polite">
+              <span className="text-slate-500">
+                {saveStatus === "saving" && "جارٍ حفظ الإجابات..."}
+                {saveStatus === "saved" && "تم حفظ الإجابات"}
+                {saveStatus === "error" && "تعذر حفظ الإجابات"}
+              </span>
+              {saveStatus === "error" && (
+                <button onClick={persistDraft} className="font-medium text-red-700 underline">
+                  إعادة المحاولة
+                </button>
+              )}
+            </div>
+            {error && <p role="alert" className="mt-2 text-xs text-red-600">{error}</p>}
             <button
               onClick={handleSubmit}
               disabled={submitting}
-              className="mt-4 w-full rounded-xl bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-50"
+              className="mt-2 w-full rounded-xl bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-800 disabled:opacity-50"
             >
-              {submitting
-                ? "جاري التصحيح..."
-                : `سلّم الإجابات (${answeredCount}/${attempt.questions.length})`}
+              {submitting ? "جاري التصحيح..." : `سلّم الإجابات (${answeredCount}/${attempt.questions.length})`}
             </button>
           </>
         )}
