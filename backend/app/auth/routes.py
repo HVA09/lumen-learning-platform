@@ -328,6 +328,13 @@ def logout(
             if auth_session is not None and auth_session.user_id == user_id:
                 if auth_session.revoked_at is None:
                     auth_session.revoked_at = datetime.now(timezone.utc)
+                # LTI launch context is scoped to this browser session. Once the
+                # session is logged out, retain the revocation record but erase
+                # external learner/platform identifiers from the session row.
+                auth_session.lti_platform_id = None
+                auth_session.lti_deployment_id = None
+                auth_session.lti_resource_link_id = None
+                auth_session.lti_subject = None
         elif user_id is not None and payload.get("type") == "access":
             # Legacy stateless tokens have no per-device row; revoke them by
             # advancing the account version, but only when the token is current.
