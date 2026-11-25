@@ -136,7 +136,7 @@ export default function QuizPanel({ topicId, mode, onClose, onFinished }) {
   }, [topicId, mode]);
 
   const persistDraft = useCallback(async () => {
-    if (!attempt || submittingRef.current || !dirtyRef.current) return;
+    if (!attempt || submittingRef.current || !dirtyRef.current) return true;
     const revision = revisionRef.current;
     const payload = attempt.questions.map((question) => ({
       question_id: question.id,
@@ -153,8 +153,10 @@ export default function QuizPanel({ topicId, mode, onClose, onFinished }) {
         dirtyRef.current = false;
         setSaveStatus("saved");
       }
+      return true;
     } catch {
       setSaveStatus("error");
+      return false;
     }
   }, [attempt]);
 
@@ -176,6 +178,17 @@ export default function QuizPanel({ topicId, mode, onClose, onFinished }) {
     dirtyRef.current = true;
     setSaveStatus("idle");
     setAnswers(next);
+  };
+
+  const handleClose = async () => {
+    if (dirtyRef.current) {
+      const saved = await persistDraft();
+      if (!saved) {
+        setError("تعذر حفظ آخر التغييرات. أعد المحاولة قبل إغلاق الاختبار.");
+        return;
+      }
+    }
+    onClose();
   };
 
   const handleSubmit = async () => {
@@ -215,7 +228,7 @@ export default function QuizPanel({ topicId, mode, onClose, onFinished }) {
             {mode === "gateway" ? "اختبار البوابة" : "اختبار تدريبي"}
           </h2>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="rounded-lg px-2 py-1 text-slate-400 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-400"
           >
             ✕
