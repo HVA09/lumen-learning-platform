@@ -32,6 +32,14 @@ try:
             "task": "send_due_cards_reminders_task",
             "schedule": crontab(hour=18, minute=0),  # يوميًا 6 مساءً
         },
+        "dispatch-lti-ags-grade-outbox": {
+            "task": "dispatch_lti_grade_outbox_task",
+            "schedule": crontab(minute="*"),
+        },
+        "cleanup-expired-lti-auth-records": {
+            "task": "cleanup_expired_lti_auth_records_task",
+            "schedule": crontab(hour=3, minute=15),
+        },
     }
 
     @celery_app.task(name="send_email_task")
@@ -82,6 +90,91 @@ try:
                     )
         finally:
             db.close()
+
+
+    @celery_app.task(name="cleanup_expired_lti_auth_records_task")
+    def cleanup_expired_lti_auth_records_task() -> dict[str, int]:
+        """Remove only one-time LTI auth records that are already unusable by expiry."""
+        from datetime import datetime, timezone
+
+        from app.database import SessionLocal
+        from app.models.lti import LTIAuthCode, LTIAuthState
+
+        db = SessionLocal()
+        try:
+            now = datetime.now(timezone.utc)
+            deleted_states = (
+                db.query(LTIAuthState)
+                .filter(LTIAuthState.expires_at <= now)
+                .delete(synchronize_session=False)
+            )
+            deleted_codes = (
+                db.query(LTIAuthCode)
+                .filter(LTIAuthCode.expires_at <= now)
+                .delete(synchronize_session=False)
+            )
+            db.commit()
+            return {
+                "auth_states": deleted_states,
+                "auth_codes": deleted_codes,
+            }
+        except Exception:
+            db.rollback()
+            raise
+        finally:
+            db.close()
+
+
+    @celery_app.task(name="dispatch_lti_grade_event_task")
+    def dispatch_lti_grade_event_task(event_id: int) -> None:
+        import asyncio
+
+        from app.database import SessionLocal
+        from app.services.lti_ags_service import dispatch_lti_grade_event
+
+        db = SessionLocal()
+        try:
+            asyncio.run(dispatch_lti_grade_event(db, event_id))
+        finally:
+            db.close()
+
+    @celery_app.task(name="dispatch_lti_grade_outbox_task")
+    def dispatch_lti_grade_outbox_task() -> None:
+        from datetime import datetime, timezone
+
+        from sqlalchemy import or_
+
+        from app.database import SessionLocal
+        from app.models.lti import LTIAGSGradeEvent
+
+        db = SessionLocal()
+        try:
+            now = datetime.now(timezone.utc)
+            event_ids = [
+                row[0]
+                for row in (
+                    db.query(LTIAGSGradeEvent.id)
+                    .filter(
+                        LTIAGSGradeEvent.status == "pending",
+                        LTIAGSGradeEvent.next_attempt_at <= now,
+                        or_(
+                            LTIAGSGradeEvent.locked_until.is_(None),
+                            LTIAGSGradeEvent.locked_until <= now,
+                        ),
+                    )
+                    .order_by(LTIAGSGradeEvent.id)
+                    .limit(100)
+                    .all()
+                )
+            ]
+        finally:
+            db.close()
+
+        for event_id in event_ids:
+            try:
+                dispatch_lti_grade_event_task.delay(event_id)
+            except Exception:
+                logger.warning("تعذر جدولة LTI AGS event %s؛ سيُعاد التقاطه لاحقًا", event_id)
 
     _CELERY_AVAILABLE = True
 except ImportError:

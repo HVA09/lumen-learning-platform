@@ -13,6 +13,9 @@ const adminApi = vi.hoisted(() => ({
 }));
 
 vi.mock("../lib/adminApi", () => adminApi);
+vi.mock("./LTIAdminPanel", () => ({
+  default: () => <div data-testid="lti-admin-panel">lti-admin-panel</div>,
+}));
 vi.mock("recharts", () => ({
   CartesianGrid: () => null,
   Line: () => null,
@@ -185,6 +188,14 @@ describe("AdminDashboard", () => {
     await user.click(screen.getByRole("button", { name: "السجل" }));
 
     expect(await screen.findByText("لا توجد أحداث بعد")).toBeInTheDocument();
+  });
+
+  it("opens the LTI administration panel from its dedicated tab", async () => {
+    const user = userEvent.setup();
+    render(<AdminDashboard currentUserId={currentAdmin.id} onClose={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: "تكامل LTI" }));
+    expect(screen.getByTestId("lti-admin-panel")).toBeInTheDocument();
   });
 
   it("calls onClose when the dashboard is closed", async () => {

@@ -60,6 +60,7 @@ def get_current_user(
         raise credentials_error
 
     session_id = payload.get("sid")
+    auth_session = None
     if session_id:
         auth_session = db.get(AuthSession, session_id)
         now = datetime.now(timezone.utc)
@@ -75,6 +76,9 @@ def get_current_user(
         # Legacy stateless tokens remain accepted only via explicit Bearer auth.
         raise credentials_error
 
+    # Expose the already-validated session to routes that need verified LTI context.
+    # Never trust request/session context before the token and ownership checks above pass.
+    request.state.auth_session = auth_session
     return user
 
 

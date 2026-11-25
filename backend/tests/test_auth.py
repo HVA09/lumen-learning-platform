@@ -4,6 +4,7 @@
 """
 from app.auth.security import create_password_reset_token
 from app.config import settings
+from app.models.auth_session import AuthSession
 from app.models.user import User
 
 
@@ -214,7 +215,7 @@ def test_cookie_authenticated_mutations_require_valid_csrf_token(client):
     assert accepted.json()["full_name"] == "مع CSRF"
 
 
-def test_logout_revokes_cookie_session_and_clears_session_cookies(client):
+def test_logout_revokes_cookie_session_and_clears_lti_context(client, db_session):
     client.post(
         "/auth/register",
         json={"email": "logout-cookie@example.com", "password": "StrongPass123"},
@@ -226,6 +227,12 @@ def test_logout_revokes_cookie_session_and_clears_session_cookies(client):
     assert login.status_code == 200
     assert client.get("/users/me").status_code == 200
 
+    auth_session = db_session.query(AuthSession).one()
+    auth_session.lti_deployment_id = "deployment-test"
+    auth_session.lti_resource_link_id = "resource-test"
+    auth_session.lti_subject = "learner-subject-test"
+    db_session.commit()
+
     response = client.post(
         "/auth/logout",
         headers={"X-CSRF-Token": client.cookies.get("lumen_csrf")},
@@ -235,6 +242,13 @@ def test_logout_revokes_cookie_session_and_clears_session_cookies(client):
     assert client.cookies.get("lumen_access") is None
     assert client.cookies.get("lumen_refresh") is None
     assert client.get("/users/me").status_code == 401
+
+    db_session.refresh(auth_session)
+    assert auth_session.revoked_at is not None
+    assert auth_session.lti_platform_id is None
+    assert auth_session.lti_deployment_id is None
+    assert auth_session.lti_resource_link_id is None
+    assert auth_session.lti_subject is None
 
 
 def test_logout_revokes_only_the_current_device_session(client):
